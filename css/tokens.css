@@ -1,0 +1,42 @@
+/* Kvadrat.rs — tokens: CSS promenljive (svetla tema, sistemska tamna tema, ručno izabrana tamna tema). */
+
+/* ── tokeni ── */
+:root{
+  --bg:#ffffff; --surface:#f7f8fa; --surface2:#eef1f5; --border:#e0e5ec; --border-str:#cdd5e0;
+  --text:#1e2129; --muted:#5d6878; --faint:#8a94a4;
+  --brand:#1c70ef; --brand-d:#1553c4; --brand-soft:#e9f0fe; --brand-ink:#123a80;
+  --accent:#ea5a17; --accent-soft:#fdeee4; --accent-ink:#8a3208;
+  --ok:#0f766e; --ok-soft:#e2f3f0;
+  --amber:#b45309; --amber-soft:#fdf0da;
+  --map-bg:#e8ecef; --map-block:#d6dce2; --map-road:#ffffff; --map-water:#b9d2e8;
+  --on-brand:#ffffff; --on-accent:#ffffff;
+  --shadow:0 1px 2px rgba(20,28,45,.05),0 6px 20px -10px rgba(20,28,45,.18);
+  --shadow-lg:0 10px 34px -12px rgba(20,28,45,.26);
+  --r:12px; --r-lg:16px;
+  --f-ui:'Manrope',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --f-tx:'Source Sans 3',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#10131a; --surface:#161a22; --surface2:#1d222d; --border:#29303d; --border-str:#39414f;
+    --text:#e6eaf1; --muted:#9aa5b6; --faint:#6f7b8d;
+    --brand:#5397ff; --brand-d:#7cb1ff; --brand-soft:#152742; --brand-ink:#bcd6ff;
+    --accent:#f4793e; --accent-soft:#2b1a11; --accent-ink:#ffc9a8;
+    --ok:#4fd1b9; --ok-soft:#11302c; --amber:#f0b45a; --amber-soft:#2e2413;
+    --map-bg:#1b212b; --map-block:#242c38; --map-road:#39414f; --map-water:#1d3550;
+    --on-brand:#0a1220; --on-accent:#1a0d05;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+    --shadow-lg:0 14px 40px -14px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10131a; --surface:#161a22; --surface2:#1d222d; --border:#29303d; --border-str:#39414f;
+  --text:#e6eaf1; --muted:#9aa5b6; --faint:#6f7b8d;
+  --brand:#5397ff; --brand-d:#7cb1ff; --brand-soft:#152742; --brand-ink:#bcd6ff;
+  --accent:#f4793e; --accent-soft:#2b1a11; --accent-ink:#ffc9a8;
+  --ok:#4fd1b9; --ok-soft:#11302c; --amber:#f0b45a; --amber-soft:#2e2413;
+  --map-bg:#1b212b; --map-block:#242c38; --map-road:#39414f; --map-water:#1d3550;
+  --on-brand:#0a1220; --on-accent:#1a0d05;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+  --shadow-lg:0 14px 40px -14px rgba(0,0,0,.7);
+}

@@ -1,0 +1,5 @@
+/* Kvadrat.rs — agencije: omot kartice i opis agencije na stranici sa listom agencija (sama kartica .agc je u components.css). */
+
+/* ── agencije ── */
+.agc-wrap{display:flex;flex-direction:column;gap:12px;padding:6px;border-radius:var(--r-lg)}
+.agc-d{font-size:14px;color:var(--muted);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
