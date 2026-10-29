@@ -1,42 +1,130 @@
-/* Kvadrat.rs — tokens: CSS promenljive (svetla tema, sistemska tamna tema, ručno izabrana tamna tema). */
-
-/* ── tokeni ── */
+/* Kvadrat.rs design tokens — light on :root, dark via media query + data-theme */
+/*
+  Fonts — one <link> in <head>, preceded by the two preconnects (copy verbatim into index.html):
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,50;1,9..144,300..700,50&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+*/
 :root{
-  --bg:#ffffff; --surface:#f7f8fa; --surface2:#eef1f5; --border:#e0e5ec; --border-str:#cdd5e0;
-  --text:#1e2129; --muted:#5d6878; --faint:#8a94a4;
-  --brand:#1c70ef; --brand-d:#1553c4; --brand-soft:#e9f0fe; --brand-ink:#123a80;
-  --accent:#ea5a17; --accent-soft:#fdeee4; --accent-ink:#8a3208;
-  --ok:#0f766e; --ok-soft:#e2f3f0;
-  --amber:#b45309; --amber-soft:#fdf0da;
-  --map-bg:#e8ecef; --map-block:#d6dce2; --map-road:#ffffff; --map-water:#b9d2e8;
-  --on-brand:#ffffff; --on-accent:#ffffff;
-  --shadow:0 1px 2px rgba(20,28,45,.05),0 6px 20px -10px rgba(20,28,45,.18);
-  --shadow-lg:0 10px 34px -12px rgba(20,28,45,.26);
-  --r:12px; --r-lg:16px;
-  --f-ui:'Manrope',system-ui,-apple-system,'Segoe UI',sans-serif;
-  --f-tx:'Source Sans 3',system-ui,-apple-system,'Segoe UI',sans-serif;
+  /* surfaces */
+  --bg:#FBFBF9;            /* paper */
+  --surface:#F3F4F0;       /* hover rows, tags, skeleton */
+  --surface-2:#E9EBE5;     /* image placeholders, bars track */
+  --border:#DFE2DB;        /* hairlines */
+  --border-strong:#BFC5BD; /* input/chip borders, median tick */
+  /* text */
+  --ink:#15181A;           /* headlines, prices, primary ink buttons */
+  --text:#232725;          /* body */
+  --muted:#5F6662;         /* captions, labels (5.69:1 on bg) — floor for any text */
+  --faint:#6E756F;         /* strikethrough, dividers, decorative only; never text <14px */
+  /* accent (pine) */
+  --accent:#0F4C3C;
+  --accent-hover:#0B3B2F;
+  --accent-soft:#E2EEE7;
+  --accent-ink:#0A3A2D;    /* text on accent-soft (10.6:1) */
+  --on-accent:#FFFFFF;
+  /* semantic — used ONLY by Δ chips, form validation, toasts */
+  --success:#0B7A52; --success-soft:#DCF3E8; --success-ink:#0B6B48;
+  --warning:#8A5A00; --warning-soft:#F6E9C8; --warning-ink:#6B4600;
+  --danger:#C22F2F;  --danger-soft:#FBE2E0;  --danger-ink:#A52525;
+  /* badges */
+  --sale:#15181A; --on-sale:#FBFBF9;        /* Snižena cena / Hitno: ink on paper, no red */
+  /* over photos */
+  --photo-ink:rgba(21,24,26,.78); --photo-text:#FFFFFF; --photo-dim:rgba(21,24,26,.18);
+  /* map */
+  --map-bg:#E6E9E2; --map-block:#D9DDD4; --map-road:#FBFBF9; --map-park:#CFDACB; --map-water:#C5D5DA;
+  --map-label:#5F6662;
+  /* charts */
+  --chart-line:#0F4C3C; --chart-fill:rgba(15,76,60,.10); --chart-grid:#DFE2DB; --chart-ref:#BFC5BD;
+  /* shadows */
+  --shadow-sm:0 1px 1px rgba(21,24,26,.04),0 2px 6px rgba(21,24,26,.08);
+  --shadow:0 1px 1px rgba(21,24,26,.04),0 12px 32px -18px rgba(21,24,26,.28);
+  --shadow-lg:0 2px 4px rgba(21,24,26,.06),0 24px 48px -16px rgba(21,24,26,.32);
+  --shadow-pin:0 2px 6px rgba(21,24,26,.22);
+  --shadow-sheet:0 -12px 40px rgba(21,24,26,.22);
+  /* radii — square system; pills are for filters only */
+  --r:3px;        /* photos, cards, badges, buttons, inputs */
+  --r-md:6px;     /* search box, contact card, map, modal */
+  --r-lg:16px;    /* bottom sheet top corners only */
+  --r-pill:999px; /* filter chips, segmented control, Filteri button */
+  /* spacing (4px base) */
+  --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:20px; --s-6:24px;
+  --s-7:32px; --s-8:40px; --s-9:48px; --s-10:64px; --s-11:80px; --s-12:112px;
+  /* layout */
+  --container:1280px; --container-text:66ch; --header-h:64px; --bottom-nav-h:56px;
+  --gutter:max(16px,env(safe-area-inset-left,0px));
+  --gutter-r:max(16px,env(safe-area-inset-right,0px));
+  --tap:44px; --tap-sm:40px;
+  /* type */
+  --f-display:'Fraunces',Georgia,'Times New Roman',serif;
+  --f-body:'Hanken Grotesk','Helvetica Neue',Arial,system-ui,sans-serif;
+  --fs-hero:clamp(40px,5.6vw,74px);
+  --fs-h1:clamp(28px,3.4vw,44px);
+  --fs-h2:clamp(26px,2.6vw,34px);
+  --fs-h3:22px;
+  --fs-price-xl:clamp(38px,3.6vw,46px);
+  --fs-price:26px;
+  --fs-price-sm:22px;
+  --fs-lede:clamp(16px,1.4vw,18px);
+  --fs-desc-lede:20px;
+  --fs-body:15px;
+  --fs-sm:14px;
+  --fs-xs:13px;
+  --fs-label:12px;
+  --fs-badge:11px;
+  --lh-tight:1.05; --lh-snug:1.3; --lh-body:1.5;
+  --ls-display:-0.015em; --ls-hero:-0.01em; --ls-label:.08em; --ls-badge:.04em;
+  --soft:"SOFT" 50;
+  /* motion */
+  --dur-fast:120ms; --dur:180ms; --dur-slow:320ms; --dur-photo:500ms;
+  --ease:cubic-bezier(.2,.7,.2,1); --ease-in:cubic-bezier(.4,0,1,1); --ease-out:cubic-bezier(0,0,.2,1);
+  color-scheme:light;
 }
+
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
-    --bg:#10131a; --surface:#161a22; --surface2:#1d222d; --border:#29303d; --border-str:#39414f;
-    --text:#e6eaf1; --muted:#9aa5b6; --faint:#6f7b8d;
-    --brand:#5397ff; --brand-d:#7cb1ff; --brand-soft:#152742; --brand-ink:#bcd6ff;
-    --accent:#f4793e; --accent-soft:#2b1a11; --accent-ink:#ffc9a8;
-    --ok:#4fd1b9; --ok-soft:#11302c; --amber:#f0b45a; --amber-soft:#2e2413;
-    --map-bg:#1b212b; --map-block:#242c38; --map-road:#39414f; --map-water:#1d3550;
-    --on-brand:#0a1220; --on-accent:#1a0d05;
-    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
-    --shadow-lg:0 14px 40px -14px rgba(0,0,0,.7);
+    --bg:#121412; --surface:#191C19; --surface-2:#222623; --border:#2B302C; --border-strong:#3E463F;
+    --ink:#F3F4F0; --text:#E6E8E2; --muted:#A3A9A2; --faint:#8A918A;
+    --accent:#8ED0B0; --accent-hover:#A8DEC3; --accent-soft:#1A2E26; --accent-ink:#C2E8D4; --on-accent:#0C1F18;
+    --success:#3FCF95; --success-soft:#10302A; --success-ink:#7FE0BA;
+    --warning:#E6B35A; --warning-soft:#332611; --warning-ink:#F0CB85;
+    --danger:#F26C62;  --danger-soft:#3A1B1B;  --danger-ink:#F79A93;
+    --sale:#F3F4F0; --on-sale:#121412;
+    --photo-ink:rgba(8,10,9,.82); --photo-text:#F3F4F0; --photo-dim:rgba(8,10,9,.28);
+    --map-bg:#1A1E1B; --map-block:#242925; --map-road:#30362F; --map-park:#1E2A22; --map-water:#1C2A2E; --map-label:#A3A9A2;
+    --chart-line:#8ED0B0; --chart-fill:rgba(142,208,176,.12); --chart-grid:#2B302C; --chart-ref:#3E463F;
+    --shadow-sm:0 1px 1px rgba(0,0,0,.3),0 2px 6px rgba(0,0,0,.35);
+    --shadow:0 1px 1px rgba(0,0,0,.3),0 12px 32px -18px rgba(0,0,0,.7);
+    --shadow-lg:0 2px 4px rgba(0,0,0,.4),0 24px 48px -16px rgba(0,0,0,.8);
+    --shadow-pin:0 2px 6px rgba(0,0,0,.5);
+    --shadow-sheet:0 -12px 40px rgba(0,0,0,.6);
+    color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
-  --bg:#10131a; --surface:#161a22; --surface2:#1d222d; --border:#29303d; --border-str:#39414f;
-  --text:#e6eaf1; --muted:#9aa5b6; --faint:#6f7b8d;
-  --brand:#5397ff; --brand-d:#7cb1ff; --brand-soft:#152742; --brand-ink:#bcd6ff;
-  --accent:#f4793e; --accent-soft:#2b1a11; --accent-ink:#ffc9a8;
-  --ok:#4fd1b9; --ok-soft:#11302c; --amber:#f0b45a; --amber-soft:#2e2413;
-  --map-bg:#1b212b; --map-block:#242c38; --map-road:#39414f; --map-water:#1d3550;
-  --on-brand:#0a1220; --on-accent:#1a0d05;
-  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
-  --shadow-lg:0 14px 40px -14px rgba(0,0,0,.7);
+  --bg:#121412; --surface:#191C19; --surface-2:#222623; --border:#2B302C; --border-strong:#3E463F;
+  --ink:#F3F4F0; --text:#E6E8E2; --muted:#A3A9A2; --faint:#8A918A;
+  --accent:#8ED0B0; --accent-hover:#A8DEC3; --accent-soft:#1A2E26; --accent-ink:#C2E8D4; --on-accent:#0C1F18;
+  --success:#3FCF95; --success-soft:#10302A; --success-ink:#7FE0BA;
+  --warning:#E6B35A; --warning-soft:#332611; --warning-ink:#F0CB85;
+  --danger:#F26C62;  --danger-soft:#3A1B1B;  --danger-ink:#F79A93;
+  --sale:#F3F4F0; --on-sale:#121412;
+  --photo-ink:rgba(8,10,9,.82); --photo-text:#F3F4F0; --photo-dim:rgba(8,10,9,.28);
+  --map-bg:#1A1E1B; --map-block:#242925; --map-road:#30362F; --map-park:#1E2A22; --map-water:#1C2A2E; --map-label:#A3A9A2;
+  --chart-line:#8ED0B0; --chart-fill:rgba(142,208,176,.12); --chart-grid:#2B302C; --chart-ref:#3E463F;
+  --shadow-sm:0 1px 1px rgba(0,0,0,.3),0 2px 6px rgba(0,0,0,.35);
+  --shadow:0 1px 1px rgba(0,0,0,.3),0 12px 32px -18px rgba(0,0,0,.7);
+  --shadow-lg:0 2px 4px rgba(0,0,0,.4),0 24px 48px -16px rgba(0,0,0,.8);
+  --shadow-pin:0 2px 6px rgba(0,0,0,.5);
+  --shadow-sheet:0 -12px 40px rgba(0,0,0,.6);
+  color-scheme:dark;
+}
+
+/* dark: photos are left light but dimmed slightly so they sit in the page */
+:root[data-theme="dark"] .ph>img, :root[data-theme="dark"] .ph>svg{filter:brightness(.9)}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .ph>img, :root:not([data-theme="light"]) .ph>svg{filter:brightness(.9)} }
+
+@media (prefers-reduced-motion:reduce){
+  :root{--dur-fast:0ms;--dur:0ms;--dur-slow:0ms;--dur-photo:0ms}
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
 }

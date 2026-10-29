@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="sr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Kvadrat — test slika</title>
+<meta name="description" content="Dev stranica: pregled proceduralnih SVG fotografija (img.src/el/city/article/mark/hero) sa veličinama data-URI-ja.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,50;1,9..144,300..700,50&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#FBFBF9;--surface-2:#E9EBE5;--border:#DFE2DB;--ink:#15181A;--text:#232725;--muted:#5F6662;--accent:#0F4C3C;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121412;--surface-2:#222623;--border:#2B302C;--ink:#F3F4F0;--text:#E6E8E2;--muted:#A3A9A2;--accent:#8ED0B0;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#121412;--surface-2:#222623;--border:#2B302C;--ink:#F3F4F0;--text:#E6E8E2;--muted:#A3A9A2;--accent:#8ED0B0;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:'Hanken Grotesk','Helvetica Neue',Arial,system-ui,sans-serif;font-size:14px;line-height:1.45;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+img,svg{display:block;max-width:100%}
+.wrap{max-width:1280px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1{font-family:Fraunces,Georgia,serif;font-weight:400;font-size:clamp(28px,3.4vw,40px);letter-spacing:-.015em;line-height:1.1;margin:40px 0 8px}
+h2{font-family:Fraunces,Georgia,serif;font-weight:400;font-size:26px;letter-spacing:-.015em;margin:48px 0 6px;padding-top:24px;border-top:1px solid var(--border)}
+h3{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:22px 0 10px}
+p{margin:0 0 6px;color:var(--muted)}
+.num{font-variant-numeric:tabular-nums}
+.grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:18px 12px}
+.grid.c4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.grid.c8{grid-template-columns:repeat(8,minmax(0,1fr))}
+@media (max-width:1100px){.grid{grid-template-columns:repeat(4,minmax(0,1fr))}.grid.c8{grid-template-columns:repeat(6,minmax(0,1fr))}}
+@media (max-width:600px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.grid.c4{grid-template-columns:repeat(2,minmax(0,1fr))}.grid.c8{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.ph{position:relative;overflow:hidden;border-radius:3px;background:var(--surface-2)}
+.ph.r43{aspect-ratio:4/3}.ph.r1610{aspect-ratio:16/10}.ph.r11{aspect-ratio:1/1}.ph.r45{aspect-ratio:4/5}
+.ph>img,.ph>svg{width:100%;height:100%;object-fit:cover}
+figure{margin:0;min-width:0}
+figcaption{font-size:12px;color:var(--muted);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+figcaption b{color:var(--text);font-weight:500}
+.hero{max-width:420px}
+.stats{display:flex;gap:28px;flex-wrap:wrap;margin:14px 0 4px}
+.stats b{display:block;font-family:Fraunces,Georgia,serif;font-weight:500;font-size:26px;color:var(--ink)}
+.stats span{font-size:13px;color:var(--muted)}
+.note{font-size:13px;color:var(--muted);padding-left:12px;border-left:2px solid var(--accent);margin:14px 0}
+.toggle{position:fixed;right:max(16px,env(safe-area-inset-right,0px));top:12px;height:40px;padding:0 14px;border:1px solid var(--border);border-radius:3px;background:var(--bg);color:var(--text);font:inherit;font-weight:600;cursor:pointer;z-index:5}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+footer{padding:40px 0 60px;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<button class="toggle" type="button" id="theme" aria-pressed="false">Tema</button>
+<main class="wrap">
+  <h1>Proceduralne fotografije</h1>
+  <p>Svaka slika je <code>data:image/svg+xml</code> URI, determinističan iz <code>hash(slug + '#' + idx)</code>. Tri filmske palete, zlatni sat s desne strane, horizont na 76 %, vinjeta + zrno, tačno jedan pine prozor po sceni.</p>
+  <div class="stats" id="stats"></div>
+  <div class="note" id="note">Učitavanje…</div>
+  <div id="out"></div>
+</main>
+<footer class="wrap">Kvadrat.rs · dev/img — test stranica generatora slika.</footer>
+<script>
+// Učitaj data.js, core.js, images.js: prvo relativno iz korena projekta, pa iz lokalnih kopija (symlink u dev/img).
+(function () {
+  const chain = [['data.js', '../../data.js'], ['core.js', '../../js/core.js'], ['images.js', '../../js/images.js']];
+  function load(cands, done) {
+    const s = document.createElement('script'); s.charset = 'utf-8'; s.src = cands[0];
+    s.onload = done; s.onerror = () => { s.remove(); cands.length > 1 ? load(cands.slice(1), done) : done(new Error('nema ' + cands[0])); };
+    document.head.appendChild(s);
+  }
+  (function next(i) { if (i >= chain.length) return window.__imgTest(); load(chain[i], () => next(i + 1)); })(0);
+})();
+window.__imgTest = function () {
+  'use strict';
+  if (typeof hash !== 'function') window.hash = (str) => { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+  if (typeof rng !== 'function') window.rng = (seed) => { let a = seed >>> 0; return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
+  const D = window.KV, out = document.getElementById('out');
+  const KB = (u) => (new Blob([u]).size / 1024);
+  const all = []; const bySec = {};
+  const h = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
+  const fig = (node, ratio, label, kb, sec) => {
+    const f = h('figure'); const ph = h('div', 'ph ' + ratio); ph.appendChild(node); f.appendChild(ph);
+    f.appendChild(h('figcaption', null, `<b>${label}</b>${kb != null ? ` · <span class="num">${kb.toFixed(1)} KB</span>` : ''}`));
+    if (kb != null) { all.push(kb); (bySec[sec] = bySec[sec] || []).push(kb); }
+    return f;
+  };
+  const section = (title, sub) => { out.appendChild(h('h2', null, title)); if (sub) out.appendChild(h('p', null, sub)); };
+  const TYPES = ['stan', 'kuca', 'poslovni-prostor', 'zemljiste', 'soba', 'garaza', 'vikendica'];
+  const NAMES = { stan: 'Stanovi', kuca: 'Kuće', 'poslovni-prostor': 'Poslovni prostor', zemljiste: 'Zemljište', soba: 'Sobe', garaza: 'Garaže', vikendica: 'Vikendice' };
+
+  section('Hero · Oglas nedelje', '4:5, paleta A, 35 % upaljenih prozora, lampa u sredini, jača izmaglica — inline SVG (img.hero()).');
+  const hw = h('div', 'hero'); const hs = img.hero(); const hd = h('div'); hd.innerHTML = hs; hw.appendChild(fig(hd.firstElementChild, 'r45', 'img.hero()', KB(hs), 'hero')); out.appendChild(hw);
+
+  for (const t of TYPES) {
+    const ls = D.listings.filter((l) => l.pt === t).slice(0, 12);
+    section(NAMES[t] + ' · idx 0–3 · 4:3', `${ls.length} oglasa × 4 kadra · kinds: ${img.kinds(ls[0]).slice(0, 4).join(', ')}`);
+    const g = h('div', 'grid c8'); out.appendChild(g);
+    for (const l of ls) for (let i = 0; i < 4; i++) {
+      const k = img.kinds(l)[i % img.kinds(l).length]; const e = img.el(l, i, { aspect: '4:3' });
+      g.appendChild(fig(e, 'r43', `${k} · ${img.palette(l.s).id}`, KB(e.src), t));
+    }
+  }
+
+  section('Isečci · 16:10 i 1:1', 'Ista scena, viewBox isečak (preserveAspectRatio slice): galerija 16:10 i kvadratne sličice.');
+  const l0 = D.listings.filter((l) => l.pt === 'stan').slice(0, 6);
+  const g1 = h('div', 'grid'); out.appendChild(g1);
+  l0.forEach((l, i) => g1.appendChild(fig(img.el(l, i, { aspect: '16:10' }), 'r1610', '16:10 · ' + img.kinds(l)[i], KB(img.src(l, i, { aspect: '16:10' })), 'crop')));
+  const g2 = h('div', 'grid c8'); out.appendChild(g2);
+  l0.forEach((l, i) => g2.appendChild(fig(img.el(l, i, { aspect: '1:1' }), 'r11', '1:1 · ' + img.kinds(l)[i], KB(img.src(l, i, { aspect: '1:1' })), 'crop')));
+  D.listings.filter((l) => l.pt === 'kuca').slice(0, 2).forEach((l) => g2.appendChild(fig(img.el(l, 0, { aspect: '1:1' }), 'r11', '1:1 · house', KB(img.src(l, 0, { aspect: '1:1' })), 'crop')));
+
+  section('Gradovi · 34', 'img.city(slug) — silueta sa prepoznatljivim motivima (Hram, Ada, Petrovaradin, Gradska kuća, planine…), 16:10.');
+  const gc = h('div', 'grid'); out.appendChild(gc);
+  for (const c of D.cities) { const u = img.city(c.s); const im = new Image(); im.src = u; im.alt = c.n; im.loading = 'lazy'; gc.appendChild(fig(im, 'r1610', c.n, KB(u), 'city')); }
+
+  section('Saveti · 12', 'img.article(slug) — apstraktna editorijalna ilustracija po kategoriji (saveti, vodiči, tržište, kredit, pravni saveti).');
+  const ga = h('div', 'grid c4'); out.appendChild(ga);
+  for (const a of D.articles) { const u = img.article(a.s); const im = new Image(); im.src = u; im.alt = a.t; im.loading = 'lazy'; ga.appendChild(fig(im, 'r1610', a.c + ' · ' + a.t, KB(u), 'article')); }
+
+  section('Agencije · 18', 'img.mark(agency) — monogram pločica 1:1, serif inicijali, pine detalj.');
+  const gm = h('div', 'grid c8'); out.appendChild(gm);
+  for (const a of D.agencies) { const u = img.mark(a); const im = new Image(); im.src = u; im.alt = a.n; gm.appendChild(fig(im, 'r11', a.n, KB(u), 'mark')); }
+
+  const avg = (a) => a.reduce((x, y) => x + y, 0) / (a.length || 1);
+  const st = document.getElementById('stats');
+  st.innerHTML = `<div><b class="num">${all.length}</b><span>slika</span></div><div><b class="num">${avg(all).toFixed(1)} KB</b><span>prosek data-URI</span></div><div><b class="num">${Math.max(...all).toFixed(1)} KB</b><span>najveća</span></div>`;
+  document.getElementById('note').innerHTML = 'Prosek po sekciji: ' + Object.keys(bySec).map((k) => `${k} <b class="num">${avg(bySec[k]).toFixed(1)}</b>`).join(' · ') + ' KB';
+  window.__imgStats = { n: all.length, avg: avg(all), max: Math.max(...all), bySec: Object.fromEntries(Object.keys(bySec).map((k) => [k, avg(bySec[k])])) };
+};
+document.getElementById('theme').addEventListener('click', (e) => {
+  const r = document.documentElement; const dark = r.getAttribute('data-theme') === 'dark' || (!r.getAttribute('data-theme') && matchMedia('(prefers-color-scheme:dark)').matches);
+  r.setAttribute('data-theme', dark ? 'light' : 'dark'); e.currentTarget.setAttribute('aria-pressed', String(!dark));
+});
+</script>
+</body>
+</html>
