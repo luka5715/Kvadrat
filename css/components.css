@@ -41,6 +41,7 @@
 .price{font-family:var(--f-display);font-variation-settings:var(--soft);font-size:var(--fs-price);font-weight:500;color:var(--ink);letter-spacing:-.01em;line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap}
 .price s{color:var(--muted);font-size:16px;font-weight:400;margin-left:6px;font-family:var(--f-body);letter-spacing:0;text-decoration-color:var(--faint)}
 .price-sm{font-size:var(--fs-price-sm)}
+@media (max-width:1600px){.cards .price s{display:block;margin-left:0;font-size:14px;line-height:1.3;margin-top:2px}}
 .pricerow .ctx{margin-left:auto;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 .ppm{color:var(--muted);font-size:14px;font-variant-numeric:tabular-nums}
 .card h3{font-size:17px;font-weight:600;line-height:1.3;margin-top:8px;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -161,7 +162,7 @@
 .acc .body{padding:0 0 18px;color:var(--text)}
 
 /* ───────── modal i donji list (§5.13) ───────── */
-.backdrop{position:fixed;inset:0;background:rgba(21,24,26,.5);z-index:40;opacity:0;transition:opacity var(--dur) var(--ease)}
+.backdrop{position:fixed;inset:0;background:var(--backdrop);z-index:40;opacity:0;transition:opacity var(--dur) var(--ease)}
 .backdrop.in{opacity:1}
 .modal{position:fixed;inset:0;display:grid;place-items:center;z-index:50;padding:16px}
 .modal .panel{width:min(560px,100%);max-height:calc(100dvh - 32px);overflow:auto;background:var(--bg);border-radius:var(--r-md);box-shadow:var(--shadow-lg);padding:24px;opacity:0;transform:translateY(8px);transition:opacity var(--dur) var(--ease-out),transform var(--dur) var(--ease-out)}
@@ -224,6 +225,8 @@ body.sheet-open,body.modal-open{overflow:hidden}
 .pager [disabled]{opacity:.35;pointer-events:none}
 .pager .dots{width:28px;text-align:center;color:var(--muted)}
 .pager .per{margin-left:auto;display:inline-flex;align-items:center;gap:8px;font-size:14px;color:var(--muted)}
+.pager .cur{display:none}
+@media (max-width:600px){.pager{gap:8px}.pager .dots,.pager .pg:not([aria-current="page"]){display:none}.pager .cur{display:inline;font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums;padding:0 4px}.pager .per{margin-left:auto}}
 .load-more{margin:24px 0}
 
 /* ───────── mrvice (§5.18) ───────── */
@@ -334,20 +337,20 @@ body.sheet-open,body.modal-open{overflow:hidden}
   .gallery-wrap .gbadges{left:12px;top:12px}
   .gallery-wrap .gpager{position:absolute;left:12px;bottom:12px;display:inline-flex;height:28px;align-items:center;padding:0 10px;background:var(--photo-ink);color:var(--photo-text);border-radius:2px;font-size:13px;font-variant-numeric:tabular-nums;z-index:2}
 }
-.lightbox{position:fixed;inset:0;background:#0B0D0C;z-index:50;display:flex;flex-direction:column;color:#F3F4F0}
+.lightbox{position:fixed;inset:0;background:var(--lightbox-bg);z-index:50;display:flex;flex-direction:column;color:var(--lightbox-text)}
 .lightbox .top{display:flex;align-items:center;justify-content:space-between;height:56px;padding:0 var(--gutter-r) 0 var(--gutter);font-size:14px;font-variant-numeric:tabular-nums;flex:none}
-.lightbox .top .iconbtn{width:44px;height:44px;color:#F3F4F0}
-.lightbox .top .iconbtn:hover{background:rgba(255,255,255,.08);color:#fff}
+.lightbox .top .iconbtn{width:44px;height:44px;color:var(--lightbox-text)}
+.lightbox .top .iconbtn:hover{background:var(--lightbox-hover);color:var(--lightbox-text)}
 .lightbox .stage{flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center;padding:0 16px}
 .lightbox .stage img,.lightbox .stage svg{max-width:100%;max-height:100%;width:auto;height:100%;object-fit:contain;border-radius:var(--r)}
-.lightbox .arr{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:var(--r);background:rgba(255,255,255,.08);color:#F3F4F0;display:inline-flex;align-items:center;justify-content:center}
+.lightbox .arr{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:var(--r);background:var(--lightbox-hover);color:var(--lightbox-text);display:inline-flex;align-items:center;justify-content:center}
 .lightbox .arr.l{left:16px}.lightbox .arr.r{right:16px}
 .lightbox .thumbs{display:flex;gap:6px;padding:8px var(--gutter-r) calc(8px + env(safe-area-inset-bottom,0px)) var(--gutter);height:calc(64px + 16px + env(safe-area-inset-bottom,0px));overflow-x:auto;scrollbar-width:none;flex:none}
 .lightbox .thumbs::-webkit-scrollbar{display:none}
 .lightbox .thumbs button{width:64px;height:64px;flex:none;border-radius:var(--r);overflow:hidden;opacity:.6;padding:0;border:2px solid transparent}
 .lightbox .thumbs button[aria-current="true"]{opacity:1;border-color:var(--accent)}
 .lightbox .thumbs img,.lightbox .thumbs svg{width:100%;height:100%;object-fit:cover}
-.lightbox :focus-visible{outline-color:#F3F4F0}
+.lightbox :focus-visible{outline-color:var(--lightbox-text)}
 
 /* ───────── agencija (§5.24) ───────── */
 .agencies{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
@@ -421,7 +424,8 @@ body.sheet-open,body.modal-open{overflow:hidden}
 @media (max-width:600px){.stepper{display:none}.stepper-m{display:block;font-size:13px;color:var(--muted)}.stepper-m b{color:var(--ink);font-weight:600}.stepper-m .bar{height:2px;background:var(--border);margin-top:8px;position:relative}.stepper-m .bar i{position:absolute;left:0;top:0;bottom:0;background:var(--accent)}}
 
 /* ───────── tabela (§5.28) ───────── */
-.table-wrap{overflow-x:auto;scrollbar-width:none}
+.table-wrap{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent);-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent)}
+@media (min-width:1101px){.table-wrap{mask-image:none;-webkit-mask-image:none}}
 .table-wrap::-webkit-scrollbar{display:none}
 .table{width:100%;border-collapse:collapse;font-size:14px}
 .table th{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);text-align:left;padding:10px 12px 10px 0;border-bottom:1px solid var(--border);white-space:nowrap}
@@ -455,8 +459,8 @@ body.sheet-open,body.modal-open{overflow:hidden}
 .filterbar{display:flex;align-items:center;gap:8px;padding:12px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);position:sticky;top:var(--header-h);z-index:25;background:var(--bg);flex-wrap:wrap}
 .filterbar .sp{flex:1;min-width:8px}
 .filterbar .sort{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:var(--muted)}
-.views{display:inline-flex;border:1px solid var(--border-strong);border-radius:var(--r);overflow:hidden;flex:none;height:40px}
-.views button{height:38px;padding:0 12px;display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-weight:600;font-size:14px;white-space:nowrap}
+.views{display:inline-flex;border:1px solid var(--border-strong);border-radius:var(--r);overflow:hidden;flex:none;height:42px}
+.views button{height:40px;padding:0 12px;display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-weight:600;font-size:14px;white-space:nowrap}
 .views button+button{border-left:1px solid var(--border-strong)}
 .views button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
 .views button .ico{width:16px;height:16px}

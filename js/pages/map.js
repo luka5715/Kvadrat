@@ -10,7 +10,7 @@
 
 function viewMap(q) {
   const S = (fn, fb) => { try { const v = fn(); return v === undefined ? fb : v; } catch (e) { return fb; } };
-  if (q == null || typeof q === 'string') q = new URLSearchParams(q ? 'c=' + q : '');
+  if (q == null || typeof q === 'string') { const c = q; q = new URLSearchParams(S(() => location.hash.split('?')[1], '') || ''); if (c && !q.get('c')) q.set('c', c); }
   else if (!(q instanceof URLSearchParams)) q = new URLSearchParams(q);
   const KV = window.KV || window.D || { listings: [], cities: [], muns: [] };
   const UI = window.ui || window;
@@ -271,21 +271,23 @@ function viewMap(q) {
   const median = (arr) => { if (!arr.length) return 0; const s = [...arr].sort((a, b) => a - b); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
   function computeBudget() {
     const B = st.b || budgetDefault(); const { net, costs } = netOf(B); netInfo = { B, net, costs };
-    let rows = S(() => (window.KX && KX.budgetMap ? KX.budgetMap(B, { t: st.f.t, pt: budgetPt(), cs: st.f.c }) : null), null);
-    if (rows && rows.length) {
-      if (typeof rows.net === 'number' && !isRent()) netInfo = { B, net: Math.round(rows.net), costs: Math.round(B - rows.net) };
-      rows = rows.filter((r) => r.cs === st.f.c);
+    /* engine (KX.budgetMap, prag ≥ 5 oglasa po opštini) ima prednost po ključu; lokalni redovi (prag 3, šuplji ispod) popunjavaju ostale opštine grada */
+    let kx = S(() => (window.KX && KX.budgetMap ? KX.budgetMap(B, { t: st.f.t, pt: budgetPt(), cs: st.f.c }) : null), null);
+    const kxRows = new Map();
+    if (kx && kx.length) {
+      if (typeof kx.net === 'number' && !isRent()) netInfo = { B, net: Math.round(kx.net), costs: Math.round(B - kx.net) };
       /* KX: n = ukupno oglasa u kraju, count = u budžetu */
-      if (rows.length) return rows.map((r) => ({ ...r, label: r.label || r.key, total: r.n, n: r.count != null ? r.count : r.n, m2: r.m2 || 0, ppm: r.ppm || 0 }));
+      kx.filter((r) => r.cs === st.f.c).forEach((r) => kxRows.set(r.key, { ...r, label: r.label || r.key, total: r.n, n: r.count != null ? r.count : r.n, m2: r.m2 || 0, ppm: r.ppm || 0 }));
     }
+    const merge = (local) => { const out = local.filter((r) => !kxRows.has(r.key) && !(r.scope === 'city' && kxRows.size)); kxRows.forEach((r) => out.push(r)); return out.sort((a, b) => b.m2 - a.m2); };
     const pool = (KV.listings || []).filter((l) => l.cs === st.f.c && l.t === st.f.t && l.pt === budgetPt() && l.ppm > 0 && typeof l.lat === 'number');
     const byMs = new Map(); pool.forEach((l) => { const k = l.ms || l.ns || st.f.c; const e = byMs.get(k) || { key: k, label: l.m || l.n || l.c, cs: l.cs, lat: 0, lng: 0, n0: 0, ppms: [], ps: [] }; e.lat += l.lat; e.lng += l.lng; e.n0++; e.ppms.push(l.ppm); e.ps.push(l.p); byMs.set(k, e); });
     const out = [];
     byMs.forEach((e) => { const ok = e.n0 >= 3; const ppm = ok ? median(e.ppms) : 0; out.push({ key: e.key, label: e.label, cs: e.cs, lat: e.lat / e.n0, lng: e.lng / e.n0, m2: ok && ppm ? Math.round(net / ppm) : 0, n: e.ps.filter((p) => p <= net).length, total: e.n0, ppm: Math.round(ppm), scope: 'mun' }); });
     if (out.length === 1 || (out.length && out.every((r) => !r.m2))) { /* mali grad: jedan krug za ceo grad */
-      const city = cityOf(st.f.c); const ppm = median(pool.map((l) => l.ppm)); if (city && pool.length >= 3) return [{ key: st.f.c, label: city.n, cs: st.f.c, lat: city.lat, lng: city.lng, m2: ppm ? Math.round(net / ppm) : 0, n: pool.filter((l) => l.p <= net).length, total: pool.length, ppm: Math.round(ppm), scope: 'city' }];
+      const city = cityOf(st.f.c); const ppm = median(pool.map((l) => l.ppm)); if (city && pool.length >= 3) return merge([{ key: st.f.c, label: city.n, cs: st.f.c, lat: city.lat, lng: city.lng, m2: ppm ? Math.round(net / ppm) : 0, n: pool.filter((l) => l.p <= net).length, total: pool.length, ppm: Math.round(ppm), scope: 'city' }]);
     }
-    return out.sort((a, b) => b.m2 - a.m2);
+    return merge(out);
   }
   function enterBudget() {
     if (!map) return;

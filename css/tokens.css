@@ -31,6 +31,7 @@
   --sale:#15181A; --on-sale:#FBFBF9;        /* Snižena cena / Hitno: ink on paper, no red */
   /* over photos */
   --photo-ink:rgba(21,24,26,.78); --photo-text:#FFFFFF; --photo-dim:rgba(21,24,26,.18);
+  --lightbox-bg:#0B0D0C; --lightbox-text:#F3F4F0; --lightbox-hover:rgba(255,255,255,.08); --backdrop:rgba(21,24,26,.5);
   /* map */
   --map-bg:#E6E9E2; --map-block:#D9DDD4; --map-road:#FBFBF9; --map-park:#CFDACB; --map-water:#C5D5DA;
   --map-label:#5F6662;
@@ -91,6 +92,7 @@
     --danger:#F26C62;  --danger-soft:#3A1B1B;  --danger-ink:#F79A93;
     --sale:#F3F4F0; --on-sale:#121412;
     --photo-ink:rgba(8,10,9,.82); --photo-text:#F3F4F0; --photo-dim:rgba(8,10,9,.28);
+    --backdrop:rgba(0,0,0,.6);
     --map-bg:#1A1E1B; --map-block:#242925; --map-road:#30362F; --map-park:#1E2A22; --map-water:#1C2A2E; --map-label:#A3A9A2;
     --chart-line:#8ED0B0; --chart-fill:rgba(142,208,176,.12); --chart-grid:#2B302C; --chart-ref:#3E463F;
     --shadow-sm:0 1px 1px rgba(0,0,0,.3),0 2px 6px rgba(0,0,0,.35);
@@ -110,6 +112,7 @@
   --danger:#F26C62;  --danger-soft:#3A1B1B;  --danger-ink:#F79A93;
   --sale:#F3F4F0; --on-sale:#121412;
   --photo-ink:rgba(8,10,9,.82); --photo-text:#F3F4F0; --photo-dim:rgba(8,10,9,.28);
+  --backdrop:rgba(0,0,0,.6);
   --map-bg:#1A1E1B; --map-block:#242925; --map-road:#30362F; --map-park:#1E2A22; --map-water:#1C2A2E; --map-label:#A3A9A2;
   --chart-line:#8ED0B0; --chart-fill:rgba(142,208,176,.12); --chart-grid:#2B302C; --chart-ref:#3E463F;
   --shadow-sm:0 1px 1px rgba(0,0,0,.3),0 2px 6px rgba(0,0,0,.35);

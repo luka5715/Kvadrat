@@ -12,20 +12,21 @@ const img = (() => {
 
   /* ─── konstante ─── */
   const W = 800, H = 600, HZ = 456;            // master 4:3, horizont na 76 %
+  const MIN_TOP = 70;                           // krovna linija glavne zgrade nikad iznad y=70 (≥ 12 % neba; hero prosleđuje negativan S.minTop)
   const PINE = '#1F6B52', MINT = '#8ED0B0', PAPER = '#F4F1EC', INK = '#15181A';
   const PAL = {
     A: { id: 'A', name: 'zlatni sat', sky: ['#B9C2CC', '#E9DCCB'], haze: '#E6DCCF', wall: ['#D8CFC0', '#CBB9A4', '#B8A590', '#D9C9B2'], roof: '#3E3A36', glass: '#2E3A44', lit: '#F0C98A', ground: '#A8A196', tree: '#4F6150', vig: '#2A2622' },
     B: { id: 'B', name: 'kasno leto', sky: ['#AFBAC6', '#E3D5C4'], haze: '#DDD4C7', wall: ['#C9C2B4', '#B9AE9C', '#A89A86', '#D3C3AD'], roof: '#35322F', glass: '#28333C', lit: '#EBC585', ground: '#9E9A90', tree: '#46584A', vig: '#221F1C' },
     C: { id: 'C', name: 'svetla jesen', sky: ['#C3C9D1', '#F0E3D2'], haze: '#ECE3D7', wall: ['#E2D9CB', '#CDBFAA', '#BBAE9B', '#D6C8B4'], roof: '#46423E', glass: '#33404A', lit: '#F3D095', ground: '#B2ACA1', tree: '#5A6B52', vig: '#2E2A27' },
   };
-  const VB = { '4:3': [0, 0, 800, 600, 800, 600], '16:10': [0, 50, 800, 500, 800, 500], '1:1': [100, 0, 600, 600, 600, 600] };
+  const VB = { '4:3': [0, 0, 800, 600, 800, 600], '16:10': [0, 30, 800, 500, 800, 500], '1:1': [100, 0, 600, 600, 600, 600] };
   const KIND_ALT = { facade: 'Fasada zgrade', house: 'Kuća spolja', living: 'Dnevna soba', kitchen: 'Kuhinja', bedroom: 'Spavaća soba', bath: 'Kupatilo', balcony: 'Pogled sa terase', entrance: 'Ulaz u zgradu', land: 'Plac', backyard: 'Dvorište', garage: 'Garaža', office: 'Poslovna zgrada', 'office-interior': 'Kancelarija' };
   const SETS = {
     stan: ['facade', 'living', 'kitchen', 'bedroom', 'bath', 'balcony', 'entrance', 'facade', 'living'],
     kuca: ['house', 'living', 'kitchen', 'bedroom', 'backyard', 'entrance', 'bath', 'house', 'land'],
     vikendica: ['house', 'living', 'kitchen', 'bedroom', 'backyard', 'land', 'bath', 'house', 'living'],
     'poslovni-prostor': ['office', 'office-interior', 'entrance', 'office-interior', 'bath', 'office', 'kitchen', 'office-interior', 'balcony'],
-    zemljiste: ['land', 'land', 'land', 'backyard', 'land', 'land', 'backyard', 'land', 'land'],
+    zemljiste: ['land', 'land', 'land', 'land', 'land', 'land', 'land', 'land', 'land'],   // varijanta po idx % 3: njiva+put / livada / voćnjak
     garaza: ['garage', 'garage', 'facade', 'garage', 'entrance', 'facade', 'garage', 'garage', 'facade'],
     soba: ['bedroom', 'living', 'facade', 'kitchen', 'bath', 'entrance', 'bedroom', 'balcony', 'living'],
   };
@@ -135,6 +136,9 @@ const img = (() => {
     S.rect(w.x, w.y, w.w, w.h, PINE, op(.95));
     S.add(`<rect x='${F(w.x + 1)}' y='${F(w.y + 1)}' width='${F(w.w - 2)}' height='${F(w.h - 2)}' fill='none' stroke='${MINT}' stroke-width='1.5'/>`);
   }
+  // okvir + sims + pregrada za pojedinačne prozore (garaža): da brend pravougaonik čita kao prozor, ne kao tabla
+  function winFrame(S, x, y, w, h) { S.rect(x - 4, y - 4, w + 8, h + 8, mix(PAPER, S.P.wall[0], .3), op(.9)); S.rect(x - 4, y - 4, w + 8, 3, S.P.vig, op(.18)); }
+  function winBars(S, x, y, w, h) { S.rect(x + w / 2 - 1, y, 2, h, S.P.roof, op(.45)); S.rect(x - 8, y + h + 4, w + 16, 5, S.P.roof, op(.45)); }
   // bira brend prozor: nije u gornjem redu, nije upaljen i nema upaljenog suseda
   function pickBrand(q, list, maxY = Infinity) {
     if (list.some((w) => w.y + w.h < maxY)) list = list.filter((w) => w.y + w.h < maxY);
@@ -150,8 +154,11 @@ const img = (() => {
   /* ─── FASADA (blok / stara gradnja / novogradnja) ─── */
   function building(S, q, B, bx, bw, sub, floors, bi, isMain, litRate) {
     const P = S.P;
-    const fh = sub === 'stara' ? 72 : sub === 'blok' ? 46 : 52;
-    const gf = sub === 'stara' ? 72 : 60;
+    const fh = sub === 'stara' ? 60 : sub === 'blok' ? 34 : 44;
+    const gf = sub === 'stara' ? 60 : 56;
+    // krovna linija ne ide iznad minTop: ostaje ≥ 12 % neba i u 16:10 / 1:1 isečku (hero zadaje negativan S.minTop)
+    const minTop = S.minTop == null ? MIN_TOP : S.minTop;
+    floors = Math.max(2, Math.min(floors, Math.floor((HZ - minTop - gf - 12) / fh)));
     const h = floors * fh + gf + 12, top = HZ - h;
     const wall = sub === 'stara' ? q.p([P.wall[3], P.wall[0], P.wall[1]]) : sub === 'blok' ? q.p([P.wall[1], P.wall[2], P.wall[0]]) : q.p([P.wall[0], P.wall[1], P.wall[3]]);
     S.rect(bx, top, bw, h, wall);
@@ -176,7 +183,7 @@ const img = (() => {
     // senka sa leve strane (svetlo s desna)
     S.rect(bx, top, bw * .12, h, P.vig, op(.12));
     // prozori
-    const cellw = sub === 'stara' ? 60 : sub === 'blok' ? 42 : 50;
+    const cellw = sub === 'stara' ? 60 : sub === 'blok' ? 34 : 48;
     const cols = Math.max(2, Math.floor((bw - 20) / cellw));
     const mg = (bw - cols * cellw) / 2;
     const ww = cellw * (sub === 'nova' ? .72 : sub === 'stara' ? .46 : .56), wh = fh * (sub === 'stara' ? .62 : sub === 'nova' ? .6 : .52);
@@ -218,12 +225,12 @@ const img = (() => {
       }
     }
     if (isMain) {
-      const ex = bx + bw / 2 - 24;
-      S.rect(ex - 10, HZ - 70, 68, 6, P.roof, op(.6));        // nadstrešnica
-      S.rect(ex, HZ - 64, 48, 6, P.lit);                      // svetlo iznad vrata
-      S.rect(ex, HZ - 58, 48, 58, P.roof);                    // vrata
-      S.rect(ex + 23, HZ - 58, 2, 58, mix(P.roof, '#ffffff', .25));
-      S.rect(ex + 56, HZ - 50, 12, 12, PAPER, op(.9));        // broj
+      const ex = bx + bw / 2 - 24, dh = gf - 14;
+      S.rect(ex - 10, HZ - dh - 12, 68, 6, P.roof, op(.6));   // nadstrešnica
+      S.rect(ex, HZ - dh - 6, 48, 6, P.lit);                  // svetlo iznad vrata
+      S.rect(ex, HZ - dh, 48, dh, P.roof);                    // vrata
+      S.rect(ex + 23, HZ - dh, 2, dh, mix(P.roof, '#ffffff', .25));
+      S.rect(ex + 56, HZ - dh + 8, 12, 12, PAPER, op(.9));    // broj
     }
     return { x: bx, w: bw, top, h, wall };
   }
@@ -334,7 +341,11 @@ const img = (() => {
     lamp(S, q.b(.5) ? 70 : 740, HZ + 96, 110);
     tree(S, q, bx - 50 + q.i(-40, 20), HZ + 60, q.f(1.1, 1.5));
     tree(S, q, bx + bw + 40 + q.i(0, 60), HZ + 40, q.f(.9, 1.3), 1);
-    if (ctx.vik || q.b(.3)) { tree(S, q, bx + bw * q.f(.2, .8), HZ + 100, q.f(.9, 1.3), 1); tree(S, q, 60, HZ + 30, .9); }
+    if (ctx.vik || q.b(.3)) { // prednje drvo: nikad ispred vrata/staze (dx-110 … dx+120 ostaje slobodno)
+      const segs = []; if (dx - 110 > bx + 40) segs.push([bx + 40, dx - 110]); if (bx + bw - 40 > dx + 120) segs.push([dx + 120, bx + bw - 40]);
+      if (segs.length) { const sg = q.p(segs); tree(S, q, q.i(sg[0], sg[1]), HZ + 100, q.f(.8, 1.1), 1); }
+      tree(S, q, 60, HZ + 30, .9);
+    }
     // živa ograda ponekad
     if (q.b(.4)) { dd = ''; for (let x = 0; x < W; x += 20) dd += `M${x} ${HZ + 56}a10 14 0 1 1 20 0z`; S.path(dd, mix(P.tree, '#8C9A6E', .3), op(.9)); }
     finish(S, .35);
@@ -658,7 +669,7 @@ const img = (() => {
     // broj + interfon + poštanski sandučići
     const num = String(1 + (H32(ctx.seed) % 180));
     S.rect(dx + dw + 30, 230, 56, 56, PAPER); S.rect(dx + dw + 30, 230, 56, 56, P.vig, op(.05));
-    S.text(dx + dw + 58, 268, num, ` font-family='Hanken Grotesk,Helvetica,Arial,sans-serif' font-weight='600' font-size='26' fill='${INK}' text-anchor='middle'${mir ? ` transform='translate(${N(2 * (dx + dw + 58))} 0) scale(-1 1)'` : ''}`);
+    S.text(dx + dw + 58, 268, num, ` font-family='Hanken Grotesk,Arial,sans-serif' font-weight='600' font-size='26' fill='${INK}' text-anchor='middle'${mir ? ` transform='translate(${N(2 * (dx + dw + 58))} 0) scale(-1 1)'` : ''}`);
     S.rect(dx + dw + 36, 310, 44, 110, '#9A9B98', ` rx='2'`); dd = ''; for (let i = 0; i < 8; i++) dd += RP(dx + dw + 44, 322 + i * 12, 28, 6); S.path(dd, P.roof, op(.7)); S.rect(dx + dw + 44, 404, 28, 12, P.lit, op(.7));
     S.rect(dx - 100, 260, 56, 120, '#9A9B98', ` rx='2'`); dd = ''; for (let i = 0; i < 4; i++) dd += RP(dx - 94, 270 + i * 28, 44, 20); S.path(dd, P.roof, op(.4));
     // žardinjere
@@ -707,29 +718,42 @@ const img = (() => {
       plant(S, q, 700, 560, 1.2);
       if (mir) S.add('</g>');
     } else {
-      // brazde u perspektivi
-      dd = ''; const vx = q.i(380, 640); for (let i = -8; i <= 16; i++) dd += `M${N(vx + i * 110)} ${H}L${N(vx + i * 10)} ${hz + 10}`;
-      S.lines(dd, P.vig, 1, op(.1));
-      // zemljani put
-      const rw = q.i(120, 200);
-      S.poly([[vx - 4, hz + 4], [vx + 6, hz + 4], [vx + rw, H], [vx - rw + 30, H]], mix(P.ground, '#C9B48A', .5), op(.95));
-      S.poly([[vx, hz + 20], [vx + 3, hz + 20], [vx + 24, H], [vx + 8, H]], g1, op(.6));
-      // ograda + stubovi (levo ili desno od puta)
+      // tri varijante placa: 0 njiva + zemljani put + ograda · 1 livada bez puta (šupa, bale) · 2 voćnjak u redovima + put
+      const lv = ctx.landVar || 0;
+      const vx = lv === 1 ? q.i(300, 500) : q.i(380, 640);
+      if (lv !== 1) { // brazde u perspektivi
+        dd = ''; for (let i = -8; i <= 16; i++) dd += `M${N(vx + i * 110)} ${H}L${N(vx + i * 10)} ${hz + 10}`;
+        S.lines(dd, P.vig, 1, op(.1));
+      }
+      if (lv !== 1) { // zemljani put
+        const rw = q.i(120, 200);
+        S.poly([[vx - 4, hz + 4], [vx + 6, hz + 4], [vx + rw, H], [vx - rw + 30, H]], mix(P.ground, '#C9B48A', .5), op(.95));
+        S.poly([[vx, hz + 20], [vx + 3, hz + 20], [vx + 24, H], [vx + 8, H]], g1, op(.6));
+      }
+      // strana ograde/voćnjaka (fl=1 desno) — parcela ide na SUPROTNU stranu puta da je stubovi ne seku
       const fl = vx > 500 ? 0 : 1; const fx0 = fl ? W - 40 : 40, fx1 = fl ? vx + 60 : vx - 60;
-      dd = ''; const nP = q.i(6, 10); for (let i = 0; i < nP; i++) { const t = i / (nP - 1); const x = fx0 + t * (fx1 - fx0), y = hz + 30 + t * 150, s = .6 + t; dd += RP(x, y - 40 * s, 5 * s, 40 * s); }
-      S.path(dd, mix(P.roof, '#C9B48A', .4), op(.9));
-      S.lines(`M${fx0} ${hz + 10}L${fx1} ${hz + 110}M${fx0} ${hz + 20}L${fx1} ${hz + 140}`, mix(P.roof, '#C9B48A', .4), 1.5, op(.6));
-      // katastarska parcela (brend element)
-      const px0 = fl ? vx + 60 : 60, px1 = fl ? W - 60 : vx - 60;
-      const px = [[px0 + q.i(20, 60), hz + q.i(40, 70)], [px1 - q.i(0, 40), hz + q.i(30, 60)], [px1 + q.i(-20, 20), hz + q.i(180, 230)], [px0 + q.i(-10, 30), hz + q.i(190, 240)]];
+      if (lv === 0) { // ograda + stubovi
+        dd = ''; const nP = q.i(6, 10); for (let i = 0; i < nP; i++) { const t = i / (nP - 1); const x = fx0 + t * (fx1 - fx0), y = hz + 30 + t * 150, s = .6 + t; dd += RP(x, y - 40 * s, 5 * s, 40 * s); }
+        S.path(dd, mix(P.roof, '#C9B48A', .4), op(.9));
+        S.lines(`M${fx0} ${hz + 10}L${fx1} ${hz + 110}M${fx0} ${hz + 20}L${fx1} ${hz + 140}`, mix(P.roof, '#C9B48A', .4), 1.5, op(.6));
+      } else if (lv === 1) { // daleka ograda duž horizonta
+        dd = ''; for (let x = 20; x < W; x += 36) dd += RP(x, hz + 14, 3, 22); S.path(dd, mix(P.roof, '#C9B48A', .4), op(.7));
+        S.rect(0, hz + 22, W, 1.5, mix(P.roof, '#C9B48A', .4), op(.5));
+      } else { // voćnjak: dva reda stabala u perspektivi
+        for (let r2 = 0; r2 < 2; r2++) for (let i = 0; i < 5; i++) { const t = i / 4; const x = fx0 + t * (fx1 - fx0) + (fl ? 1 : -1) * r2 * (40 + 70 * t), y = hz + 16 + t * 170 + r2 * 10, sc = .3 + t * .55; if (x > 0 && x < W) tree(S, q, x, y, sc, (i + r2) % 2); }
+      }
+      // katastarska parcela (brend element): na strani bez ograde, temena unutar 60–740 × ≤ 560
+      const px0 = lv === 1 ? 170 : (fl ? 60 : vx + 60), px1 = lv === 1 ? 630 : (fl ? vx - 60 : W - 60);
+      const yb = Math.min(560, hz + 230), clampP = (p) => [Math.max(60, Math.min(740, p[0])), Math.max(hz + 28, Math.min(560, p[1]))];
+      const px = [[px0 + q.i(20, 60), hz + q.i(40, 70)], [px1 - q.i(0, 40), hz + q.i(30, 60)], [px1 + q.i(-20, 20), yb - q.i(0, 30)], [px0 + q.i(-10, 30), yb - q.i(0, 20)]].map(clampP);
       S.poly(px, PINE, op(.1));
-      S.add(`<path d='M${px.map((p) => p.join(' ')).join('L')}z' fill='none' stroke='${PINE}' stroke-width='2.5' stroke-dasharray='12 7'/>`);
+      S.add(`<path d='M${px.map((p) => N(p[0]) + ' ' + N(p[1])).join('L')}z' fill='none' stroke='${PINE}' stroke-width='2.5' stroke-dasharray='12 7'/>`);
       for (const p of px) S.circle(p[0], p[1], 4.5, PINE);
-      // detalji: šupa, bale, bandera
-      if (q.b(.4)) { const sx = fl ? q.i(80, 240) : q.i(560, 700); S.rect(sx, hz - 26, 60, 36, mix(P.roof, P.wall[2], .5)); S.poly([[sx - 6, hz - 26], [sx + 30, hz - 50], [sx + 66, hz - 26]], P.roof, op(.85)); S.rect(sx + 24, hz - 10, 12, 20, P.roof); }
-      if (q.b(.4)) for (let i = 0; i < 3; i++) { const bx = q.i(60, 740), by = hz + 100 + q.i(0, 120), s = .6 + (by - hz) / 200; S.ell(bx, by, 22 * s, 13 * s, mix('#C9B48A', P.lit, .3)); S.ell(bx, by, 22 * s, 13 * s, P.vig, op(.12)); }
-      if (q.b(.6)) { const bx = fl ? q.i(100, 300) : q.i(600, 740); S.rect(bx, hz - 110, 4, 170, P.roof, op(.8)); S.rect(bx - 14, hz - 104, 32, 3, P.roof, op(.8)); S.lines(`M${bx - 14} ${hz - 104}L${fl ? 800 : 0} ${hz - 70}M${bx + 18} ${hz - 104}L${fl ? 800 : 0} ${hz - 80}`, P.roof, 1, op(.4)); }
-      const nt = q.i(2, 4); for (let i = 0; i < nt; i++) tree(S, q, q.i(20, 780), hz + q.i(10, 60), q.f(.7, 1.4), i % 2);
+      // detalji: šupa, bale, bandera (šupa i bandera na strani ograde, dalje od parcele)
+      if (lv === 1 || q.b(.4)) { const sx = lv === 1 ? q.i(60, 120) : fl ? q.i(560, 700) : q.i(80, 240); S.rect(sx, hz - 26, 60, 36, mix(P.roof, P.wall[2], .5)); S.poly([[sx - 6, hz - 26], [sx + 30, hz - 50], [sx + 66, hz - 26]], P.roof, op(.85)); S.rect(sx + 24, hz - 10, 12, 20, P.roof); }
+      if (lv === 1 || q.b(.4)) for (let i = 0; i < (lv === 1 ? 5 : 3); i++) { const bx = q.i(60, 740), by = hz + 100 + q.i(0, 120), s = .6 + (by - hz) / 200; S.ell(bx, by, 22 * s, 13 * s, mix('#C9B48A', P.lit, .3)); S.ell(bx, by, 22 * s, 13 * s, P.vig, op(.12)); }
+      if (lv !== 2 && q.b(.6)) { const bx = fl ? q.i(600, 740) : q.i(100, 300); S.rect(bx, hz - 110, 4, 170, P.roof, op(.8)); S.rect(bx - 14, hz - 104, 32, 3, P.roof, op(.8)); S.lines(`M${bx - 14} ${hz - 104}L${fl ? 800 : 0} ${hz - 70}M${bx + 18} ${hz - 104}L${fl ? 800 : 0} ${hz - 80}`, P.roof, 1, op(.4)); }
+      const nt = lv === 2 ? q.i(1, 2) : q.i(2, 4); for (let i = 0; i < nt; i++) tree(S, q, q.i(20, 780), hz + q.i(10, 60), q.f(.7, 1.4), i % 2);
       S.glow(q.i(520, 740), hz, 200, P.lit, .2);
     }
     finish(S, .32);
@@ -751,9 +775,12 @@ const img = (() => {
       const top = HZ - q.i(300, 340);
       S.rect(-20, top, W + 40, HZ - top, wall); S.rect(-20, top, 120, HZ - top, P.vig, op(.12)); S.rect(-20, top, W + 40, 10, P.roof, op(.85)); S.rect(-20, top + 10, W + 40, 6, mix(wall, P.vig, .25));
       const nD = q.i(1, 3), dw = nD === 1 ? 300 : nD === 2 ? 250 : 200, gap = (W - nD * dw) / (nD + 1);
-      for (let i = 0; i < nD; i++) { const dx = gap + i * (dw + gap); rollDoor(dx, HZ - 200, dw, 200); S.rect(dx + dw / 2 - 20, HZ - 230, 40, 20, PAPER); S.text(dx + dw / 2, HZ - 215, String(1 + ((H32(ctx.seed) + i) % 40)), ` font-family='Hanken Grotesk,Helvetica,Arial,sans-serif' font-weight='600' font-size='14' fill='${INK}' text-anchor='middle'`); S.poly([[dx, HZ], [dx + dw, HZ], [dx + dw + 30, H], [dx - 30, H]], mix(P.ground, PAPER, .2)); S.glow(dx + dw / 2, HZ - 236, 50, P.lit, .35); }
-      const side = q.b(.5), bwx = nD === 1 ? N(gap / 2 - 30) : N(gap + dw + gap / 2 - 30);
-      brandWin(S, { x: bwx, y: top + 26, w: 60, h: 46 }); S.rect(bwx - 6, top + 72, 72, 5, P.roof, op(.45));
+      for (let i = 0; i < nD; i++) { const dx = gap + i * (dw + gap); rollDoor(dx, HZ - 200, dw, 200); S.rect(dx + dw / 2 - 20, HZ - 230, 40, 20, PAPER); S.text(dx + dw / 2, HZ - 215, String(1 + ((H32(ctx.seed) + i) % 40)), ` font-family='Hanken Grotesk,Arial,sans-serif' font-weight='600' font-size='14' fill='${INK}' text-anchor='middle'`); S.poly([[dx, HZ], [dx + dw, HZ], [dx + dw + 30, H], [dx - 30, H]], mix(P.ground, PAPER, .2)); S.glow(dx + dw / 2, HZ - 236, 50, P.lit, .35); }
+      // red prozora u zidu iznad vrata: iznad svakih vrata i u svakom razmaku; brend prozor je jedan od njih (u razmaku)
+      const side = q.b(.5), wy = top + 26, cx = [];
+      for (let i = 0; i <= nD; i++) { cx.push({ x: gap / 2 + i * (dw + gap), g: true }); if (i < nD) cx.push({ x: gap + i * (dw + gap) + dw / 2, g: false }); }
+      const bwi = q.p(cx.map((c, i) => c.g ? i : -1).filter((i) => i >= 0));
+      cx.forEach((c, i) => { const wxx = N(c.x - 30); winFrame(S, wxx, wy, 60, 46); if (i === bwi) brandWin(S, { x: wxx, y: wy, w: 60, h: 46 }); else S.rect(wxx, wy, 60, 46, q.b(.25) ? P.lit : P.glass, op(.85)); winBars(S, wxx, wy, 60, 46); });
       S.rect(0, HZ, W, H - HZ, mix(P.ground, PAPER, .14));
       S.rect(0, HZ, W, 20, P.vig, op(.08));
       lamp(S, side ? 740 : 60, HZ + 10, 120);
@@ -774,10 +801,12 @@ const img = (() => {
     if (q.b(.5)) S.ell(q.i(200, 600), 560, 50, 14, P.vig, op(.14));                                                                                     // mrlja
     const dw = q.i(380, 460), dx = 180 + (440 - dw) / 2 + q.i(-20, 40), dy = 100 + q.i(0, 30), dh = 420 - dy;
     rollDoor(dx, dy, dw, dh);
-    S.text(dx + dw / 2, dy + 70, num, ` font-family='Hanken Grotesk,Helvetica,Arial,sans-serif' font-weight='700' font-size='44' fill='${P.roof}' text-anchor='middle'${op(.8)}`);
+    S.text(dx + dw / 2, dy + 70, num, ` font-family='Hanken Grotesk,Arial,sans-serif' font-weight='700' font-size='44' fill='${P.roof}' text-anchor='middle'${op(.8)}`);
     const lx = dx + dw / 2 + q.i(-100, 100);
     S.glow(lx, 56, 90, P.lit, .5); S.rect(lx - 20, 44, 40, 10, P.roof); S.rect(lx - 16, 54, 32, 4, P.lit);
-    const bwx = dx + dw + 40; brandWin(S, { x: Math.min(bwx, 720), y: 150, w: 60, h: 46 }, false); S.rect(Math.min(bwx, 720) - 6, 196, 72, 5, P.roof, op(.45));
+    const bwx = Math.min(dx + dw + 40, 720);   // dva visoka prozora na zidu: mat staklo + brend prozor
+    winFrame(S, bwx - 80, 150, 60, 46); S.rect(bwx - 80, 150, 60, 46, mix(P.sky[1], '#ffffff', .3), op(.85)); winBars(S, bwx - 80, 150, 60, 46);
+    winFrame(S, bwx, 150, 60, 46); brandWin(S, { x: bwx, y: 150, w: 60, h: 46 }, false); winBars(S, bwx, 150, 60, 46);
     // police, kante, gume, bicikl
     if (q.b(.6)) { S.rect(40, 290, 60, 130, P.roof, op(.55)); S.rect(46, 300, 48, 110, '#9A9B98', op(.6)); }
     else { S.rect(30, 230, 70, 190, P.roof, op(.5)); dd = ''; for (let i = 0; i < 4; i++) dd += RP(34, 240 + i * 46, 62, 3); S.path(dd, PAPER, op(.6)); S.rect(40, 250, 18, 28, P.lit, op(.6)); S.rect(66, 300, 22, 20, '#8A9A84'); }
@@ -793,27 +822,80 @@ const img = (() => {
     skyAndSun(S, q, HZ, .45);
     farRow(S, q);
     street(S, q);
-    const bw = q.i(420, 560), bx = (W - bw) / 2 + q.i(-60, 60), floors = q.i(6, 9), fh = 46, top = HZ - floors * fh - 70;
+    // tri kompozicije: uska kula (vidljivo nebo, viši susedi) / široka niska lamela (4–6 etaža) / ugaona, pomerena zgrada
+    const comp = q.p(['tower', 'slab', 'corner']);
+    const LOB = 60;
+    let bw, fh, floors;
+    if (comp === 'tower') { bw = q.i(260, 360); fh = q.i(28, 32); floors = q.i(9, 11); }
+    else if (comp === 'slab') { bw = q.i(480, 620); fh = q.i(44, 50); floors = q.i(4, 6); }
+    else { bw = q.i(360, 450); fh = q.i(36, 42); floors = q.i(6, 8); }
+    const minTop = MIN_TOP + (comp === 'slab' ? 40 : 0);
+    floors = Math.max(3, Math.min(floors, Math.floor((HZ - minTop - LOB - 10) / fh)));   // krov uvek ≥ 12 % od vrha
+    const bx = comp === 'corner' ? (q.b(.5) ? q.i(30, 90) : W - bw - q.i(30, 90)) : N((W - bw) / 2 + q.i(-70, 70));
+    const top = HZ - floors * fh - LOB - 10;
+    const style = q.p(['curtain', 'spandrel', 'ribbon']);   // staklena zavesa / parapetne ploče / trakasti prozori
+    const spC = q.p([P.wall[2], P.wall[1], mix(P.roof, P.wall[2], .5), P.wall[0]]);
+    // susedi: 1–2, nasumične širine, visine, boje zida; kod kule viši od obične lamele
+    const nN = q.i(1, 2), leftN = q.b(.5);
+    for (let i = 0; i < nN; i++) {
+      const side = i === 0 ? leftN : !leftN;
+      const nw = q.i(120, 260), nh = comp === 'tower' ? q.i(200, Math.min(330, HZ - MIN_TOP - 20)) : q.i(130, 250);
+      const nx = side ? bx - nw + q.i(-20, 30) : bx + bw + q.i(-30, 20);
+      const wall = q.p([P.wall[0], P.wall[1], P.wall[3], P.wall[2]]), old = q.b(.4), ntop = HZ - nh;
+      S.rect(nx, ntop, nw, nh, wall); S.rect(nx, ntop, nw * .12, nh, P.vig, op(.12)); S.rect(nx, ntop, nw, old ? 10 : 6, P.roof, op(.85));
+      const cw = old ? 50 : 40, ch = old ? 58 : 44, cols = Math.max(2, Math.floor((nw - 20) / cw)), rows = Math.max(1, Math.floor((nh - 70) / ch)), mg = (nw - cols * cw) / 2;
+      let g = '', lit = '', sill = '', corn = '';
+      for (let r2 = 0; r2 < rows; r2++) for (let c = 0; c < cols; c++) {
+        const x = nx + mg + c * cw + (old ? 13 : 7), y = ntop + 20 + r2 * ch, w = old ? 24 : 26, h = old ? 34 : 24;
+        if (q.b(.22)) lit += RP(x, y, w, h); else g += RP(x, y, w, h);
+        if (old) sill += RP(x - 3, y + h, w + 6, 4);
+        if (old && c === 0 && r2 < rows - 1) corn += RP(nx, y + h + 12, nw, 3);
+      }
+      S.path(g, P.glass, op(.78)); if (lit) S.path(lit, P.lit); if (sill) S.path(sill, P.roof, op(.45)); if (corn) S.path(corn, P.roof, op(.25));
+      S.rect(nx, HZ - 50, nw, 50, mix(wall, P.vig, .1));
+    }
     shadowLeft(S, bx, bw, HZ, 1.3);
-    S.rect(bx, top, bw, HZ - top, P.glass, op(.9));
-    S.lin('gl', '#ffffff', '#ffffff', .18, .02, false); S.rect(bx, top, bw, HZ - top, 'url(#gl)');
-    const bays = Math.max(4, Math.floor(bw / 70)), bwid = bw / bays; const brandBay = { c: q.i(1, bays - 2), f: q.i(1, 3) };
+    // glavna zgrada
+    S.rect(bx, top, bw, HZ - top, style === 'curtain' ? P.glass : spC, op(.92));
+    if (style === 'curtain') { S.lin('gl', '#ffffff', '#ffffff', .18, .02, false); S.rect(bx, top, bw, HZ - top, 'url(#gl)'); }
+    const bayW = comp === 'tower' ? q.i(44, 60) : q.i(60, 84);
+    const bays = Math.max(3, Math.floor(bw / bayW)), bwid = bw / bays;
+    const brandBay = { c: q.i(1, bays - 2), f: q.i(1, Math.max(1, floors - 2)) };   // nikad gornji ni poslednji red
     let lit = '', dd = '';
-    for (let f = 0; f < floors; f++) for (let c = 0; c < bays; c++) { const x = bx + c * bwid + 3, y = top + 10 + f * fh + 4, w = bwid - 6, h = fh - 10; if (c === brandBay.c && f === brandBay.f) { S.glow(x + w / 2, y + h / 2, 60, MINT, .18); S.rect(x, y, w, h, PINE, op(.85)); S.add(`<rect x='${N(x + 1)}' y='${N(y + 1)}' width='${N(w - 2)}' height='${N(h - 2)}' fill='none' stroke='${MINT}' stroke-width='1.5'/>`); } else if (q.b(.3)) lit += RP(x, y, w, h); else if (q.b(.3)) dd += RP(x, y, w, h); }
-    S.path(lit, P.lit, op(.85)); S.path(dd, '#ffffff', op(.08));
-    dd = ''; for (let f = 0; f <= floors; f++) dd += RP(bx, top + 10 + f * fh - 3, bw, 6); S.path(dd, P.haze, op(.9));
-    dd = ''; for (let c = 1; c < bays; c++) dd += RP(bx + c * bwid, top, 1, HZ - top); S.path(dd, P.haze, op(.35));
+    for (let f = 0; f < floors; f++) {
+      const y0 = top + 10 + f * fh;
+      const inset = style === 'curtain' ? 4 : style === 'spandrel' ? Math.round(fh * .3) : Math.round(fh * .22);
+      const y = y0 + inset, h = fh - inset - (style === 'ribbon' ? 4 : 6);
+      if (style === 'ribbon') S.rect(bx + 4, y, bw - 8, h, P.glass, op(.85));   // trakasti prozor preko cele etaže
+      for (let c = 0; c < bays; c++) {
+        const x = bx + c * bwid + 3, w = bwid - 6;
+        if (c === brandBay.c && f === brandBay.f) { S.glow(x + w / 2, y + h / 2, 60, MINT, .18); S.rect(x, y, w, h, PINE, op(.85)); S.add(`<rect x='${N(x + 1)}' y='${N(y + 1)}' width='${N(w - 2)}' height='${N(h - 2)}' fill='none' stroke='${MINT}' stroke-width='1.5'/>`); }
+        else if (style === 'spandrel') { if (q.b(.3)) lit += RP(x, y, w, h); else dd += RP(x, y, w, h); }
+        else if (q.b(.3)) lit += RP(x, y, w, h); else if (q.b(.3)) dd += RP(x, y, w, h);
+      }
+    }
+    if (style === 'spandrel') S.path(dd, P.glass, op(.88)); else S.path(dd, '#ffffff', op(.08));
+    S.path(lit, P.lit, op(.85));
+    // ploče etaža + stubovi (mulioni)
+    dd = ''; const sh = style === 'curtain' ? 6 : 3;
+    for (let f = 0; f <= floors; f++) dd += RP(bx, top + 10 + f * fh - sh / 2, bw, sh);
+    S.path(dd, style === 'curtain' ? P.haze : P.roof, op(style === 'curtain' ? .9 : .3));
+    if (style !== 'ribbon') { dd = ''; for (let c = 1; c < bays; c++) dd += RP(bx + c * bwid, top, 1, HZ - top - LOB); S.path(dd, style === 'curtain' ? P.haze : P.roof, op(.35)); }
     S.rect(bx, top, bw, 10, P.roof, op(.85)); S.rect(bx, top, bw * .12, HZ - top, P.vig, op(.14));
-    S.rect(bx, HZ - 60, bw, 60, P.lit, op(.5)); S.rect(bx, HZ - 60, bw, 6, P.roof, op(.6));                 // lobi
-    S.rect(bx + bw / 2 - 40, HZ - 54, 80, 54, P.glass, op(.6)); S.rect(bx + bw / 2 - 1, HZ - 54, 2, 54, P.roof);
-    S.rect(bx + 30, HZ - 40, 90, 16, P.roof, op(.8)); S.rect(bx + bw - 140, HZ - 40, 110, 16, P.roof, op(.8)); // natpisi
-    S.rect(bx + bw - 134, HZ - 36, 26, 8, MINT, op(.9));
-    // susedi
-    S.rect(bx - 200, HZ - 240, 190, 240, P.wall[1]); dd = ''; for (let f = 0; f < 5; f++) for (let c = 0; c < 3; c++) dd += RP(bx - 180 + c * 56, HZ - 220 + f * 46, 28, 26); S.path(dd, P.glass, op(.75));
-    S.rect(bx + bw + 10, HZ - 300, 240, 300, P.wall[3]); dd = ''; for (let f = 0; f < 6; f++) for (let c = 0; c < 4; c++) dd += RP(bx + bw + 30 + c * 56, HZ - 280 + f * 48, 28, 28); S.path(dd, P.glass, op(.8));
-    lamp(S, q.b(.5) ? 100 : 700, HZ + 26);
-    car(S, q, q.i(60, 300), HZ + 56, P.roof); car(S, q, q.i(480, 680), HZ + 62, PAPER);
-    for (let i = 0; i < 3; i++) tree(S, q, q.i(20, 780), HZ + 30 + q.i(0, 20), q.f(.8, 1.3), i % 2);
+    if (comp === 'tower' && q.b(.5)) S.rect(bx + bw * .25, top - 16, bw * .5, 16, P.roof, op(.7));   // krovna kućica (mašinska)
+    // lobi: svetla traka, staklo, ulaz (kod ugaone kompozicije pomeren), natpisi
+    S.rect(bx, HZ - LOB, bw, LOB, P.lit, op(.5)); S.rect(bx, HZ - LOB, bw, 6, P.roof, op(.6));
+    dd = ''; for (let x = bx + 60; x < bx + bw - 30; x += 60) dd += RP(x, HZ - LOB + 6, 2, LOB - 6); S.path(dd, P.roof, op(.3));
+    const doorX = N(bx + bw / 2 - 40 + (comp === 'corner' ? q.i(-80, 80) : q.i(-20, 20)));
+    S.rect(doorX, HZ - 54, 80, 54, P.glass, op(.6)); S.rect(doorX + 39, HZ - 54, 2, 54, P.roof);
+    S.rect(doorX - 10, HZ - 58, 100, 4, P.roof, op(.8));
+    S.rect(bx + 24, HZ - 40, q.i(60, 110), 16, P.roof, op(.8));
+    const sgx = bx + bw - 140; S.rect(sgx, HZ - 40, 110, 16, P.roof, op(.8)); S.rect(sgx + 6, HZ - 36, 26, 8, MINT, op(.9));
+    // ulica: lampa bilo gde osim ispred ulaza, 0–2 automobila, 2–4 krošnje
+    const lxs = []; for (let x = 60; x <= 740; x += 20) if (x < doorX - 50 || x > doorX + 130) lxs.push(x);
+    lamp(S, q.p(lxs), HZ + 26);
+    const nc = q.i(0, 2); for (let i = 0; i < nc; i++) car(S, q, q.i(40, 660), HZ + 52 + q.i(0, 14), q.p([P.roof, P.glass, PAPER, '#8E8C86', P.haze]));
+    const nt = q.i(2, 4); for (let i = 0; i < nt; i++) tree(S, q, q.i(20, 780), HZ + 24 + q.i(0, 24), q.f(.7, 1.3), i % 2);
     finish(S, .34);
   }
 
@@ -831,7 +913,7 @@ const img = (() => {
     const P = paletteFor(seed);
     const q = R(RNG(H32(seed + '#' + idx)));
     const S = mk(P);
-    const ctx = { seed, l, idx, sub: l ? subFor(l, q) : q.p(['blok', 'nova', 'stara']), vik: l && l.pt === 'vikendica', office: kind === 'office-interior', backyard: kind === 'backyard' };
+    const ctx = { seed, l, idx, sub: l ? subFor(l, q) : q.p(['blok', 'nova', 'stara']), vik: l && l.pt === 'vikendica', office: kind === 'office-interior', backyard: kind === 'backyard', landVar: kind === 'land' ? idx % 3 : 0 };
     switch (kind) {
       case 'house': house(S, q, ctx); break;
       case 'living': case 'office-interior': living(S, q, ctx); break;
@@ -884,7 +966,7 @@ const img = (() => {
   /* ─── hero: fasada 4:5, paleta A ─── */
   function hero() {
     const P = PAL.A; const q = R(RNG(H32('kvadrat-hero')));
-    const S = mk(P); S.top = -240;
+    const S = mk(P); S.top = -240; S.minTop = -200;   // 4:5 kadar (viewBox od y=-140) ima svoje nebo, bez ograničenja krova
     facade(S, q, { seed: 'hero', sub: 'stara' }, { litRate: .35, sunOp: .6, sunX: 560, extraFloors: 2 });
     // jača izmaglica + lampa u sredini
     S.b.splice(S.b.length - 2, 0, `<rect x='0' y='-240' width='800' height='840' fill='${P.haze}' opacity='.12'/>`);

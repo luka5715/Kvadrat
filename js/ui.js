@@ -542,7 +542,8 @@
     const nav = el('nav', { class: 'pager', 'aria-label': 'Paginacija' },
       el('button', { type: 'button', 'aria-label': 'Prethodna strana', disabled: page <= 1, onclick: () => onPick && onPick(page - 1) }, icon('chev-l')),
       items.map((p) => p === '…' ? el('span', { class: 'dots', 'aria-hidden': 'true' }, '…')
-        : el('button', { type: 'button', 'aria-current': p === page ? 'page' : null, 'aria-label': `Strana ${p}`, onclick: () => onPick && onPick(p) }, String(p))),
+        : el('button', { type: 'button', class: 'pg', 'aria-current': p === page ? 'page' : null, 'aria-label': `Strana ${p}`, onclick: () => onPick && onPick(p) }, String(p))),
+      el('span', { class: 'cur', 'aria-hidden': 'true' }, `/ ${pages}`),
       el('button', { type: 'button', 'aria-label': 'Sledeća strana', disabled: page >= pages, onclick: () => onPick && onPick(page + 1) }, icon('chev-r')));
     if (opts.per) nav.appendChild(el('label', { class: 'per' }, el('span', {}, 'Po strani'), select(opts.perOptions || [20, 40, 60], opts.per, (v) => opts.onPer && opts.onPer(+v), { inline: true })));
     return nav;

@@ -30,7 +30,7 @@
 .sg-type small{font-size:12px;color:var(--muted);font-family:ui-monospace,Menlo,monospace}
 .sg-icons{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px}
 .sg-icons div{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 4px;border:1px solid var(--border);border-radius:var(--r);font-size:11px;color:var(--muted);text-align:center;word-break:break-all}
-.sg-map{height:300px;position:relative}
+.sg-map{height:380px;position:relative}
 .sg-note{font-size:13px;color:var(--muted);margin-top:8px}
 .sg-rail{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-right:36px;mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent);-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent)}
 .sg-rail::-webkit-scrollbar{display:none}
@@ -280,7 +280,7 @@
 
   /* paginacija, mrvice, pločice, koraci */
   sec('Paginacija, mrvice, pločice, koraci', 'pager() · crumbs() · tiles() · stepper()', grid(
-    item('Paginacija', 'pager(page, pages, onPick, {per, onPer})', pager(4, 12, (p) => toast('Strana ' + p), { per: 20, onPer: (n) => toast(n + ' po strani') })),
+    Object.assign(item('Paginacija', 'pager(page, pages, onPick, {per, onPer})', pager(4, 12, (p) => toast('Strana ' + p), { per: 20, onPer: (n) => toast(n + ' po strani') })), { style: 'grid-column:1/-1' }),
     item('Mrvice', 'crumbs([{label, href}]) — na telefonu ‹ jedan nivo gore', crumbs([{ label: 'Početna', href: '#' }, { label: 'Prodaja', href: '#' }, { label: 'Stanovi', href: '#' }, { label: 'Beograd', href: '#' }])),
     item('Pločice sa podacima', 'tiles([{v,l,delta}]) · .types', el('div', {}, tiles([{ v: '660', l: 'aktivnih oglasa' }, { v: '34', l: 'grada' }, { v: '18', l: 'agencija' }, { v: '3.804 €/m²', l: 'prosek Beograd', delta: deltaChip({ pct: 4.1, label: '12 meseci' }) }]),
       el('div', { class: 'types' }, TYPES.map((t) => el('a', { href: '#' }, el('b', {}, String(D.listings.filter((l) => l.pt === t.v).length)), t.pl))))),

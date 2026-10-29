@@ -129,7 +129,7 @@ main.append(
 |---|---|
 | `sectionHead(title, sub?, href?, linkLabel?)` | `<div class="shead">` h2 `.t-h2` + `.sub` + `a.btn.btn-link`. Sekciju obmotaj u `<section class="section">` (hairline između sekcija). |
 | `empty(title, text, actionLabel, href, { primary:{label, href\|onClick}, onClick, icon })` | `<div class="empty" role="status">` 48px ikona, serif h3, pasus, `.btn-row` (secondary [+ primary]). Bez `href` akcija je dugme sa `onClick`. |
-| `pager(page, pages, onPick(p), { per, perOptions=[20,40,60], onPer(n) })` | `<nav class="pager">` 44px dugmad, `aria-current="page"`, „…“ elipse, prev/next; `per` dodaje „Po strani“ select desno. Prazan `<nav>` za `pages < 1`. |
+| `pager(page, pages, onPick(p), { per, perOptions=[20,40,60], onPer(n) })` | `<nav class="pager">` 44px dugmad (`button.pg` brojevi, `aria-current="page"`), „…“ elipse (`.dots`), prev/next; `per` dodaje „Po strani“ select desno. Na ≤600 ostaju samo `‹ [tekuća] / N ›` (`.cur` brojač) a „Po strani“ pada u svoj red desno — nema prelamanja. Prazan `<nav>` za `pages < 1`. Alternativa za rezultate na ≤860 (§5.17): `btn('Učitaj još', { variant:'secondary', block:true })` umesto brojeva. |
 | `crumbs([{label, href}])` | `<nav class="crumbs">` sa „/“; na ≤600 prikazuje samo `‹ roditelj` (`.back`). Poslednja stavka je tekuća (`.cur`). |
 | `tiles([{ v, l, delta?, xl? }])` | `<div class="tiles">` `.tile` (serif 30px `b` + 13px `span`); `delta` je čvor (npr. `deltaChip({pct, label})`); `xl` → 38–46px. Ispod ide ručno `.types` traka: `el('div',{class:'types'}, [el('a',{href},el('b',{},'388'),'stanova'),…])`. |
 | `stepper(steps[], cur = 0)` | `<div class="stepper-wrap">` → `ol.stepper` (desktop: `li.done/.cur`) + `.stepper-m` („Korak 2 od 5 · Fotografije“ + 2px bar, ≤600). |
@@ -176,7 +176,7 @@ Kontejner mape: `<div class="map">` (bg `--map-bg`, `--r-md`); `.map .ctl` (zoom
 |---|---|
 | `agencyCard(a)` | `<article class="agency">` (56px `.lg` monogram iz `img.mark(a)`, `.nm` + ✓, `.sub`, `.kpi`, „Pogledaj oglase“). Kontejner `<div class="agencies">` (3→2→1). Za zaglavlje agencije koristi klasu `.lg.xl` (96px). |
 | `compareTable(listings[], { onRemove(l), showSame })` | `<div class="compare-wrap">` → `table.compare` (sticky prva kolona, 240px kolone, `td.best` = `--accent-soft`, identični redovi `tr.same` sakriveni). Metoda `wrap.toggleSame(bool)`. Redovi: €/m², Δ opština, Kvadratura, Sobe, Sprat, Godina, Grejanje, Stanje, Uknjiženo, Parking, Lift, Agencija, Hod do centra. |
-| `listTable(listings[], { sort, onSort(key) })` | `<div class="table-wrap">` → `table.table` (Oglas · m² · Sobe · Sprat · €/m² · Δ opština · Cena · Oglašivač · ♡ · Detalji); `sort` ∈ `'a-desc' 'ppm-asc' 'p-asc' 'delta'` (+ `-desc` varijante) postavlja `aria-sort` i strelicu. |
+| `listTable(listings[], { sort, onSort(key) })` | `<div class="table-wrap">` (horizontalni scroll sa mask-fade na ≤1100) → `table.table` (Oglas · m² · Sobe · Sprat · €/m² · Δ opština · Cena · Oglašivač · ♡ · Detalji); `sort` ∈ `'a-desc' 'ppm-asc' 'p-asc' 'delta'` (+ `-desc` varijante) postavlja `aria-sort` i strelicu. |
 
 ## 11. Kontrole (§5.1–5.2, 5.31)
 
