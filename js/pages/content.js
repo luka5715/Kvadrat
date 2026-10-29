@@ -36,6 +36,8 @@
     whenMounted(box, () => {
       const api = S(() => mapView(box, { listings, selected: sel.s, interactive: false, drawTool: false, showAreaButton: false, legend: false, popover: false, labels: true, view: { lat: sel.lat, lng: sel.lng, zoom: 14 } }), null);
       if (!api) return;
+      /* mapa je samo prikaz (interactive:false): pinovi ne smeju biti tab-stanice */
+      box.inert = true; box.setAttribute('role', 'img'); box.setAttribute('aria-label', `Mapa: ${sel.n || sel.c}, ${sel.c} i okolna novogradnja`);
       const mo = new MutationObserver(() => { if (!box.isConnected) { mo.disconnect(); S(() => api.destroy()); } });
       mo.observe(document.body, { childList: true, subtree: true });
     });
@@ -251,7 +253,7 @@
         tiles([{ v: fmt.num(all.length), l: plu(all.length, 'projekat', 'projekta', 'projekata') }, { v: fmt.num(nGr), l: 'u izgradnji' }, { v: fmt.num(all.length - nGr), l: 'useljivo odmah' }, { v: fmt.ppm(medPpm), l: 'medijana početnih cena po m²' }])),
       el('div', { class: 'pj-bar', role: 'search' },
         el('div', { class: 'pj-row' }, el('span', { class: 'label' }, 'Grad'), el('div', { class: 'rail pj-rail' }, cityPills, cities.length > 5 ? otherSel : null)),
-        el('div', { class: 'pj-row' }, el('span', { class: 'label' }, 'Struktura'), el('div', { class: 'rail pj-rail' }, roPills)),
+        el('div', { class: 'pj-row' }, el('span', { class: 'label' }, 'Struktura'), el('div', { class: 'rail pj-rro' }, roPills)),
         el('div', { class: 'pj-row' }, el('span', { class: 'label' }, 'Status'), stPills, rokSel, el('span', { class: 'spacer' }),
           el('label', { class: 'pj-sort' }, el('span', { class: 'meta' }, 'Sortiraj:'), sortSel))),
       count, list, more,

@@ -136,7 +136,7 @@ body.has-notice #toasts{bottom:calc(24px + var(--kv-notice-h,96px) + 8px)}
 .kr-head .lede{margin-top:14px;max-width:60ch}
 .kr-head .tiles{margin-top:28px;padding-top:20px;border-top:1px solid var(--border)}
 .kr .crumbs,.kv-info .crumbs{margin-top:10px}
-.kr .crumbs a,.kv-info .crumbs a{display:inline-flex;align-items:center;min-height:40px}
+@media (min-width:601px){.kr .crumbs a.d,.kv-info .crumbs a.d{display:inline-flex;align-items:center;min-height:40px}}
 .kr-note{margin-top:20px;font-size:var(--fs-xs);color:var(--muted);max-width:var(--container-text);padding-left:12px;border-left:2px solid var(--accent)}
 
 /* ───────── Kako računamo ───────── */
