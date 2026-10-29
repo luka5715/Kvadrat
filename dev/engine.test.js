@@ -303,6 +303,62 @@ section('ledger');
 ok(KX.ledger.length >= 12 && KX.ledger.length <= 20 && KX.ledger.every((e) => typeof e.feature === 'string' && typeof e.real === 'boolean' && e.how.length > 20), `ledger ima ${KX.ledger.length} stavki sa feature/real/how`);
 ok(KX.ledger.some((e) => /PDV 10 % je već u oglašenoj ceni/.test(e.how)) && KX.ledger.some((e) => /Zakonu 2025/.test(e.how)), 'ledger pominje PDV u ceni i Zakon 2025');
 
+section('regresije (review)');
+{
+  const sale = L.filter((l) => l.t === 'prodaja');
+  KX.profile.reset();
+  ok(KX.count({ t: 'prodaja', fit: true }) === 0, 'fit bez budžeta = 0');
+  KX.profile.set({ income: 3000, cash: 80000 });
+  ok(KX.count({ t: 'prodaja', fit: true }) === KX.filter({ t: 'prodaja', fit: true }).length && KX.count({ t: 'prodaja', fit: true }) > 0, 'count(fit) se osvežava posle profile.set');
+  const hs = sale[0].s, h0 = KX.count({ t: 'prodaja', hidden: true });
+  KX.profile.set({ hidden: [hs] });
+  ok(KX.count({ t: 'prodaja', hidden: true }) === h0 - 1, 'count(hidden) se osvežava posle sakrivanja');
+  KX.profile.reset();
+  const b = by((l) => l.t === 'prodaja' && l.pt === 'stan' && l.co !== 'novogradnja' && l.co !== 'u-izgradnji');
+  const syn = { ...b }; delete syn.s; delete syn.dz; delete syn.r;
+  ok(KX.cost({ ...syn, p: 100000 }).price === 100000 && KX.cost({ ...syn, p: 200000 }).price === 200000, 'sintetički oglas bez sluga se ne kešira (cost)');
+  ok(KX.fair({ ...syn, p: 100000 }).diffPct !== KX.fair({ ...syn, p: 200000 }).diffPct, 'sintetički oglas bez sluga se ne kešira (fair)');
+  let threw = null; try { KX.history(syn); KX.trust(syn); KX.afford(syn, { income: 2000, cash: 10000 }); KX.cost({ ...syn, p: undefined }); KX.afford({ ...syn, p: NaN }, { income: 1000 }); } catch (e) { threw = e.message; }
+  ok(threw === null, 'bez dz / p ne baca izuzetak', threw);
+  ok(KX.history(syn).daysOnMarket === 0, 'bez dz → 0 dana');
+  ok(KX.notar(undefined) === 120 && KX.notar(NaN) === 120 && KX.notar(1e9) === 650, 'notar robustan');
+  KX.profile.set({ firstHome: true });
+  for (const pt of ['garaza', 'zemljiste', 'poslovni-prostor']) {
+    const l = by((x) => x.t === 'prodaja' && x.pt === pt && x.co !== 'novogradnja' && x.co !== 'u-izgradnji' && x.a > 0);
+    const c = KX.cost(l);
+    ok(!c.lines.some((x) => x.key === 'prvi-stan' || x.key === 'pdv-povracaj') && c.firstHome.eligible === false && c.assumptions.some((a) => /samo za stan ili porodičnu kuću/.test(a)), `prvi stan ne važi za ${pt}`);
+  }
+  ok(KX.cost(b).lines.some((x) => x.key === 'prvi-stan'), 'prvi stan važi za stan');
+  KX.profile.reset();
+  ok(KX.creditCapacity({ income: '2000' }).maxLoan === KX.creditCapacity({ income: 2000 }).maxLoan, 'creditCapacity: string prihod = broj');
+  ok(KX.afford(b, { income: '2000', cash: '30000' }).maxLoan === KX.afford(b, { income: 2000, cash: 30000 }).maxLoan, 'afford: string polja');
+  KX.profile.set({ income: '1500', cash: '' });
+  ok(KX.profile.get().income === 1500 && KX.profile.get().cash === 0, 'profile.set pretvara brojeve');
+  const g = KX.profile.get(); g.income = 9; g.hidden.add('x');
+  ok(KX.profile.get().income === 1500 && !KX.profile.get().hidden.has('x'), 'profile.get vraća kopiju');
+  KX.profile.reset();
+  threw = null; try { [NaN, undefined, '', 'abc'].forEach((v) => { if (!KX.budgetMap(v).every((r) => r.m2 === 0)) throw new Error('m2'); }); } catch (e) { threw = e.message; }
+  ok(threw === null, 'budgetMap prazan budžet → 0 m², bez izuzetka', threw);
+  ok(KX.parseQuery('stan bg do 100k').filters.c === 'beograd' && !KX.parseQuery('stan bg do 100k').unparsed.length, 'alias bg');
+  ok(KX.parseQuery('ns dvosoban').filters.c === 'novi-sad' && !KX.parseQuery('ns dvosoban').filters.q, 'alias ns');
+  ok(KX.parseQuery('do 1.500.000 €').filters.pmax === 1500000 && !KX.parseQuery('do 1.500.000 €').unparsed.length, 'cena 1.500.000');
+  threw = null; try { KX.relax({ t: 'prodaja', ro: '2', m: 'vracar', am: 'hasPool' }); KX.count(null); KX.filter(null); } catch (e) { threw = e.message; }
+  ok(threw === null, 'relax sa skalarima, count(null) ne bacaju', threw);
+  const rl = by((l) => l.t === 'izdavanje' && !l.ags);
+  const scam = KX.trust({ ...rl, s: undefined, d: 'Vlasnik u inostranstvu, depozit unapred preko Western Union, ključeve šaljem poštom.' });
+  ok(scam.rental.risk === 'visok' && scam.color === 'crveno', 'klasičan opis prevare → visok rizik', scam.rental);
+  ok(KX.trust({ ...rl, s: undefined, im: 0 }).rental.flags.includes('Oglas bez fotografija'), 'im 0 → „Oglas bez fotografija”');
+  ok(L.filter((l) => l.t === 'izdavanje').every((l) => !KX.trust(l).rental.flags.some((f) => /^Opis:/.test(f))), 'demo opisi nemaju obrasce prevare (kao u ledger-u)');
+  const plac = by((l) => l.pt === 'zemljiste');
+  ok(KX.titleOf({ ...plac, la: null, a: null }).startsWith('Plac,') && KX.titleOf({ ...plac, la: 30, a: null }).startsWith('Plac 0,3 ari'), 'plac bez površine / ispod 1 ar');
+  ok(KX.cost({ ...rl, s: undefined, dep: 0 }).lines.find((x) => x.key === 'depozit').label === 'Bez depozita', 'dep 0 → Bez depozita');
+  ok(KX.travel(b, null).far === false && KX.travel(b, null).min === null && KX.travelAll(b, [null]).length === 0, 'travel sa null mestom');
+  const dist = {}; sale.forEach((l) => { const k = KX.trust(l).legal; dist[k] = (dist[k] || 0) + 1; });
+  const pc = (k) => Math.round((dist[k] || 0) / sale.length * 100);
+  ok(pc('uknjizeno') === 68 && pc('u-procesu') === 13 && pc('poseban-zakon') === 9 && pc('ozakonjenje') === 5 && pc('nije') === 4, 'raspodela pravnog statusa = ledger (68/13/9/5/4)', dist);
+  ok(KX.ledger.some((e) => /uknjiženo ≈ 68 %, u procesu ≈ 13 %/.test(e.how)), 'ledger navodi stvarnu raspodelu');
+}
+
 section('performance — enrich + cost nad svim oglasima');
 const tc0 = performance.now();
 L.forEach((l) => KX.cost(l));

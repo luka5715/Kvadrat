@@ -239,6 +239,7 @@ const mapView = (() => {
     let city = cityOf();
     let proj = makeProj(city.lat, city.lng);
     let view = { cx: 0, cy: 0, z: 13 }; /* centar u jedinicama sveta */
+    const zmin = () => ZMIN;
     let committed = null; /* granice poslednje "pretrage u ovom području" */
     let drawing = false, drawPts = [], freehand = false;
     let destroyed = false;
@@ -324,10 +325,11 @@ const mapView = (() => {
 
     /* klasterisanje u px na zumu zb (nezavisno od pomeraja) */
     function clusters(zb) {
-      if (clusterCache && clusterCache.zb === zb && clusterCache.list === visible) return clusterCache.out;
+      if (clusterCache && clusterCache.zb === zb && clusterCache.list === visible && clusterCache.sel === selected) return clusterCache.out;
       const kb = Math.pow(2, zb - ZB);
       const rad = zb < 13 ? 46 : zb < 14.5 ? 36 : zb < 16 ? 26 : zb < 17 ? 16 : 8;
-      const cells = new Map(); const items = visible.map((l) => { const [x, y] = lw(l); return { l, x: x * kb, y: y * kb, used: false }; });
+      /* izabran oglas se nikad ne utapa u klaster — uvek ima svoj pin (karusel/fioka ga pokazuju na mapi) */
+      const cells = new Map(); const items = visible.filter((l) => l.s !== selected).map((l) => { const [x, y] = lw(l); return { l, x: x * kb, y: y * kb, used: false }; });
       const ck = (x, y) => Math.floor(x / rad) + ':' + Math.floor(y / rad);
       items.forEach((it, i) => { const kkey = ck(it.x, it.y); (cells.get(kkey) || cells.set(kkey, []).get(kkey)).push(i); });
       const out = [];
@@ -338,7 +340,8 @@ const mapView = (() => {
         if (mem.length === 1) out.push({ l: it.l, x: it.x / kb, y: it.y / kb });
         else { let sx = 0, sy = 0; mem.forEach((m) => { sx += m.x; sy += m.y; }); out.push({ cl: mem.map((m) => m.l), x: sx / mem.length / kb, y: sy / mem.length / kb, id: 'c' + H(mem.map((m) => m.l.s).sort().join('|')) }); }
       });
-      clusterCache = { zb, list: visible, out };
+      const selL = selected && visible.find((l) => l.s === selected); if (selL) { const [x, y] = lw(selL); out.push({ l: selL, x, y }); }
+      clusterCache = { zb, list: visible, sel: selected, out };
       return out;
     }
     const pinState = (l) => (l.s === selected ? 'selected' : l.s === hovered ? 'hover' : recent.has(l.s) ? 'visited' : 'default');
@@ -377,6 +380,12 @@ const mapView = (() => {
           n._mem = c.cl; n.style.left = px.toFixed(1) + 'px'; n.style.top = py.toFixed(1) + 'px'; keepC.add(c.id);
           const hs = c.cl.length >= 50 ? 22 : 18; visibleBoxes.push([px - hs, py - hs, px + hs, py + hs]);
           if (c.cl.some((l) => l.s === hovered || l.s === selected)) n.classList.add('hov'); else n.classList.remove('hov');
+        } else if (zb < 13 && c.l.s !== selected) {
+          /* §5.22: ispod z13 samo klasteri — usamljen oglas je tačka bez cene (klik približava) */
+          const id = 'd' + c.l.s; let n = clNodes.get(id); if (!n) { n = el('button', { class: 'mv-pin mv-dot', type: 'button', 'aria-label': `${c.l.ti || 'Oglas'}, ${fullPrice(c.l)} — približi`, title: `${fullPrice(c.l)} — klikni da približiš` }); n.dataset.cluster = id; clNodes.set(id, n); frag.appendChild(n); }
+          n._mem = [c.l]; n.style.left = px.toFixed(1) + 'px'; n.style.top = py.toFixed(1) + 'px'; keepC.add(id);
+          visibleBoxes.push([px - 7, py - 7, px + 7, py + 7]);
+          n.classList.toggle('hov', c.l.s === hovered);
         } else {
           let n = pinNodes.get(c.l.s); if (!n) { n = makePin(c.l); pinNodes.set(c.l.s, n); frag.appendChild(n); }
           n.style.left = px.toFixed(1) + 'px'; n.style.top = py.toFixed(1) + 'px'; keepP.add(c.l.s);
@@ -409,12 +418,27 @@ const mapView = (() => {
     function labelsPass(kk) {
       if (!labelData) labelData = buildLabels();
       labelNodes.forEach((n) => n.remove()); labelNodes.length = 0;
-      if (!o.labels) return;
-      const z = view.z; const placed = [...visibleBoxes];
+      const z = view.z; const placed = mode === 'pins' ? [...visibleBoxes] : [];
       const pad = Math.max(W, Hh) * 0.75; const [x1, y1] = fromScreen(-pad, -pad), [x2, y2] = fromScreen(W + pad, Hh + pad);
       const hit = (b) => placed.some((p) => b[0] < p[2] && b[2] > p[0] && b[1] < p[3] && b[3] > p[1]);
       const frag = document.createDocumentFragment();
-      labelData.forEach((d) => {
+      if (mode === 'budget') {
+        /* krajevi sa podacima (već razmaknuti) imaju prednost; „malo podataka” → samo ime → bez natpisa; ime grada ustupa */
+        const order = budgetLabels.filter((n) => n._g).sort((a, b) => (b._g.data - a._g.data) || (b._g.m2 - a._g.m2));
+        order.forEach((n) => {
+          const g = n._g; let box = null, short = false, oy = 0;
+          if (g.data) box = [g.x - g.w / 2, g.y - g.h / 2, g.x + g.w / 2, g.y + g.h / 2];
+          else {
+            const tries = [[g.w, g.h, false, g.rp + g.h / 2 + 2], [g.w, g.h, false, -(g.rp + g.h / 2 + 2)], [g.nw + 6, g.nh, true, g.rp + 9], [g.nw + 6, g.nh, true, -(g.rp + 9)]];
+            for (const [w, h, sh, dy] of tries) { const b = [g.x - w / 2, g.y + dy - h / 2, g.x + w / 2, g.y + dy + h / 2]; if (!hit(b)) { box = b; short = sh; oy = dy; break; } }
+            if (!box) return;
+          }
+          placed.push(box); n.classList.toggle('short', short);
+          n.style.top = (g.y + oy).toFixed(1) + 'px';
+          frag.appendChild(n); labelNodes.push(n);
+        });
+      }
+      (o.labels ? labelData : []).forEach((d) => {
         const show = d.kind === 'city' ? z < 13.5 : mode === 'budget' ? false : d.kind === 'mun' ? z >= 12 && z < 16 : z >= 14.2;
         if (!show) return; if (d.x < x1 || d.x > x2 || d.y < y1 || d.y > y2) return;
         const px = d.x * kk, py = d.y * kk; const fs = d.kind === 'city' ? 14 : d.kind === 'mun' ? 13 : 12;
@@ -428,32 +452,61 @@ const mapView = (() => {
         n.style.left = ((box[0] + box[2]) / 2).toFixed(1) + 'px'; n.style.top = ((box[1] + box[3]) / 2).toFixed(1) + 'px';
         frag.appendChild(n); labelNodes.push(n);
       });
-      if (mode === 'budget') budgetLabels.forEach((n) => { frag.appendChild(n); labelNodes.push(n); });
+      if (mode === 'budget') budgetLabels.forEach((n) => { if (!n.isConnected || labelNodes.includes(n)) return; n.remove(); });
       labels.appendChild(frag);
     }
 
-    /* budžet: krugovi po opštinama, poluprečnik ∝ sqrt(m²), potiskivanje preklapanja */
-    let budgetNodes = [];
+    /* budžet: krugovi po opštinama, poluprečnik ∝ sqrt(m²); razmicanje po pravougaonicima krug ∪ natpis (izmereni u px),
+       tako da se ni krugovi ni natpisi krajeva sa podacima ne preklapaju. Prerađuje se samo kad se promene redovi, izbor ili zum. */
+    let budgetNodes = [], budgetDirty = true, budgetKk = 0, budgetFit = null;
     function budgetPass(kk) {
-      if (!budgetRows.length) return;
+      if (!budgetRows.length) { if (budgetNodes.length || budgetLabels.length) { budgetNodes.forEach((n) => n.remove()); budgetNodes = []; budgetLabels.forEach((n) => n.remove()); budgetLabels.length = 0; needLabels = true; } return; }
+      if (!budgetDirty && budgetKk === kk) return;
+      budgetDirty = false; budgetKk = kk;
+      const compact = W < 560; container.classList.toggle('mv-compact', compact); /* telefon: manji krugovi i natpisi */
       const max = Math.max(...budgetRows.map((r) => r.m2 || 0), 1);
-      const items = budgetRows.map((r) => { const [x, y] = proj.toW(r.lat, r.lng); const rp = r.m2 > 0 ? 16 + 24 * Math.sqrt(r.m2 / max) : 12; return { r, x: x * kk, y: y * kk, rp }; });
-      for (let it = 0; it < 20; it++) for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {
-        const a = items[i], b = items[j]; const dx = b.x - a.x, dy = b.y - a.y; const d = Math.sqrt(dx * dx + dy * dy) || 0.01; const min = a.rp + b.rp + 6;
-        if (d < min) { const push = (min - d) / 2; const ux = dx / d, uy = dy / d; a.x -= ux * push; a.y -= uy * push; b.x += ux * push; b.y += uy * push; }
-      }
       budgetNodes.forEach((n) => n.remove()); budgetNodes = []; budgetLabels.forEach((n) => n.remove()); budgetLabels.length = 0;
+      const items = budgetRows.map((r) => {
+        const [x, y] = proj.toW(r.lat, r.lng); const data = r.m2 > 0; const rp = data ? (compact ? 12 + 16 * Math.sqrt(r.m2 / max) : 16 + 24 * Math.sqrt(r.m2 / max)) : compact ? 9 : 11;
+        const lab = el('span', { class: 'mv-blabel' + (data ? '' : ' hollow') }, el('b', {}, r.label), el('span', {}, data ? `${nf0.format(Math.round(r.m2))} m²` : 'malo podataka'));
+        return { r, data, x: x * kk, y: y * kk, rp, lab };
+      });
+      /* izmeri natpise jednim prolazom rasporeda */
+      const mf = document.createDocumentFragment(); items.forEach((it) => mf.appendChild(it.lab)); labels.appendChild(mf);
       items.forEach((it) => {
-        const t = it.r.m2 > 0 ? clamp(it.r.m2 / max, 0, 1) : 0;
-        const c = svg('circle', { cx: (it.x / kk).toFixed(2), cy: (it.y / kk).toFixed(2), r: (it.rp / kk).toFixed(3), class: 'mv-bc' + (it.r.m2 > 0 ? '' : ' hollow') + (selected === it.r.key ? ' on' : ''), 'data-key': it.r.key });
+        it.lw = it.lab.offsetWidth || Math.max(it.r.label.length * 8 + 16, 64); it.lh = it.lab.offsetHeight || 34;
+        it.nw = (it.lab.firstChild && it.lab.firstChild.offsetWidth) || it.r.label.length * 8 + 8; it.nh = 14;
+        it.hx = (it.data ? Math.max(it.rp, it.lw / 2) : it.rp) + 3; it.hy = (it.data ? Math.max(it.rp, it.lh / 2) : it.rp) + 3;
+      });
+      for (let iter = 0; iter < 40; iter++) {
+        let moved = false;
+        for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {
+          const a = items[i], b = items[j]; const dx = b.x - a.x, dy = b.y - a.y;
+          const ox = a.hx + b.hx - Math.abs(dx), oy = a.hy + b.hy - Math.abs(dy);
+          if (ox <= 0 || oy <= 0) continue; moved = true;
+          if (ox < oy) { const sh = ((dx >= 0 ? 1 : -1) * ox) / 2; a.x -= sh; b.x += sh; } else { const sh = ((dy >= 0 ? 1 : -1) * oy) / 2; a.y -= sh; b.y += sh; }
+        }
+        if (!moved) break;
+      }
+      /* posle fit-a: razmaknuti krugovi + natpisi (jezgro grada) moraju stati u slobodan deo mape — pomeri ili udalji za 0,25 */
+      if (budgetFit) {
+        const f = budgetFit; const [fx1, fy1, fx2, fy2] = freeBox(f.ins); let bx1 = Infinity, by1 = Infinity, bx2 = -Infinity, by2 = -Infinity;
+        items.forEach((it) => { if (!f.keys.has(it.r.key)) return; const sx = it.x - view.cx * kk + W / 2, sy = it.y - view.cy * kk + Hh / 2; const hx = it.data ? Math.max(it.rp, it.lw / 2) : it.rp, hy = it.data ? Math.max(it.rp, it.lh / 2) : it.rp; bx1 = Math.min(bx1, sx - hx); bx2 = Math.max(bx2, sx + hx); by1 = Math.min(by1, sy - hy); by2 = Math.max(by2, sy + hy); });
+        if (bx1 === Infinity) budgetFit = null;
+        else if ((bx2 - bx1 > fx2 - fx1 - 12 || by2 - by1 > fy2 - fy1 - 12) && view.z > zmin() && f.tries < 8) { f.tries++; view.z = Math.max(zmin(), view.z - 0.25); budgetDirty = true; schedule(); }
+        else { budgetFit = null; const dx = (fx1 + fx2) / 2 - (bx1 + bx2) / 2, dy = (fy1 + fy2) / 2 - (by1 + by2) / 2; if (Math.abs(dx) > 1 || Math.abs(dy) > 1) { view.cx -= dx / kk; view.cy -= dy / kk; schedule(); } }
+      }
+      items.forEach((it) => {
+        const t = it.data ? clamp(it.r.m2 / max, 0, 1) : 0;
+        const c = svg('circle', { cx: (it.x / kk).toFixed(2), cy: (it.y / kk).toFixed(2), r: (it.rp / kk).toFixed(3), class: 'mv-bc' + (it.data ? '' : ' hollow') + (selected === it.r.key ? ' on' : ''), 'data-key': it.r.key });
         c.style.fillOpacity = (0.14 + t * 0.42).toFixed(2); c.style.strokeWidth = (1.25 / kk).toFixed(3);
-        c.addEventListener('click', (e) => { e.stopPropagation(); selected = it.r.key; if (o.onArea) o.onArea(it.r); if (o.onSelect) o.onSelect(it.r.key); needLabels = true; schedule(); });
+        c.addEventListener('click', (e) => { e.stopPropagation(); selected = it.r.key; budgetDirty = true; if (o.onArea) o.onArea(it.r); if (o.onSelect) o.onSelect(it.r.key); needLabels = true; schedule(); });
         c.addEventListener('pointerenter', () => { if (o.onHover) o.onHover(it.r.key); });
         c.addEventListener('pointerleave', () => { if (o.onHover) o.onHover(null); });
         gBudget.appendChild(c); budgetNodes.push(c);
-        const lab = el('span', { class: 'mv-blabel' + (it.r.m2 > 0 ? '' : ' hollow') }, el('b', {}, it.r.label), el('span', {}, it.r.m2 > 0 ? `${nf0.format(Math.round(it.r.m2))} m²` : 'malo podataka'));
-        lab.style.left = it.x.toFixed(1) + 'px'; lab.style.top = it.y.toFixed(1) + 'px';
-        budgetLabels.push(lab);
+        it.lab._g = { x: it.x, y: it.y, w: it.lw, h: it.lh, nw: it.nw, nh: it.nh, rp: it.rp, data: it.data, m2: it.r.m2 || 0 };
+        it.lab.style.left = it.x.toFixed(1) + 'px'; it.lab.style.top = it.y.toFixed(1) + 'px';
+        budgetLabels.push(it.lab);
       });
       needLabels = true;
     }
@@ -511,8 +564,9 @@ const mapView = (() => {
       }
       const [x, y] = lw(l); const [sx, sy] = toScreen(x, y);
       const pw = 280, ph = popNode.offsetHeight || 300;
-      let left = clamp(sx - pw / 2, 8, Math.max(8, W - pw - 8)); let top = sy - 44 - ph; let below = false;
-      if (top < 8) { top = Math.min(sy + 12, Hh - ph - 8); below = true; }
+      const [fx1, fy1, fx2, fy2] = freeBox(); /* ne ispod plutajuće trake / karusela */
+      let left = clamp(sx - pw / 2, Math.max(8, fx1), Math.max(8, Math.min(W, fx2 + 48) - pw - 8)); let top = sy - 44 - ph; let below = false;
+      if (top < fy1 + 4) { top = Math.min(sy + 12, fy2 - ph - 4); below = true; }
       popNode.style.left = left.toFixed(0) + 'px'; popNode.style.top = Math.max(8, top).toFixed(0) + 'px'; popNode.classList.toggle('below', below);
     }
     function settle() {
@@ -545,12 +599,12 @@ const mapView = (() => {
     /* ── interakcija ── */
     const ptrs = new Map(); let drag = null, pinchD = 0, pinchZ = 0, vel = { x: 0, y: 0, t: 0 }, inertiaRaf = 0;
     function zoomAt(z, sx, sy) {
-      const nz = clamp(z, ZMIN, ZMAX); if (nz === view.z) return;
+      const nz = clamp(z, zmin(), ZMAX); if (nz === view.z) return;
       const [wx, wy] = fromScreen(sx, sy); const nk = Math.pow(2, nz - ZB);
       view.z = nz; view.cx = wx - (sx - W / 2) / nk; view.cy = wy - (sy - Hh / 2) / nk; schedule();
     }
     function zoomBy(dz, sx = W / 2, sy = Hh / 2) {
-      const target = clamp(Math.round(view.z + dz), ZMIN, ZMAX);
+      const target = clamp(dz > 0 ? Math.floor(view.z + 1e-6) + dz : Math.ceil(view.z - 1e-6) + dz, zmin(), ZMAX); /* jedan pritisak = najviše jedan nivo */
       if (reduced()) { zoomAt(target, sx, sy); return; }
       const z0 = view.z, t0 = performance.now(), dur = 180;
       const step = (now) => { const t = clamp((now - t0) / dur, 0, 1); const e = 1 - Math.pow(1 - t, 3); zoomAt(z0 + (target - z0) * e, sx, sy); if (t < 1) requestAnimationFrame(step); };
@@ -614,14 +668,14 @@ const mapView = (() => {
         return;
       }
       /* klik bez pomeranja */
-      const pinN = d.target.closest && d.target.closest('.pin');
+      const pinN = d.target.closest && d.target.closest('.mv-pin');
       if (pinN) { activatePin(pinN); return; }
       if (selected && mode === 'pins' && !d.target.closest('.mv-pop')) api.setSelected(null);
     }
     function activatePin(n) {
-      if (n.dataset.cluster) { const mem = n._mem || []; if (mem.length) fitList(mem, Math.min(ZMAX, Math.floor(view.z) + 2)); return; }
+      if (n.dataset.cluster) { const mem = n._mem || []; if (mem.length === 1) { const [x, y] = lw(mem[0]); const [sx, sy] = toScreen(x, y); zoomBy(Math.max(1, 14 - Math.floor(view.z)), sx, sy); } else if (mem.length) fitList(mem, Math.min(ZMAX, Math.floor(view.z) + 2)); return; }
       const s = n.dataset.slug; if (!s) return;
-      selected = s; refreshStates(); popPass(); if (o.onSelect) o.onSelect(s);
+      if (selected !== s) needPins = true; selected = s; refreshStates(); popPass(); schedule(); if (o.onSelect) o.onSelect(s);
     }
     function onKey(e) {
       if (!o.interactive) return; if (e.target !== container && e.target.closest('input,select,textarea')) return;
@@ -643,7 +697,7 @@ const mapView = (() => {
     }
     function onOver(e) { if (e.pointerType && e.pointerType !== 'mouse') return; const n = e.target.closest && e.target.closest('.pin'); const s = n && n.dataset.slug; if (s && s !== hovered) { hovered = s; refreshStates(); if (o.onHover) o.onHover(s); } }
     function onOut(e) { const n = e.target.closest && e.target.closest('.pin'); if (n && n.dataset.slug && hovered === n.dataset.slug) { hovered = null; refreshStates(); if (o.onHover) o.onHover(null); } }
-    function onClick(e) { if (e.detail === 0) { const n = e.target.closest && e.target.closest('.pin'); if (n) activatePin(n); } }
+    function onClick(e) { if (e.detail === 0) { const n = e.target.closest && e.target.closest('.mv-pin'); if (n) activatePin(n); } }
     container.addEventListener('wheel', onWheel, { passive: false });
     container.addEventListener('pointerdown', onDown);
     container.addEventListener('pointermove', onMove);
@@ -696,7 +750,23 @@ const mapView = (() => {
     }
 
     /* ── prilagođavanje prikaza ── */
-    function fitList(list, zmax = ZMAX, pad = 48) {
+    /* insets = {top,right,bottom,left} px plutajućeg chrome-a stranice (traka pretrage, budžet panel, karusel, legenda);
+       podaci se uklapaju u preostali pravougaonik i centriraju u njemu. Funkcija ili objekat (api.setInsets). */
+    let defInsets = o.insets || null;
+    function readInsets(ins) {
+      const v = ins === undefined ? defInsets : ins; const r = typeof v === 'function' ? S(v, null) : v;
+      if (!r) return null;
+      const n = (x) => (typeof x === 'number' && isFinite(x) ? Math.max(0, x) : 0);
+      return { top: n(r.top), right: n(r.right), bottom: n(r.bottom), left: n(r.left) };
+    }
+    /* pravougaonik "slobodne" mape u px ekrana: [x1,y1,x2,y2] */
+    function freeBox(ins) {
+      const i = readInsets(ins) || { top: 0, right: 0, bottom: 0, left: 0 };
+      let x1 = i.left, x2 = W - i.right, y1 = i.top, y2 = Hh - i.bottom;
+      if (x2 - x1 < W * 0.3) { x1 = 0; x2 = W; } if (y2 - y1 < Hh * 0.25) { y1 = 0; y2 = Hh; } /* chrome veći od mape: ignoriši */
+      return [x1, y1, x2, y2];
+    }
+    function fitList(list, zmax = ZMAX, ins) {
       const pts = (list || []).map((l) => lw(l)); if (!pts.length) { view = { cx: 0, cy: 0, z: 13 }; const [x, y] = proj.toW(city.lat, city.lng); view.cx = x; view.cy = y; schedule(); return; }
       W = container.clientWidth || W; Hh = container.clientHeight || Hh;
       /* bez ekstremnih tačaka: 6–94 percentil po osi kad ima dosta tačaka */
@@ -705,12 +775,23 @@ const mapView = (() => {
       const trim = pts.length >= 24 ? 0.06 : 0;
       const x1 = q(xs, trim), x2 = q(xs, 1 - trim), y1 = q(ys, trim), y2 = q(ys, 1 - trim);
       const dw = Math.max(x2 - x1, 1), dh = Math.max(y2 - y1, 1);
-      const z = clamp(Math.floor(Math.log2(Math.min((W - pad * 2) / dw, (Hh - pad * 2) / dh)) * 4) / 4 + ZB, ZMIN, zmax);
-      view = { cx: (x1 + x2) / 2, cy: (y1 + y2) / 2, z: pts.length === 1 ? Math.min(zmax, 15) : z };
-      committed = null; schedule(); committed = null;
+      /* unutrašnja margina: pin štrči ~38 px nagore; budžet krug do 40 px + natpis */
+      const has = !!readInsets(ins);
+      const pd = mode === 'budget' ? { t: 44, r: 44, b: 40, l: 44 } : has ? { t: 44, r: 24, b: 16, l: 24 } : { t: 48, r: 48, b: 48, l: 48 };
+      const [fx1, fy1, fx2, fy2] = freeBox(ins);
+      const aw = Math.max(60, fx2 - fx1 - pd.l - pd.r), ah = Math.max(60, fy2 - fy1 - pd.t - pd.b);
+      const zFit = Math.floor(Math.log2(Math.min(aw / dw, ah / dh)) * 4) / 4 + ZB;
+      const z = pts.length === 1 ? Math.min(zmax, 15) : clamp(zFit, zmin(), zmax);
+      const kk = Math.pow(2, z - ZB);
+      /* podaci veći od kadra i na najmanjem zumu: centriraj na medijanu (gustinu), ne na sredinu okvira */
+      const big = pts.length > 2 && zFit < zmin(); const mx = big ? q(xs, 0.5) : (x1 + x2) / 2, my = big ? q(ys, 0.5) : (y1 + y2) / 2;
+      /* centar podataka ide u centar slobodnog pravougaonika (uz unutrašnju marginu) */
+      const sx = (fx1 + pd.l + fx2 - pd.r) / 2, sy = (fy1 + pd.t + fy2 - pd.b) / 2;
+      view = { cx: mx - (sx - W / 2) / kk, cy: my - (sy - Hh / 2) / kk, z };
+      committed = null; schedule();
       setTimeout(() => { committed = getBounds(); }, 0);
     }
-    function panTo(lat, lng, z) { const [x, y] = proj.toW(lat, lng); view.cx = x; view.cy = y; if (z != null) view.z = clamp(z, ZMIN, ZMAX); schedule(); }
+    function panTo(lat, lng, z) { const [x, y] = proj.toW(lat, lng); view.cx = x; view.cy = y; if (z != null) view.z = clamp(z, zmin(), ZMAX); schedule(); }
 
     /* ── javni API ── */
     const api = {
@@ -720,14 +801,45 @@ const mapView = (() => {
         const nc = cityOf(); if (nc.s !== city.s) { city = nc; proj = makeProj(city.lat, city.lng); gCities.innerHTML = ''; }
         polygon = null; visible = all; zoneChip.hidden = true; drawBtn.hidden = false; needPins = true; schedule();
       },
-      setSelected(slug) { selected = slug || null; refreshStates(); popPass(); if (slug && mode === 'pins') { const l = visible.find((x) => x.s === slug); if (l && !inView(l, -40)) { const [x, y] = lw(l); view.cx = x; view.cy = y; schedule(); } } else if (slug && mode === 'budget') { needLabels = true; schedule(); } },
+      setSelected(slug) {
+        const was = selected; selected = slug || null; refreshStates(); popPass();
+        if (mode === 'pins' && was !== selected) needPins = true; /* izabran izlazi iz klastera / tačke */
+        if (slug && mode === 'pins') {
+          const l = visible.find((x) => x.s === slug);
+          if (l) {
+            const [x, y] = lw(l); const [sx, sy] = toScreen(x, y); const [fx1, fy1, fx2, fy2] = freeBox();
+            if (sx < fx1 + 30 || sx > fx2 - 30 || sy < fy1 + 44 || sy > fy2 - 8) { const kk = k(); view.cx = x - ((fx1 + fx2) / 2 - W / 2) / kk; view.cy = y - ((fy1 + fy2) / 2 + 16 - Hh / 2) / kk; }
+          }
+          schedule();
+        } else if (mode === 'budget') {
+          const r = slug && budgetRows.find((x) => x.key === slug);
+          if (r) { const [x, y] = proj.toW(r.lat, r.lng); const [sx, sy] = toScreen(x, y); const [fx1, fy1, fx2, fy2] = freeBox(); if (sx < fx1 + 40 || sx > fx2 - 40 || sy < fy1 + 40 || sy > fy2 - 40) { const kk = k(); view.cx = x - ((fx1 + fx2) / 2 - W / 2) / kk; view.cy = y - ((fy1 + fy2) / 2 - Hh / 2) / kk; } }
+          budgetDirty = true; needLabels = true; schedule();
+        } else schedule();
+      },
       highlight(slug) { hovered = slug || null; refreshStates(); },
-      fit(list) { fitList(list || visible, 15); },
-      fitTo(list, zmax) { fitList(list, zmax == null ? ZMAX : zmax); },
+      fit(list, insets) { fitList(list || visible, 15, insets); },
+      fitTo(list, zmax, insets) { fitList(list, zmax == null ? ZMAX : zmax, insets); },
+      setInsets(ins) { defInsets = ins || null; },
       panTo, setZoom(z) { zoomAt(z, W / 2, Hh / 2); }, getZoom: () => view.z, getView: () => ({ ...latLngOfW(view.cx, view.cy), zoom: view.z }),
       setView(v) { if (v && typeof v.lat === 'number') panTo(v.lat, v.lng, v.zoom); },
-      setMode(m) { mode = m === 'budget' ? 'budget' : 'pins'; container.dataset.mode = mode; pinsL.hidden = mode === 'budget'; areaBtn.hidden = true; drawBtn.hidden = mode === 'budget' || !!polygon; if (mode === 'pins') { gBudget.innerHTML = ''; budgetLabels.forEach((n) => n.remove()); budgetLabels.length = 0; } needLabels = true; needPins = true; paintLegend(); schedule(); },
-      setBudget(rows) { budgetRows = (rows || []).filter((r) => typeof r.lat === 'number'); gBudget.innerHTML = ''; paintLegend(); if (mode === 'budget' && budgetRows.length) { const pts = budgetRows.map((r) => ({ lat: r.lat, lng: r.lng })); fitList(pts, 13); } schedule(); },
+      setMode(m) { mode = m === 'budget' ? 'budget' : 'pins'; if (view.z < zmin()) view.z = zmin(); container.dataset.mode = mode; pinsL.hidden = mode === 'budget'; areaBtn.hidden = true; drawBtn.hidden = mode === 'budget' || !!polygon; if (mode === 'pins') { gBudget.innerHTML = ''; budgetNodes = []; budgetLabels.forEach((n) => n.remove()); budgetLabels.length = 0; } budgetDirty = true; needLabels = true; needPins = true; paintLegend(); schedule(); },
+      /* setBudget(rows, {insets, fit}) — fit: true/false; podrazumevano samo kad se skup krajeva promeni (klizač ne pomera pogled) */
+      setBudget(rows, bo = {}) {
+        const keysOf = (rs) => rs.map((r) => r.key).sort().join('|'); const prevKeys = keysOf(budgetRows);
+        budgetRows = (rows || []).filter((r) => typeof r.lat === 'number'); budgetDirty = true; gBudget.innerHTML = ''; paintLegend();
+        const doFit = bo.fit != null ? bo.fit : keysOf(budgetRows) !== prevKeys;
+        if (mode === 'budget' && budgetRows.length && doFit) {
+          /* udaljene opštine (Lazarevac, Mladenovac…) ne diktiraju kadar: bez tačaka dalje od 3,5× medijane udaljenosti */
+          const pts = budgetRows.map((r) => ({ lat: r.lat, lng: r.lng })); const med = (a) => { const b = [...a].sort((x, y) => x - y); return b[b.length >> 1]; };
+          const mla = med(pts.map((p) => p.lat)), mln = med(pts.map((p) => p.lng)); const cs = Math.cos((mla * Math.PI) / 180);
+          const d = pts.map((p) => Math.hypot(p.lat - mla, (p.lng - mln) * cs)); const md = med(d) || 0.01;
+          const core = pts.filter((p, i) => d[i] <= md * 3.5 + 0.004);
+          const use = core.length >= 3 ? core : pts; fitList(use, 13, bo.insets);
+          budgetFit = { ins: bo.insets, keys: new Set(budgetRows.filter((r, i) => use.includes(pts[i])).map((r) => r.key)), tries: 0 };
+        }
+        schedule();
+      },
       setPlaces(p) { places = p || []; paintLegend(); schedule(); },
       setRadius(r) { radius = r; schedule(); },
       getBounds, getVisible: () => visible.filter((l) => inView(l)), getFiltered: () => visible, getPolygon: () => (polygon ? polygon.map(([x, y]) => latLngOfW(x, y)) : null),

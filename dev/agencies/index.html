@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="sr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Kvadrat — test agencija</title>
+<meta name="description" content="Dev stranica: viewAgencies / viewAgency (js/pages/agencies.js) sa zaglavljem i podnožjem iz ui.js. Rute: #/agencije, #/agencija?s=slug.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,50;1,9..144,300..700,50&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../css/tokens.css">
+<link rel="stylesheet" href="../../css/base.css">
+<link rel="stylesheet" href="../../css/components.css">
+<link rel="stylesheet" href="../../css/pages/map.css">
+<link rel="stylesheet" href="../../css/pages/agencies.css">
+</head>
+<body>
+<div id="app"></div>
+<div id="toasts" aria-live="polite"></div>
+
+<script src="../../data.js" charset="utf-8"></script>
+<script src="../../js/core.js" charset="utf-8"></script>
+<script src="../../js/images.js" charset="utf-8"></script>
+<script src="../../js/ui.js" charset="utf-8"></script>
+<script src="../../js/engine.js" charset="utf-8"></script>
+<script src="../../js/map.js" charset="utf-8"></script>
+<script src="../../js/pages/agencies.js" charset="utf-8"></script>
+<script>
+/* mini ruter dev stranice: #/agencije → viewAgencies, #/agencija?s= → viewAgency; ostalo = traka sa odredištem. */
+(function () {
+  'use strict';
+  const app = document.getElementById('app');
+  let last = '';
+  function render() {
+    const raw = location.hash.replace(/^#/, '') || '/agencije';
+    const [path, qs] = raw.split('?');
+    const q = new URLSearchParams(qs || '');
+    if (path === last && (path === '/agencije' || path === '/agencija') && document.getElementById('main') && q.get('s') === (window.__agS || null)) return;
+    last = path; window.__agS = q.get('s');
+    app.innerHTML = '';
+    let body;
+    if (path === '/agencije' || path === '/' || path === '') body = viewAgencies(q);
+    else if (path === '/agencija') body = viewAgency(q);
+    else body = el('div', { class: 'wrap', style: 'padding:48px 16px' }, el('p', { class: 'eyebrow' }, 'dev/agencies — odredište'),
+      el('h1', { class: 't-h1', id: 'dest' }, raw), el('p', { style: 'margin-top:16px' }, el('a', { class: 'btn btn-secondary', href: '#/agencije' }, 'Nazad na agencije')));
+    app.append(header('/agencije'), el('main', { id: 'main' }, body), footer());
+    window.scrollTo(0, 0);
+  }
+  window.addEventListener('hashchange', render);
+  try { if (typeof KX !== 'undefined') KX.enrich(); } catch (e) { console.error(e); }
+  render();
+})();
+</script>
+</body>
+</html>

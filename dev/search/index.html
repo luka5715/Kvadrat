@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="sr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Kvadrat — test rezultata</title>
+<meta name="description" content="Dev stranica: viewResults(q) samostalno. Rute: #/pretraga?t=prodaja&pt=stan&c=beograd (podrazumevano), #/prodaja/stanovi/beograd, bilo koji parametri pretrage.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,50;1,9..144,300..700,50&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../css/tokens.css">
+<link rel="stylesheet" href="../../css/base.css">
+<link rel="stylesheet" href="../../css/components.css">
+<link rel="stylesheet" href="../../css/pages/map.css">
+<link rel="stylesheet" href="../../css/pages/search.css">
+</head>
+<body>
+<div id="app"></div>
+<div id="toasts" aria-live="polite"></div>
+
+<script src="../../data.js" charset="utf-8"></script>
+<script src="../../js/core.js" charset="utf-8"></script>
+<script src="../../js/images.js" charset="utf-8"></script>
+<script src="../../js/ui.js" charset="utf-8"></script>
+<script src="../../js/engine.js" charset="utf-8"></script>
+<script src="../../js/map.js" charset="utf-8"></script>
+<script src="../../js/pages/search.js" charset="utf-8"></script>
+<script>
+/* Samo za dev: mini-ljuska koja prikazuje header + viewResults(q) + footer. Ista ruta → root.update(q) (bez skrola),
+   druga ruta → pun render. Rute rezultata: /pretraga, /prodaja…, /izdavanje…, /novogradnja-pretraga. */
+(function () {
+  'use strict';
+  const DEFAULT = '#/pretraga?t=prodaja&pt=stan&c=beograd';
+  const isResults = (p) => p === '/pretraga' || /^\/(prodaja|izdavanje|novogradnja-pretraga)(\/|$)/.test(p);
+  let lastPath = null, root = null;
+  try { const t = localStorage.getItem('kv.theme'); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) { /* ignore */ }
+  function render(r) {
+    const { path, q } = r || parseHash();
+    const app = document.getElementById('app');
+    if (isResults(path) && path === lastPath && root && root.isConnected) { root.update(q, path); return; }
+    lastPath = path;
+    let body;
+    if (isResults(path)) { root = viewResults(q, path); body = root; }
+    else { root = null; body = el('div', { class: 'wrap', style: 'padding:64px 0' }, el('h1', { class: 't-h1' }, 'Dev: samo rezultati'), el('p', { class: 'lede', style: 'margin-top:12px' }, 'Ova test stranica prikazuje samo viewResults. Ruta: ' + path), el('p', { style: 'margin-top:16px' }, el('a', { class: 'btn btn-secondary', href: DEFAULT }, 'Nazad na rezultate'))); }
+    app.replaceChildren(header(path), el('main', { id: 'main' }, body), footer());
+    window.scrollTo(0, 0);
+  }
+  if (!location.hash || location.hash === '#/' || location.hash === '#') history.replaceState(null, '', DEFAULT);
+  router.onChange((r) => render(r));
+  render();
+})();
+</script>
+</body>
+</html>

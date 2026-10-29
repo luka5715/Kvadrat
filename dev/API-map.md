@@ -34,11 +34,12 @@ Meke zavisnosti (sve kroz guard-ove, komponenta radi i bez njih): `hash`, `rng`,
 | `legend` | `true` | legenda dole-levo (`ui.mapLegend()`; u budžetu rampa m²) |
 | `showAreaButton` | `true` | „Pretraži u ovom području” posle pomeranja/zuma |
 | `popover` | `true` | popover izabranog pina (`ui.pinPopover(l)` + dugme ×) |
-| `labels` | `true` | natpisi gradova/opština/naselja |
+| `labels` | `true` | natpisi gradova/opština/naselja (budžetski natpisi se prikazuju uvek) |
 | `places` | `[]` | moja mesta (vidi `setPlaces`) |
 | `radius` | `null` | `{lat,lng,m}` krug približne lokacije |
 | `view` | — | `{lat,lng,zoom}` početni pogled umesto `fit()` |
 | `budget` | — | redovi za `setBudget` kad je `mode:'budget'` |
+| `insets` | — | `{top,right,bottom,left}` px ili funkcija koja ih vraća — plutajući chrome stranice; podrazumevano za sve fit-ove, izbor i popover |
 | `onSelect(slug)` | | klik/Enter na pin (klaster → približavanje, bez poziva) |
 | `onHover(slug\|null)` | | ulazak/izlazak miša na pin; u budžetu ključ opštine |
 | `onBoundsChange(b)` | | posle „Pretraži u ovom području” i posle zatvaranja/brisanja zone; `b = getBounds()` + `count` kad je zona |
@@ -50,13 +51,17 @@ Meke zavisnosti (sve kroz guard-ove, komponenta radi i bez njih): `hash`, `rng`,
 
 ```
 setListings(list)      zameni oglase (briše zonu, ne radi fit — pozovi fit())
-setSelected(slug|null) izabran pin (.on) + popover; pomera pogled ako pin nije u kadru; u budžetu ključ opštine
+setSelected(slug|null) izabran pin (.on) + popover; izabran oglas se nikad ne utapa u klaster; pomera pogled ako pin nije u slobodnom
+                       delu kadra (insets); u budžetu ključ opštine (isto pomeranje ako je krug van slobodnog dela)
 highlight(slug|null)   hover sinhronizacija iz liste (.hov na pinu ili klasteru koji ga sadrži)
-fit(list?)             uklopi sve (ili zadate) oglase, max zum 15, 6–94. percentil bez ekstrema
-fitTo(list, zmax?)     isto, sa sopstvenim max zumom
+fit(list?, insets?)    uklopi sve (ili zadate) oglase, max zum 15, 6–94. percentil bez ekstrema; ako ni z11 nije dovoljan, centar = medijana
+fitTo(list, zmax?, insets?)  isto, sa sopstvenim max zumom
+setInsets(ins|fn|null) podrazumevani insets: podaci se uklapaju u (W−left−right)×(H−top−bottom) i centriraju u tom pravougaoniku
 panTo(lat,lng,z?)      setView({lat,lng,zoom})   setZoom(z)   getZoom()   getView() → {lat,lng,zoom}
 setMode('pins'|'budget')
-setBudget(rows)        rows: [{key,label,cs,lat,lng,m2,n,ppm,scope}] — krug ∝ √m², boja ∝ m²/max, m2=0 → šupalj „malo podataka”; radi fit na redove
+setBudget(rows, {insets?, fit?})  rows: [{key,label,cs,lat,lng,m2,n,ppm,scope}] — krug ∝ √m², boja ∝ m²/max, m2=0 → šupalj „malo podataka”;
+                       fit (podrazumevano samo kad se skup ključeva promeni — klizač ne pomera pogled) na jezgro (bez krajeva dalje od 3,5× medijane
+                       udaljenosti, npr. Lazarevac), pa korekcija: razmaknuti krugovi+natpisi moraju stati u slobodan pravougaonik (pomak / −0,25 zuma)
 setPlaces(places)      [{id,name,lat,lng,who:'ja'|'partner',mode:'auto'|'gradski'|'pesice'|'bicikl'}] — krugovi 10/20/30 min
 setRadius({lat,lng,m}|null)
 getBounds()            {n,s,e,w,zoom,center:{lat,lng},polygon:[{lat,lng}]|null}
@@ -69,10 +74,14 @@ mapView.shortPrice(l)  '125k' | '1,2M' | '450 €'      mapView.inPolygon(lat, l
 ```
 
 ### Ponašanje
-- **Projekcija**: ekvirektangularna oko centra grada, x skaliran sa cos(lat); jedinice sveta = px na zumu 13 (~13,5 m/px u Beogradu). Zum 11–17, korak dugmeta 1, točkić kontinualno oko kursora, dupli klik +1, pinch (dva pointera), tastatura: strelice pomeraju 60 px, `+`/`-` zum, `Esc` zatvara popover/crtanje, `Enter` završava crtanje. Inercija posle prevlačenja (ne uz `prefers-reduced-motion`).
+- **Projekcija**: ekvirektangularna oko centra grada, x skaliran sa cos(lat); jedinice sveta = px na zumu 13 (~13,5 m/px u Beogradu). Zum 11–17, dugme/tastatura: najviše jedan nivo po pritisku (12,5 → 13 → 14), točkić kontinualno oko kursora, dupli klik +1, pinch (dva pointera), tastatura: strelice pomeraju 60 px, `+`/`-` zum, `Esc` zatvara popover/crtanje, `Enter` završava crtanje. Inercija posle prevlačenja (ne uz `prefers-reduced-motion`).
 - **Tkivo grada**: reke (Sava/Dunav, Dunav NS, Nišava…, 13 gradova — približne tačke, deklarisano kao mock), parkovi (Kalemegdan, Tašmajdan, Košutnjak, Ada, Ušće…; drugde nasumični), blokovi po sektorima sa blagim rotacijama, sekundarne ulice, 6–9 avenija iz centra + 2 polukružne obilaznice, sateliti za udaljene opštine. Sve kroz `--map-*` tokene, tamna tema automatski. Keširano po gradu.
-- **Pinovi**: `ui.pin(l, state)` (fallback lokalni) sa kratkom cenom (`125k`, `1,2M`, `450 €`), stanja `default/hover/selected/visited` (`store.recent`), `.new` za novogradnju. Klasteri po mreži u px zavisnoj od zuma (46 px <13, 36 <14,5, 26 <16, 16 <17, 8 na 17); klik na klaster približava na članove. Pin sloj se ponovo gradi samo pri promeni zuma za ≥0,5 ili pomeraju > 60 % ekrana.
-- **Natpisi**: grad (z<13,5), opštine (12–16), naselja (≥14,2) na centroidima oglasa; sudar sa pinovima i drugim natpisima se izbegava (5 kandidata pomeraja), pin uvek pobeđuje. U budžetu ostaju samo natpisi gradova.
+- **Pinovi**: `ui.pin(l, state)` (fallback lokalni) sa kratkom cenom (`125k`, `1,2M`, `450 €`), stanja `default/hover/selected/visited` (`store.recent`), `.new` za novogradnju. Klasteri po mreži u px zavisnoj od zuma (46 px <13, 36 <14,5, 26 <16, 16 <17, 8 na 17); klik na klaster približava na članove.
+  **Ispod z13 samo klasteri** (§5.22): usamljen oglas je tačka `.mv-dot` bez cene (cilj 32 px, klik → z14 oko nje); izuzetak je izabran oglas, koji uvek ima pun pin. Pin sloj se ponovo gradi samo pri promeni zuma za ≥0,5 ili pomeraju > 60 % ekrana.
+- **Natpisi**: grad (z<13,5), opštine (12–16), naselja (≥14,2) na centroidima oglasa; sudar sa pinovima i drugim natpisima se izbegava (5 kandidata pomeraja), pin uvek pobeđuje. U budžetu ostaju samo natpisi gradova, i oni ustupaju natpisima krajeva.
+- **Budžet, raspored**: natpisi krajeva se mere u DOM-u; razmicanje (40 iteracija) po pravougaonicima krug ∪ natpis, pa se ni krugovi ni natpisi krajeva sa
+  podacima ne preklapaju. „Malo podataka”: pun natpis ispod/iznad kruga → samo ime → bez natpisa, šta god prvo ne udara. Kontejner uži od 560 px dobija
+  `.mv-compact` (krugovi 12–28 px umesto 16–40, natpisi 10/15 px). Prerada samo pri promeni redova, izbora ili zuma (ne pri pomeranju).
 - **Zona**: klik-tačke (zatvaranje klikom na prvu tačku, duplim klikom, Enter ili „Završi”) ili slobodna ruka prevlačenjem; Douglas–Peucker ≤ 40 tačaka; filtrira `point-in-polygon`; čip „Nacrtana zona · N oglasa” sa ×.
 - **Performanse**: 660 oglasa, pomeranje = jedan `transform` na SVG grupi + `translate3d` na sloju pinova; ~16 ms/kadar (rAF) sa 70 pin-čvorova na z14 (Playwright, bez GPU).
 - **Pristupačnost**: `aria-label` na kontejneru sa uputstvom, `aria-live` broj oglasa u prikazu, pinovi su `button` sa `aria-pressed`, fokus vidljiv, ciljevi ≥ 40 px.
@@ -95,10 +104,20 @@ bez ponovnog renderovanja (deljiv link).
   Tip, Cena, Kvadratura, Sobe, Stanje, Dodatno; živi broj „Prikaži N oglasa”; „Obriši sve”), segment Oglasi · Budžet, aktivni tagovi.
 - **Fioka (≥1100)**: „N oglasa u prikazu”, do 60 `ui.card(l,'list')` redova; hover reda → pin `.hov`, hover pina → red `.hl` + scroll;
   klik reda → pin `.on`; prazno stanje kad u kadru nema oglasa.
-- **Karusel (<1100)**: do 40 `ui.card(l,'compact')` kartica u scroll-snap traci; izbor pina centrira karticu, pomeranje trake bira pin.
-  Visina se meri i prosleđuje legendi/razmerniku (`--mp-car`).
-- **Budžet** (`m=budzet`): traka „Imaš 100.000 €? Vidi šta kupuje.” (unos, grad, klizač 30–500 k / kirija 150–2.000, linija
-  „= ~94.834 € za stan (oko 5.166 € ode na porez 2,5 %, proviziju i overu)”, segment Kupujem/Iznajmljujem, „Nazad na oglase”).
+- **Karusel (<1100)**: do 40 `ui.card(l,'compact')` kartica (oglasi u kadru najbliži izabranom/centru, poređani po geografskoj dužini) u scroll-snap traci;
+  izbor pina centrira karticu, pomeranje trake bira pin. Traka se **ne gradi ponovo** pri pomeranju/zumu mape — samo pri refresh-u, „Pretraži u ovom
+  području”, zoni, ili kad nijedna kartica više nije u kadru / izabrani oglas izađe iz kadra; nikad dok se traka vuče. Posle ponovne izgradnje izabrana
+  kartica ostaje centrirana (scroll `auto`). Popover pina je sakriven <1100 (kartica je detalj). Visina se meri i prosleđuje legendi (`--mp-car`).
+- **Insets**: stranica daje `mapView` funkciju `insets` = donja ivica gornje trake / budžet panela (ili leva ivica panela na desktopu, šta ostavlja veću
+  površinu) + 8, desno 56 (zum), dole karusel + legenda. Svi fit-ovi (početni, „Prikaži sve”, klaster, budžet) uklapaju podatke u slobodan deo.
+- **Telefon (≤860)**: gornja traka u dva reda — pretraga, pa [ikonica zone (aria-label)] [Filteri N] [Oglasi | Budžet] u 40 px; razmernik ide ispod zum dugmadi.
+- **Budžet** (`m=budzet`): traka „Imaš 170.000 €? Vidi šta kupuje.” (unos, grad, klizač 30–500 k / kirija 150–2.000, linija
+  „= ~161.692 € za stan (oko 8.308 € ode na porez 2,5 %, proviziju i overu)”, segment Kupujem/Iznajmljujem, „Nazad na oglase”).
+  Na telefonu traka je sklopljena (~96 px): naslov + × „Nazad na oglase”, pa [iznos €][grad][Podesi]; „Podesi” (aria-expanded) otvara klizač, neto red i
+  Kupujem/Iznajmljujem; zum dugmad idu ispod trake (`--mp-btop`).
+  Podrazumevani budžet po gradu = ~40. percentil cena (t, pt) u gradu × 1,06, zaokruženo na 5.000 € (kirija: 40. percentil na 50 €), ograničeno opsegom
+  klizača; `b` u URL-u (ili ručna promena) ga zamenjuje i tada se upisuje u heš. Kraj sa 0 oglasa u budžetu: meta „0 oglasa u budžetu · treba ti još
+  ~12.500 €”, CTA „Najjeftiniji ovde: 107.500 €” → pretraga kraja bez `pmax`, `sort=p-asc` (nikad garantovano prazna pretraga).
   Redovi iz `KX.budgetMap(b, {t, pt, cs})` (engine; `n` ukupno, `count` u budžetu, `.net` neto), a ako engine nije učitan lokalno: po opštini
   grada sa ≥ 3 oglasa (t, pt) medijan €/m², m² = neto/medijan, broj oglasa p ≤ neto; < 3 oglasa → šupalj krug „malo podataka”; mali grad →
   jedan krug za grad. Fioka/karusel: lista krajeva po m² sa trakom; klik → `setHash('/pretraga', {t, pt:[pt], c, m:[ms], pmax: neto, sort:'p-asc'})`.
@@ -109,7 +128,19 @@ bez ponovnog renderovanja (deljiv link).
 - Krugovi „Moja mesta”: brzine auto 25 (NS/Niš ×1,12), gradski 18, pešice 4,5, bicikl 14 km/h, faktor zaobilaženja 1,3 — procena.
 - Budžet bez engine-a: konstante troškova gore; medijane i centroidi su stvarni agregati iz oglasa.
 
+- **Bez map.js**: ako `mapView` nije definisan, `viewMap` ne baca grešku — prikazuje „Mapa trenutno nije dostupna” sa vezom na pretragu.
+
+### Integracija (za vlasnika `index.html` / `app.js`)
+- `index.html`: dodati `<script src="js/engine.js">` i `<script src="js/map.js">` **posle** `js/ui.js`, a **pre** `js/pages/*.js`.
+- `app.js`: ruta `/mapa` treba da zove `viewMap(q)` (ceo `URLSearchParams`), ne `viewMap(q.get('c'))`, da bi `pt`, `pmax`, `m=budzet`, `b`… važili
+  bez ponovnog čitanja `location.hash`.
+
 ### Test
 `dev/map/index.html` (rute `#/`, `#/mapa?c=novi-sad&m=budzet`, `#/mapa?c=nis&t=izdavanje`, `#/komponenta` — goli API sa dugmadima
 za setMode/setBudget/setPlaces/highlight/setSelected/setListings/setPolygon/setRadius; `window.__mapApi`). Sadrži dev-šim za
 `fmt/stats/mock/store` koji je neaktivan čim ih core.js definiše — nikad ga ne kopirati u `index.html`.
+
+Stranica koristi `../../css`, `../../js`, `../../data.js`, pa se servira iz **korena repoa** (ne iz `dev/map`):
+```
+node <scratchpad>/shot.js /home/user/Kvadrat <outDir> --page dev/map/index.html '#/' '#/mapa?c=novi-sad&m=budzet' '#/mapa?c=beograd&m=budzet' '#/mapa?c=nis&t=izdavanje' '#/komponenta'
+```

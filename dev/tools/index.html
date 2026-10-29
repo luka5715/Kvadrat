@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="sr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Kvadrat — test alata</title>
+<meta name="description" content="Dev stranica za js/pages/tools.js: #/kalkulator, #/procena, #/trziste sa zaglavljem i podnožjem.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,50;1,9..144,300..700,50&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../css/tokens.css">
+<link rel="stylesheet" href="../../css/base.css">
+<link rel="stylesheet" href="../../css/components.css">
+<link rel="stylesheet" href="../../css/pages/tools.css">
+</head>
+<body>
+<div id="app"></div>
+<div id="toasts" aria-live="polite"></div>
+<script src="../../data.js" charset="utf-8"></script>
+<script src="../../js/core.js" charset="utf-8"></script>
+<script src="../../js/images.js" charset="utf-8"></script>
+<script src="../../js/ui.js" charset="utf-8"></script>
+<script src="../../js/engine.js" charset="utf-8"></script>
+<script src="../../js/map.js" charset="utf-8"></script>
+<script src="../../js/pages/tools.js" charset="utf-8"></script>
+<script>
+/* privatni test-harnes (nije deo sajta): header + view(q) + footer za rutu iz hash-a */
+'use strict';
+(function () {
+  try { const t = store.getTheme(); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+  const VIEWS = { '/kalkulator': viewCalc, '/procena': viewValuation, '/trziste': viewMarket };
+  function render() {
+    const r = parseHash();
+    const view = VIEWS[r.path] || viewCalc;
+    const app = document.getElementById('app');
+    app.replaceChildren(header(r.path), el('main', { id: 'main' }, view(r.q)), footer());
+  }
+  window.addEventListener('hashchange', () => { window.scrollTo(0, 0); render(); });
+  if (!location.hash || location.hash === '#/') history.replaceState(null, '', '#/kalkulator');
+  render();
+})();
+</script>
+</body>
+</html>

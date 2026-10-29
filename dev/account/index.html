@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="sr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Kvadrat — test: nalog i tokovi</title>
+<meta name="description" content="Dev stranica za js/pages/account.js: #/uporedi, #/sacuvani, #/moja-mesta, #/postavi. ?seed=1 puni demo podatke (sačuvani, poređenje, pretrage, mesta), ?seed=draft i nacrt oglasa.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,50;1,9..144,300..700,50&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../css/tokens.css">
+<link rel="stylesheet" href="../../css/base.css">
+<link rel="stylesheet" href="../../css/components.css">
+<link rel="stylesheet" href="../../css/pages/map.css">
+<link rel="stylesheet" href="../../css/pages/account.css">
+<style>
+/* samo za dev stranicu */
+.dv-idx{padding:48px 0 64px}.dv-idx ul{margin:20px 0 0;padding:0;list-style:none;display:grid;gap:8px}
+.dv-idx a{color:var(--accent);font-weight:600}
+.dv-idx code{font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toasts" aria-live="polite"></div>
+
+<script src="../../data.js" charset="utf-8"></script>
+<script>
+/* DEV: demo podaci u localStorage pre učitavanja core.js (store čita ključeve pri startu). Samo uz ?seed=… */
+(function () {
+  'use strict';
+  const seed = new URLSearchParams(location.search).get('seed');
+  if (!seed) return;
+  try {
+    const L = window.KV.listings;
+    const pick = (fn, n) => L.filter(fn).slice(0, n).map((l) => l.s);
+    const bg = pick((l) => l.t === 'prodaja' && l.pt === 'stan' && l.cs === 'beograd' && l.a >= 40 && l.a <= 80, 40);
+    const favs = [bg[3], bg[7], bg[11], bg[15], bg[19], bg[23]];
+    const recent = [bg[2], bg[5], bg[7], bg[9], bg[12], bg[14], ...pick((l) => l.t === 'izdavanje' && l.cs === 'beograd', 2)];
+    const set = (k, v) => { if (localStorage.getItem(k) == null) localStorage.setItem(k, JSON.stringify(v)); };
+    set('kv.favs', favs);
+    set('kv.compare', [favs[0], favs[1], favs[2]]);
+    set('kv.recent', recent);
+    set('kv.notes', { [favs[0]]: 'Dobar raspored, proveriti buku sa ulice i stanje kupatila.' });
+    set('kv.ratings', { [favs[0]]: 4, [favs[2]]: 5, [favs[3]]: 2 });
+    const d = (days) => new Date(Date.now() - days * 864e5).toISOString();
+    set('kv.searches', [
+      { id: 'sdemo1', name: 'Dvosoban, Beograd, do 150.000 €', params: { pt: ['stan'], c: 'beograd', ro: ['2'], pmax: '150000' }, created: d(6) },
+      { id: 'sdemo2', name: 'Izdavanje, Novi Sad, do 500 €', params: { t: 'izdavanje', c: 'novi-sad', pmax: '500' }, created: d(2) },
+    ]);
+    set('kv.profile', { places: [
+      { id: 'p1', name: 'Posao', lat: 44.8163, lng: 20.4602, who: 'ja', mode: 'gradski', cs: 'beograd' },
+      { id: 'p2', name: 'Fakultet', lat: 44.7975, lng: 20.477, who: 'partner', mode: 'bicikl', cs: 'beograd' },
+    ], hidden: [bg[30], bg[31]] });
+    if (seed === 'draft') set('kv.draft', { v: 1, step: 5, t: 'prodaja', pt: 'stan', adv: 'vlasnik', cs: 'beograd', ms: 'vracar', n: 'Čubura', ad: 'Makenzijeva 41', lat: null, lng: null,
+      a: '58', ro: 2, fl: '3', tf: '5', y: '1978', he: 'centralno', co: 'renovirano', fu: 'polunamesten', legal: 'uknjizeno', proof: true, am: ['hasElevator', 'hasTerrace', 'hasBasement'],
+      title: '', d: 'Svetao dvosoban stan na trećem spratu zgrade sa liftom, okrenut na dvorišnu stranu, pa je tih i noću. Kuhinja i kupatilo renovirani 2023. godine, nova stolarija i instalacije. Do Kalenić pijace se stiže za pet minuta pešice.', photos: [0, 1, 2, 3], p: '315000', dep: '', neg: true, name: '', phone: '', agree: false, published: null });
+  } catch (e) { /* bez localStorage — strana radi i bez demo podataka */ }
+})();
+</script>
+<script src="../../js/core.js" charset="utf-8"></script>
+<script src="../../js/images.js" charset="utf-8"></script>
+<script src="../../js/ui.js" charset="utf-8"></script>
+<script src="../../js/engine.js" charset="utf-8"></script>
+<script src="../../js/map.js" charset="utf-8"></script>
+<script src="../../js/pages/account.js" charset="utf-8"></script>
+<script>
+(function () {
+  'use strict';
+  const ROUTES = { '/uporedi': 'viewCompare', '/sacuvani': 'viewSaved', '/moja-mesta': 'viewPlaces', '/postavi': 'viewPost' };
+  function index() {
+    return el('div', { class: 'wrap dv-idx' }, el('h1', { class: 't-h1' }, 'Nalog i tokovi — dev'),
+      el('p', { class: 'lede' }, 'Rute modula js/pages/account.js. Dodaj ?seed=1 (ili ?seed=draft) u adresu pre # za demo podatke.'),
+      el('ul', {}, Object.keys(ROUTES).map((p) => el('li', {}, el('a', { href: '#' + p }, '#' + p), ' ', el('code', {}, ROUTES[p] + '(q)')))));
+  }
+  function render() {
+    const { path, q } = parseHash();
+    const app = document.getElementById('app');
+    const fn = ROUTES[path] && window[ROUTES[path]];
+    let body;
+    try { body = fn ? fn(q) : index(); } catch (e) { console.error(e); body = el('pre', { class: 'wrap' }, String(e && e.stack || e)); }
+    app.replaceChildren(header(path), el('main', { id: 'main' }, body), footer());
+    window.scrollTo(0, 0);
+  }
+  window.addEventListener('hashchange', render);
+  render();
+})();
+</script>
+</body>
+</html>
