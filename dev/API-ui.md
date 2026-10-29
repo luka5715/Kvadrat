@@ -3,6 +3,7 @@
 Referenca za inženjere stranica. Sve funkcije su **globali** (klasični `<script>`, bez modula) i vraćaju gotove DOM čvorove
 izgrađene preko `el()` iz `core.js`; slike dolaze iz `img.*` (`images.js`). Vizuelna istina je `dev/index.html`
 (styleguide) — svaka funkcija je tamo prikazana u svim stanjima. Spec: `scratchpad/design/SPEC.md`.
+Styleguide se snima iz korena repoa (zbog `../css`, `../js`, `../data.js`): `node scratchpad/shot.js /home/user/Kvadrat <outDir> --page dev/index.html '#/'`.
 
 ## 0. Uključivanje i konvencije
 
@@ -129,7 +130,7 @@ main.append(
 |---|---|
 | `sectionHead(title, sub?, href?, linkLabel?)` | `<div class="shead">` h2 `.t-h2` + `.sub` + `a.btn.btn-link`. Sekciju obmotaj u `<section class="section">` (hairline između sekcija). |
 | `empty(title, text, actionLabel, href, { primary:{label, href\|onClick}, onClick, icon })` | `<div class="empty" role="status">` 48px ikona, serif h3, pasus, `.btn-row` (secondary [+ primary]). Bez `href` akcija je dugme sa `onClick`. |
-| `pager(page, pages, onPick(p), { per, perOptions=[20,40,60], onPer(n) })` | `<nav class="pager">` 44px dugmad (`button.pg` brojevi, `aria-current="page"`), „…“ elipse (`.dots`), prev/next; `per` dodaje „Po strani“ select desno. Na ≤600 ostaju samo `‹ [tekuća] / N ›` (`.cur` brojač) a „Po strani“ pada u svoj red desno — nema prelamanja. Prazan `<nav>` za `pages < 1`. Alternativa za rezultate na ≤860 (§5.17): `btn('Učitaj još', { variant:'secondary', block:true })` umesto brojeva. |
+| `pager(page, pages, onPick(p), { per, perOptions=[20,40,60], onPer(n) })` | `<nav class="pager">` 44px dugmad (`button.pg` brojevi, `aria-current="page"`), „…“ elipse (`.dots`), prev/next; `per` dodaje „Po strani“ select desno. Na ≤600 ostaju samo `‹ [tekuća] / N ›` (`.cur` brojač) a „Po strani“ ostaje desno u istom redu (`margin-left:auto`) — jedan red, visina 92px, nema prelamanja. Prazan `<nav>` za `pages < 1`. Alternativa za rezultate na ≤860 (§5.17): `btn('Učitaj još', { variant:'secondary', block:true })` umesto brojeva. |
 | `crumbs([{label, href}])` | `<nav class="crumbs">` sa „/“; na ≤600 prikazuje samo `‹ roditelj` (`.back`). Poslednja stavka je tekuća (`.cur`). |
 | `tiles([{ v, l, delta?, xl? }])` | `<div class="tiles">` `.tile` (serif 30px `b` + 13px `span`); `delta` je čvor (npr. `deltaChip({pct, label})`); `xl` → 38–46px. Ispod ide ručno `.types` traka: `el('div',{class:'types'}, [el('a',{href},el('b',{},'388'),'stanova'),…])`. |
 | `stepper(steps[], cur = 0)` | `<div class="stepper-wrap">` → `ol.stepper` (desktop: `li.done/.cur`) + `.stepper-m` („Korak 2 od 5 · Fotografije“ + 2px bar, ≤600). |
