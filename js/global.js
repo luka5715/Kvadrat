@@ -3,7 +3,7 @@
    2) Fioka „Uporedi” (store.compare, vidljiva na rezultatima, mapi i oglasu)
    3) Obaveštenje o privatnosti (ZZPL), jednom, pamti se u kv.privacy
    4) „Kako računamo” — viewLedger(q) iz KX.ledger + formule + izvori
-   5) Tastatura: g h · g s · Esc; 6) online/offline obaveštenja; 7) 404, „u izradi”, blok greške, info stranice (privatnost, uslovi, pomoć, kontakt, prijava).
+   5) Tastatura: ⌘K / Ctrl+K, „/”, Esc (bez drugih globalnih prečica); 6) online/offline obaveštenja; 7) 404, „u izradi”, blok greške, info stranice (privatnost, uslovi, pomoć, kontakt, prijava).
    Izvozi: window.KVG = { palette, tray, notice, keys, views… } i globalne viewLedger / viewInfo / viewNotFound.
    Zavisi (meko, sve kroz S()) od core.js, ui.js, images.js, engine.js. Nikad ne baca. */
 'use strict';
@@ -113,8 +113,8 @@
       const count = el('p', { class: 'kp-count', role: 'status', 'aria-live': 'polite' });
       const list = el('div', { class: 'kp-list', id: 'kp-list', role: 'listbox', 'aria-label': 'Predlozi' });
       const hints = el('p', { class: 'kp-hints' },
-        el('span', {}, el('kbd', {}, '↑'), el('kbd', {}, '↓'), ' biraj'), el('span', {}, el('kbd', {}, 'Enter'), ' otvori'),
-        el('span', {}, el('kbd', {}, isMac ? '⌘' : 'Ctrl'), el('kbd', {}, 'Enter'), ' svi rezultati'), el('span', {}, el('kbd', {}, 'Esc'), ' zatvori'));
+        el('span', {}, el('kbd', {}, '↑'), el('kbd', {}, '↓'), ' birajte'), el('span', {}, el('kbd', {}, 'Enter'), opts.pick ? ' dodajte' : ' otvorite'),
+        opts.pick ? null : el('span', {}, el('kbd', {}, isMac ? '⌘' : 'Ctrl'), el('kbd', {}, 'Enter'), ' svi rezultati'), el('span', {}, el('kbd', {}, 'Esc'), ' zatvorite'));
       const body = el('div', { class: 'kp' },
         el('div', { class: 'kp-box' }, ic('search', 20), input),
         chips, count, list, hints);
@@ -139,7 +139,7 @@
         move(st.cur < 0 ? (e.key === 'ArrowDown' ? 0 : n - 1) : (st.cur + (e.key === 'ArrowDown' ? 1 : n - 1)) % n);
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        if (e.metaKey || e.ctrlKey) { apply(); return; }
+        if ((e.metaKey || e.ctrlKey) && !st.pick) { apply(); return; }
         if (st.cur >= 0 && st.items[st.cur]) { activate(st.items[st.cur]); return; }
         apply();
       } else if (e.key === 'Home' && st.items.length && !st.input.value) { e.preventDefault(); move(0); }
@@ -157,8 +157,11 @@
       if (it.recent) pushRecentQ(st.input.value);
       const h = it.h; close(); if (h) go(h);
     }
+    /* režim izbora (Uporedi → „Dodaj još jedan”): nikad ne napušta stranicu — Enter / dugme dodaju prvi pronađeni oglas */
+    const firstPick = () => (st ? st.items.find((it) => it.slug) : null);
     function apply() {
       if (!st) return;
+      if (st.pick) { const it = firstPick(); if (it) activate(it); else S(() => st.input.focus()); return; }
       const text = st.input.value.trim();
       const p = st.parsed || parse(text);
       if (!text) { close(); go(href('/pretraga', { t: 'prodaja' })); return; }
@@ -209,7 +212,7 @@
         }
         if (hasFilters || !p.route) {
           const found = n ? filterList(p.filters).slice(0, 5) : [];
-          groups.push(group(st.pick ? 'Izaberi oglas' : 'Oglasi', found.map((l) => opt('l', el('a', { href: '#/oglas?s=' + encodeURIComponent(l.s) },
+          groups.push(group(st.pick ? 'Izaberite oglas' : 'Oglasi', found.map((l) => opt('l', el('a', { href: '#/oglas?s=' + encodeURIComponent(l.s) },
             thumb(l, 48),
             el('span', { class: 'm' }, el('span', { class: 'l' }, titleOf(l)), el('span', { class: 's' }, placeOf(l))),
             el('span', { class: 'p num' }, priceOf(l))), { h: '#/oglas?s=' + encodeURIComponent(l.s), slug: l.s, recent: true }))));
@@ -234,8 +237,17 @@
         groups.push(group('Brze pretrage', QUICK.map((qk) => opt('quick', el('a', { href: href('/pretraga', qk.params) }, ic('search'), el('span', { class: 'l' }, qk.label), el('span', { class: 'r num' }, oglasa(paramsCount(qk.params)))), { h: href('/pretraga', qk.params) }))));
         groups.push(group('Idi na', GOTO.slice(0, 6).map((g) => opt('cmd', el('a', { href: g.h }, ic(g.icon), el('span', { class: 'l' }, g.label)), { h: g.h }))));
       }
+      if (st.pick) {
+        /* u režimu izbora samo oglasi: bez prečica i „idi na” (vode van stranice) */
+        for (let i = groups.length - 1; i >= 0; i--) if (groups[i] && !groups[i].querySelector('.kp-l,.kp-rec')) groups.splice(i, 1);
+        st.items = st.items.filter((it) => it.slug || it.fill != null);
+        const f = firstPick();
+        st.goBtn.textContent = f ? 'Dodaj prvi oglas' : 'Upišite oglas koji dodajete';
+        st.goBtn.disabled = !f;
+      }
       st.list.replaceChildren(...groups.filter(Boolean));
-      if (!st.items.length) st.list.appendChild(el('p', { class: 'kp-none' }, 'Nismo prepoznali nijednu reč. Probajte grad, opštinu, strukturu ili cenu — npr. „trosoban novi sad do 120k”.'));
+      if (!st.items.length && st.pick && !text.trim()) st.list.appendChild(el('p', { class: 'kp-none' }, 'Upišite naselje, strukturu, cenu ili šifru oglasa — npr. „dvosoban vračar” — pa izaberite oglas koji dodajete u poređenje.'));
+      else if (!st.items.length) st.list.appendChild(el('p', { class: 'kp-none' }, 'Nismo prepoznali nijednu reč. Probajte grad, opštinu, strukturu ili cenu — npr. „trosoban novi sad do 120k”.'));
     }
 
     return { open, close, isOpen: () => !!api, parse, removeChip };
@@ -244,7 +256,7 @@
   /* ═════════════════════════ 2) FIOKA „UPOREDI” ═════════════════════════ */
   const tray = (function () {
     const ROUTES = ['/pretraga', '/mapa', '/oglas'];
-    let node = null, path = '/', collapsed = null, shownPath = null;
+    let node = null, path = '/', collapsed = null, shownPath = null, lastAdder = null;
     const items = () => (S(() => store.compare, []) || []).map(findL).filter(Boolean);
     function ensure() {
       if (node && node.isConnected) return node;
@@ -252,24 +264,51 @@
       document.body.appendChild(node);
       return node;
     }
+    /* koji kontrol u fioci ima fokus (da ga posle ponovnog crtanja vratimo na isto mesto) */
+    function focusSpot(n) {
+      const a = document.activeElement;
+      if (!n || !a || !n.contains(a)) return null;
+      for (const k of ['x', 'th']) { const all = [...n.querySelectorAll('.kv-tray-' + k)]; const i = all.indexOf(a); if (i >= 0) return { k, i }; }
+      const c = ['go', 'clear', 'trash', 'fold', 'min'].find((k) => a.classList.contains('kv-tray-' + k));
+      return { k: c || 'other', i: 0 };
+    }
+    function refocus(n, spot) {
+      const q = (k) => [...n.querySelectorAll('.kv-tray-' + k)];
+      let t = null;
+      if (spot.k === 'x' || spot.k === 'th') { const all = q(spot.k); t = all[Math.min(spot.i, all.length - 1)] || null; }
+      else if (spot.k === 'min') t = q('fold')[0] || q('x')[0] || null;
+      else if (spot.k === 'fold') t = q('min')[0] || null;
+      else t = q(spot.k)[0] || null;
+      t = t || q('x')[0] || q('go')[0] || q('min')[0];
+      if (t) S(() => t.focus({ preventScroll: true }));
+    }
+    function focusAway() {
+      const t = (lastAdder && lastAdder.isConnected && !node.contains(lastAdder)) ? lastAdder : document.getElementById('main');
+      if (t) S(() => t.focus({ preventScroll: true }));
+    }
+    const clearAll = () => { S(() => store.clearCompare()); S(() => toast('Poređenje je ispražnjeno')); };
     function update(p) {
       if (p != null) path = p;
       const list = items();
       const show = list.length > 0 && ROUTES.includes(path);
       const n = ensure();
+      const spot = focusSpot(n);
       n.hidden = !show;
       document.body.classList.toggle('has-tray', show);
-      if (!show) { n.replaceChildren(); return; }
+      if (!show) { n.replaceChildren(); if (spot) focusAway(); return; }
       const phone = S(() => matchMedia('(max-width:600px)').matches, false);
       if (collapsed === null || path !== shownPath) collapsed = phone && path === '/mapa';   /* mapa na telefonu: skupljeno, da ne pokrije karusel */
+      if (!phone) collapsed = false;
       shownPath = path;
       n.classList.toggle('is-min', !!collapsed);
       n.classList.toggle('on-map', path === '/mapa');
       const ids = list.map((l) => l.s).join(',');
       const cmpHref = '#/uporedi?ids=' + ids;
+      const label = `Uporedi (${list.length})`;
       if (collapsed) {
-        n.replaceChildren(el('button', { class: 'kv-tray-min', type: 'button', 'aria-expanded': 'false', onclick: () => { collapsed = false; update(); } },
+        n.replaceChildren(el('button', { class: 'kv-tray-min', type: 'button', 'aria-expanded': 'false', 'aria-label': `Uporedi, ${oglasa(list.length)} — otvori fioku`, onclick: () => { collapsed = false; update(); } },
           ic('compare'), el('span', {}, 'Uporedi'), el('b', { class: 'num' }, String(list.length))));
+        if (spot) refocus(n, spot);
         return;
       }
       n.replaceChildren(
@@ -280,12 +319,21 @@
             el('button', { class: 'kv-tray-x', type: 'button', 'aria-label': 'Ukloni iz poređenja: ' + titleOf(l), onclick: () => S(() => store.toggleCompare(l.s)) }, ic('x', 14)))),
           Array.from({ length: Math.max(0, Math.min(4, 4 - list.length)) }, () => el('li', { class: 'kv-tray-empty', 'aria-hidden': 'true' }))),
           el('div', { class: 'kv-tray-act' },
-            el('button', { class: 'btn btn-ghost btn-sm kv-tray-clear', type: 'button', onclick: () => { S(() => store.clearCompare()); S(() => toast('Poređenje je ispražnjeno')); } }, 'Isprazni'),
-            el('a', { class: 'btn btn-primary btn-sm kv-tray-go', href: cmpHref, 'aria-disabled': list.length < 2 ? 'true' : null }, `Uporedi (${list.length})`),
-            phone && path === '/mapa' ? el('button', { class: 'iconbtn kv-tray-fold', type: 'button', 'aria-label': 'Skupi fioku', onclick: () => { collapsed = true; update(); } }, ic('chev-d')) : null,
-            phone && path !== '/mapa' ? el('button', { class: 'iconbtn kv-tray-trash', type: 'button', 'aria-label': 'Isprazni poređenje', onclick: () => { S(() => store.clearCompare()); S(() => toast('Poređenje je ispražnjeno')); } }, ic('trash')) : null)),
+            el('button', { class: 'btn btn-ghost btn-sm kv-tray-clear', type: 'button', onclick: clearAll }, 'Isprazni'),
+            list.length < 2
+              ? el('button', { class: 'btn btn-primary btn-sm kv-tray-go', type: 'button', disabled: true, 'aria-disabled': 'true', title: 'Za poređenje su potrebna bar dva oglasa' }, label)
+              : el('a', { class: 'btn btn-primary btn-sm kv-tray-go', href: cmpHref }, label),
+            phone ? el('button', { class: 'iconbtn kv-tray-trash', type: 'button', 'aria-label': 'Isprazni poređenje', onclick: clearAll }, ic('trash')) : null,
+            phone ? el('button', { class: 'iconbtn kv-tray-fold', type: 'button', 'aria-label': 'Skupi fioku', 'aria-expanded': 'true', onclick: () => { collapsed = true; update(); } }, ic('chev-d')) : null)),
         ...(list.length < 2 ? [el('p', { class: 'kv-tray-hint' }, 'Dodajte još jedan oglas da biste uporedili.')] : []));
+      if (spot) refocus(n, spot);
     }
+    /* ko je poslednji dodao u poređenje (dugme na kartici/oglasu): tamo vraćamo fokus kad se fioka isprazni */
+    S(() => store.on((what) => {
+      if (what !== 'compare') return;
+      const a = document.activeElement;
+      if (a && a !== document.body && !(node && node.contains(a))) lastAdder = a;
+    }));
     S(() => store.on((what) => { if (what === 'compare') update(); }));
     return { update, items };
   })();
@@ -294,7 +342,14 @@
   const NOTICE_KEY = 'kv.privacy';
   const notice = (function () {
     let node = null;
-    function dismiss() { lsSet(NOTICE_KEY, { ok: 1, at: new Date().toISOString().slice(0, 10) }); if (node) { node.remove(); node = null; } document.body.classList.remove('has-notice'); }
+    let ro = null;
+    const measure = () => S(() => { if (node) document.body.style.setProperty('--kv-notice-h', Math.ceil(node.getBoundingClientRect().height) + 'px'); });
+    function dismiss() {
+      lsSet(NOTICE_KEY, { ok: 1, at: new Date().toISOString().slice(0, 10) });
+      S(() => ro && ro.disconnect()); ro = null;
+      if (node) { node.remove(); node = null; }
+      document.body.classList.remove('has-notice'); S(() => document.body.style.removeProperty('--kv-notice-h'));
+    }
     function show() {
       if (node || lsGet(NOTICE_KEY, null)) return;
       node = el('section', { class: 'kv-notice', role: 'region', 'aria-label': 'Privatnost' },
@@ -304,34 +359,43 @@
         el('button', { class: 'btn btn-secondary btn-sm', type: 'button', onclick: dismiss }, 'Razumem'));
       document.body.appendChild(node);
       document.body.classList.add('has-notice');
+      measure();
+      S(() => { ro = new ResizeObserver(measure); ro.observe(node); });   /* obaveštenja (toast) idu iznad njega */
     }
     return { show, dismiss };
   })();
 
   /* ═════════════════════════ 5) TASTATURA ═════════════════════════ */
   const keys = (function () {
-    let gAt = 0;
+    /* samo ⌘K / Ctrl+K, „/” i Esc — bez drugih globalnih prečica (istraživanje: bez j/k/f/h i sekvenci) */
+    const openOverlays = () => [...document.querySelectorAll('.modal.in,.sheet.in,.lightbox')];
+    function closeTop(top) {
+      if (top.classList.contains('kp-dlg') && palette.isOpen()) { palette.close(); return true; }
+      const btn = top.querySelector('.hd button, .lb-close, [aria-label="Zatvori"]');
+      if (btn) { btn.click(); return true; }
+      return false;
+    }
+    /* faza hvatanja: kad su dva sloja jedan preko drugog (npr. paleta preko lista), Esc zatvara samo gornji */
+    function onEscCapture(e) {
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      const open = openOverlays();
+      if (open.length < 2) return;
+      if (closeTop(open[open.length - 1])) { e.preventDefault(); e.stopImmediatePropagation(); }
+    }
     function onKey(e) {
       if (e.defaultPrevented) return;
       const k = e.key;
       if ((e.metaKey || e.ctrlKey) && !e.altKey && (k === 'k' || k === 'K')) { e.preventDefault(); palette.isOpen() ? palette.close() : palette.open(); return; }
       if (k === 'Escape') {
         /* rezervni Esc: ui.modal/sheet ga već obrađuju (preventDefault); ovde samo ono što ostane otvoreno */
-        const top = [...document.querySelectorAll('.modal.in,.sheet.in,.lightbox')].pop();
-        const btn = top && top.querySelector('.hd button, .lb-close, [aria-label="Zatvori"]');
-        if (btn) { e.preventDefault(); btn.click(); }
+        const top = openOverlays().pop();
+        if (top && closeTop(top)) e.preventDefault();
         return;
       }
       if (e.metaKey || e.ctrlKey || e.altKey || isTyping(e.target) || document.body.classList.contains('modal-open') || document.body.classList.contains('sheet-open')) return;
-      if (k === '/') { e.preventDefault(); palette.open(); return; }
-      if (k === 'g') { gAt = Date.now(); return; }
-      if (gAt && Date.now() - gAt < 1200) {
-        gAt = 0;
-        if (k === 'h') { e.preventDefault(); go('#/'); }
-        else if (k === 's') { e.preventDefault(); go('#/sacuvani'); }
-        else if (k === 'm') { e.preventDefault(); go('#/mapa'); }
-      }
+      if (k === '/') { e.preventDefault(); palette.open(); }
     }
+    document.addEventListener('keydown', onEscCapture, true);
     document.addEventListener('keydown', onKey);
     return { onKey };
   })();
@@ -360,7 +424,7 @@
         f: 'neto cena = cena ÷ 1,10 · povraćaj = neto cena × 10 % × (oslobođeni m² ÷ m²)', e: 'Uslovi: prva kupovina od investitora, državljanin Srbije koji od 1. jula 2006. nije imao stan, članovi domaćinstva prijavljeni na istoj adresi, cela cena plaćena na račun prodavca.' },
       { t: 'Provizija agencije', p: 'Zakon ne propisuje iznos provizije. U praksi je 2–3 % od cene plus PDV od 20 %, a plaća je onaj ko je potpisao posrednički ugovor; agencija je dužna da jasno objavi iznos i ko plaća. Kod zakupa je uobičajeno 40–50 % jedne kirije, a u Beogradu je često plaća vlasnik.',
         f: 'provizija = procenat × cena × 1,20', e: 'Stan od 100.000 € uz 2 % → 2.000 € + 400 € PDV = 2.400 €. Oglas vlasnika: 0 €.' },
-      { t: 'Rata kredita', p: 'Računamo standardni anuitet. Učešće je podrazumevano 20 % (10 % za prvi stan, kako NBS dozvoljava), kamata 5 %, rok 25 godina — sve se menja u profilu i kalkulatoru. Banka finansira samo uknjiženu nepokretnost.',
+      { t: 'Rata kredita', p: 'Računamo standardni anuitet. Učešće je podrazumevano 20 % (10 % za prvi stan, kako NBS dozvoljava), kamata 5 %, rok 25 godina — sve se menja u profilu i kalkulatoru. Banka finansira uknjiženu nepokretnost; za stan u procesu uknjižavanja ili upisan po Zakonu iz 2025. odluka zavisi od banke, a neuknjižen ili u postupku ozakonjenja kupuje se samo kešom.',
         f: 'rata = kredit × i ÷ (1 − (1 + i)^−n), i = godišnja kamata ÷ 12, n = godine × 12', e: `Kredit od 80.000 € na 25 godina uz 5 % → ${rata}.` },
       { t: 'Δ naspram proseka opštine', p: 'Uz svaku cenu po kvadratu stoji čip koji kaže koliko je oglas iznad ili ispod medijane iste opštine, za isti tip nekretnine. Unutar ±1,5 % smatramo da je u proseku. Kada u opštini nema bar 5 uporedivih oglasa, čip ne prikazujemo.',
         f: 'Δ = (€/m² oglasa ÷ medijana €/m² opštine − 1) × 100 %', e: 'Stan od 2.800 €/m² u opštini sa medijanom 2.555 €/m² → +9,6 %.' },
@@ -387,11 +451,13 @@
         el('caption', { class: 'sr' }, 'Šta se računa iz podataka, a šta je demo procena'),
         el('thead', {}, el('tr', {}, el('th', { scope: 'col' }, 'Funkcija'), el('th', { scope: 'col' }, 'Poreklo'), el('th', { scope: 'col' }, 'Kako'))), tbody))
       : el('p', { class: 'kr-note' }, 'Spisak funkcija trenutno nije dostupan (modul za proračune nije učitan). Formule ispod važe za ceo sajt.');
+    /* opštine u kojima postoji medijana (bar 5 oglasa) — samo tamo se prikazuje čip Δ */
+    const nMed = S(() => { const c = {}; D.listings.forEach((l) => { c[l.ms] = (c[l.ms] || 0) + 1; }); return D.muns.filter((m) => (c[m.s] || 0) >= 5).length; }, 0);
     const tilesNode = S(() => tiles([
       { v: N0(S(() => D.listings.length, 660)), l: 'oglasa u bazi' },
       { v: String(nReal || '—'), l: 'funkcija iz podataka' },
       { v: String(nDemo || '—'), l: 'demo procena' },
-      { v: N0(S(() => D.muns.length, 124)), l: 'opština sa medijanama' },
+      { v: N0(nMed), l: `${plural(nMed, 'opština', 'opštine', 'opština')} sa medijanom (≥ 5 oglasa)` },
     ]), null);
 
     return el('div', { class: 'wrap kr' },
@@ -458,7 +524,7 @@
     } }, ic('copy'), 'Prijavi grešku');
     const node = frame('kv-err', 'Greška na stranici', 'Nešto je pošlo naopako',
       ['Stranica ', el('b', { class: 'kv-path' }, '#' + (path || '')), ' nije mogla da se prikaže. Vaši sačuvani oglasi i pretrage su netaknuti.'],
-      [copyBtn, el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => S(() => window.KVApp.render(null, { force: true })) }, ic('refresh'), 'Pokušaj ponovo'), el('a', { class: 'btn btn-ghost', href: '#/' }, 'Na početnu')],
+      [copyBtn, el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => S(() => window.KVApp.render(null, { force: true })) }, ic('refresh'), 'Pokušajte ponovo'), el('a', { class: 'btn btn-ghost', href: '#/' }, 'Na početnu')],
       el('div', { class: 'kv-err-box' }, el('p', { class: 'label' }, 'Tehnički opis'), el('p', { class: 'kv-err-msg' }, msg),
         el('textarea', { class: 'input kv-err-raw', readonly: true, hidden: true, rows: 5, 'aria-label': 'Opis greške za kopiranje' }, report())));
     return node;
@@ -468,6 +534,8 @@
   const STORE_KEYS = [
     ['kv.favs', 'Sačuvani oglasi'], ['kv.compare', 'Oglasi za poređenje'], ['kv.recent', 'Nedavno pogledani oglasi'], ['kv.searches', 'Sačuvane pretrage'],
     ['kv.recentq', 'Nedavne brze pretrage'], ['kv.notes', 'Vaše beleške uz oglase'], ['kv.profile', 'Budžet, primanja i moja mesta'], ['kv.checks', 'Čekirane provere na oglasima'],
+    ['kv.messages', 'Poruke poslate oglašivačima'], ['kv.viewings', 'Zakazani obilasci'], ['kv.reports', 'Vaše prijave oglasa'], ['kv.draft', 'Nacrt oglasa u izradi'],
+    ['kv.ratings', 'Vaše ocene oglasa'], ['kv.agencyReviews', 'Vaše ocene agencija'], ['kv.recentSearches', 'Nedavne pretrage sa početne'], ['kv.searchMeta', 'Podaci o sačuvanim pretragama'],
     ['kv.theme', 'Svetla ili tamna tema'], ['kv.privacy', 'Da ste pročitali ovo obaveštenje'],
   ];
   function lsSize(k) { try { const v = localStorage.getItem(k); return v == null ? null : v.length; } catch (e) { return null; } }
@@ -482,7 +550,7 @@
     };
     paint();
     const confirmRow = el('div', { class: 'kv-confirm', hidden: true },
-      el('p', {}, 'Brišemo sačuvane oglase, pretrage, beleške, profil i podešavanja iz ovog pregledača. Ovo ne može da se vrati.'),
+      el('p', {}, 'Brišemo sačuvane oglase, pretrage, beleške, poruke, zakazane obilaske, nacrt oglasa, profil i podešavanja iz ovog pregledača. Ovo ne može da se vrati.'),
       el('div', { class: 'btn-row' },
         el('button', { class: 'btn btn-primary btn-sm', type: 'button', onclick: () => {
           allKvKeys().forEach((k) => { try { localStorage.removeItem(k); } catch (e) { /* */ } });
@@ -494,7 +562,7 @@
           S(() => X().profile.reset());
           allKvKeys().forEach((k) => { try { localStorage.removeItem(k); } catch (e) { /* */ } });
           confirmRow.hidden = true; paint(); S(() => toast('Vaši podaci su obrisani iz ovog pregledača.'));
-        } }, 'Da, obriši sve'),
+        } }, 'Da, obrišite sve'),
         el('button', { class: 'btn btn-ghost btn-sm', type: 'button', onclick: () => { confirmRow.hidden = true; } }, 'Odustani')));
     return [
       el('p', {}, 'Kvadrat.rs nema korisničke naloge, ne koristi kolačiće za praćenje, oglašivačke mreže ni analitiku. Sve što sačuvate ostaje u lokalnoj memoriji vašeg pregledača (localStorage) i nikada ne napušta vaš uređaj.'),
@@ -509,21 +577,26 @@
   const contact = (label, value) => el('div', { class: 'kv-contact' }, el('p', { class: 'label' }, label), el('p', { class: 'kv-cv' }, el('span', { class: 'num' }, value), S(() => copyButton(value, { label: 'Kopiraj' }), null)));
   function reportBody() {
     const ref = el('input', { class: 'input', id: 'kv-rep-ref', placeholder: 'npr. KV-1112899', autocomplete: 'off' });
+    const err = el('p', { class: 'help err', id: 'kv-rep-err', hidden: true }, 'Unesite šifru oglasa (npr. KV-1112899) ili link.');
+    const setErr = (on) => { err.hidden = !on; if (on) { ref.setAttribute('aria-invalid', 'true'); ref.setAttribute('aria-describedby', 'kv-rep-err'); } else { ref.removeAttribute('aria-invalid'); ref.removeAttribute('aria-describedby'); } };
+    ref.addEventListener('input', () => { if (ref.value.trim()) setErr(false); });
     const txt = el('textarea', { class: 'input kv-ta', id: 'kv-rep-txt', rows: 4, placeholder: 'Šta nije u redu sa oglasom?' });
     let reason = 'netacno';
     const reasons = [{ v: 'netacno', l: 'Netačni podaci' }, { v: 'prodato', l: 'Već prodato ili izdato' }, { v: 'agencija', l: 'Agencija se predstavlja kao vlasnik' }, { v: 'prevara', l: 'Sumnja na prevaru' }, { v: 'duplikat', l: 'Isti oglas više puta' }];
     const done = el('p', { class: 'kv-done', role: 'status', hidden: true });
+    const reasonPills = S(() => pills(reasons, [reason], (v, on, all) => { reason = (all && all[0]) || v; }, { single: true }), null);
+    S(() => reasonPills.setAttribute('aria-labelledby', 'kv-rep-why'));
     const form = el('form', { class: 'kv-form', onsubmit: (e) => {
       e.preventDefault();
       const r = ref.value.trim();
-      if (!r) { ref.setAttribute('aria-invalid', 'true'); ref.focus(); return; }
-      ref.removeAttribute('aria-invalid');
+      if (!r) { setErr(true); ref.focus(); return; }
+      setErr(false);
       const list = lsGet('kv.reports', []) || []; list.unshift({ ref: r, reason, text: txt.value.trim(), at: new Date().toISOString() }); lsSet('kv.reports', list.slice(0, 20));
       done.hidden = false; done.textContent = `Hvala. Prijava za ${r} je zabeležena (u ovoj demo verziji ostaje u vašem pregledaču). Moderatori odgovaraju u roku od 24 sata.`;
-      form.reset(); reason = 'netacno';
+      form.reset(); reason = 'netacno'; S(() => reasonPills.set([reason]));
     } },
-      S(() => field('Šifra ili link oglasa', ref), el('label', {}, 'Šifra oglasa', ref)),
-      el('div', { class: 'kv-fld' }, el('p', { class: 'label' }, 'Razlog'), S(() => pills(reasons, [reason], (v, on, all) => { reason = (all && all[0]) || v; }, { single: true }), null)),
+      el('div', {}, S(() => field('Šifra ili link oglasa', ref), el('label', {}, 'Šifra oglasa', ref)), err),
+      el('div', { class: 'kv-fld' }, el('p', { class: 'label', id: 'kv-rep-why' }, 'Razlog'), reasonPills),
       S(() => field('Opis (nije obavezno)', txt), txt),
       el('div', { class: 'btn-row' }, el('button', { class: 'btn btn-primary', type: 'submit' }, 'Pošalji prijavu')),
       done);
@@ -548,7 +621,7 @@
       ].map(([t, b], i) => S(() => accordion(t, el('p', {}, b), i === 0), el('div', {}, el('h3', { class: 't-h3' }, t), el('p', {}, b)))),
       el('h2', { class: 't-h2s kv-gap' }, 'Prečice sa tastature'),
       el('dl', { class: 'kv-keys-dl' },
-        [[isMac ? '⌘ K' : 'Ctrl K', 'Brza pretraga'], ['/', 'Brza pretraga (kad ne kucate u polje)'], ['g pa h', 'Početna'], ['g pa s', 'Sačuvano'], ['g pa m', 'Mapa'], ['Esc', 'Zatvara prozor ili list']]
+        [[isMac ? '⌘ K' : 'Ctrl K', 'Brza pretraga'], ['/', 'Brza pretraga (kad ne kucate u polje)'], ['Esc', 'Zatvara prozor ili list (samo gornji, ako ih je više)']]
           .map(([k, d]) => el('div', {}, el('dt', {}, el('kbd', {}, k)), el('dd', {}, d)))),
     ] },
     '/kontakt': { eyebrow: 'Kontakt', title: 'Pišite nam', lede: 'Odgovaramo radnim danima od 9 do 17 h, najčešće istog dana.', body: () => [

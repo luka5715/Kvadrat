@@ -9,7 +9,10 @@
 .hm-h1{margin-top:14px;max-width:11.5ch}
 .hm-lede{margin-top:20px;max-width:44ch}
 .hm-copy>.tiles{margin-top:32px}
-.hm-copy .types a{display:inline-flex;align-items:baseline;min-height:28px}
+.hm-copy .types{row-gap:0;padding-top:8px}
+.hm-copy .types a{display:inline-flex;align-items:center;min-height:40px}
+/* zajednički .btn-link u zaglavlju sekcije: cilj ≥40px (privremeno, dok ui.js ne dobije isto — vidi izveštaj) */
+.hm .shead .btn-link{min-height:40px;align-items:flex-end}
 
 .hm-feature{margin:0;justify-self:end;width:100%;max-width:460px}
 .hm-feature .ph{box-shadow:none}
@@ -22,14 +25,19 @@
 .hm-search{position:relative;margin-top:28px;max-width:720px}
 .hm-search .search .tabs-ul button{min-height:48px}
 .hm-search .fields{grid-template-columns:minmax(0,1fr) minmax(0,1.5fr) minmax(0,.95fr) auto}
-.hm-search .field{justify-content:center}
-.hm-search .field .sel select{cursor:pointer}
+.hm-search .field{justify-content:center;position:relative}
+.hm-search .field .sel select{cursor:pointer;min-height:40px;margin:-8px 0}
+.hm-search .field.from-text .sel select{color:var(--accent-ink)}
 .hm-search .f-loc{min-width:0}
 .hm-search .loc-in{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0}
 .hm-search .loc-chips{display:contents}
 .hm-search .loc-chips .tag{height:30px;font-size:14px;max-width:100%}
-.hm-search .f-loc input{flex:1 1 8ch;min-width:8ch;height:26px}
+.hm-search .loc-chips .tag button{position:relative}
+.hm-search .loc-chips .tag button::after{content:"";position:absolute;inset:-8px}
+.hm-search .loc-chips .tag.off{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--muted)}
+.hm-search .f-loc input{flex:1 1 8ch;min-width:8ch;height:40px;margin:-7px 0}
 .hm-search .f-loc.has-chips{padding-top:10px;padding-bottom:10px}
+.hm-search .f-loc.has-chips .loc-in{row-gap:4px}
 
 /* lista predloga (izvan .search zbog overflow:hidden) */
 .hm-ac{position:absolute;z-index:20;margin:0;padding:6px 0;list-style:none;background:var(--bg);border:1px solid var(--border-strong);border-radius:var(--r-md);box-shadow:var(--shadow-lg);max-height:min(372px,60vh);overflow:auto}
@@ -64,10 +72,31 @@
 .hm-zero{margin-top:6px;font-size:var(--fs-sm);color:var(--text);padding-left:12px;border-left:2px solid var(--accent)}
 .hm-zero a{color:var(--accent);font-weight:600;border-bottom:1px solid currentColor}
 
+/* nedavne pretrage (i „Tvoje pretrage“) — kvadratni tagovi sa današnjim brojem */
+.hm-recent{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;margin-top:8px;font-size:var(--fs-sm);color:var(--muted)}
+.hm-recent[hidden]{display:none}
+.hm-recent .lbl{font-size:var(--fs-label);font-weight:600;letter-spacing:var(--ls-label);text-transform:uppercase;color:var(--muted)}
+.hm-recent .chips{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;min-width:0}
+.hm-rtag{height:auto;min-height:40px;max-width:100%;padding:0 10px;gap:10px;font-size:var(--fs-sm);color:var(--text);transition:background var(--dur) var(--ease)}
+.hm-rtag .lb{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.hm-rtag .k{flex:none;color:var(--muted);font-size:var(--fs-xs);font-variant-numeric:tabular-nums;padding-left:10px;border-left:1px solid var(--border-strong)}
+.hm-rtag:hover{background:var(--surface-2);color:var(--ink)}
+.hm-recent .hint{flex-basis:100%;font-size:var(--fs-xs);color:var(--muted)}
+.hm-resume .hm-saved{margin:0 0 28px}
+
 .hm-more{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 16px;margin-top:6px}
 .hm-more .search-more{margin-top:0}
 .hm-more .search-more a{display:inline-flex;align-items:center;min-height:40px}
-.hm-budget .ico{color:var(--accent)}
+
+/* D7: „Imam ___ € · Koliko kvadrata?“ */
+.hm-budget{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.hm-budget label{font-size:var(--fs-sm);font-weight:600;color:var(--text)}
+.hm-budget .b-in{position:relative;display:inline-flex}
+.hm-budget input{width:calc(9ch + 40px);height:40px;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--bg);padding:0 28px 0 10px;font-size:15px;font-weight:500;color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
+.hm-budget input:focus{border-color:var(--accent);outline:0;box-shadow:0 0 0 3px var(--accent-soft)}
+.hm-budget input::placeholder{color:var(--muted);font-weight:400}
+.hm-budget .cur{position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:15px;pointer-events:none}
+.hm-budget .btn .ico{color:var(--accent)}
 
 /* ───────── sekcije ───────── */
 .hm-nw{white-space:nowrap}
@@ -148,6 +177,8 @@
   .hm-search .tabs-ul button{flex:1;padding:14px 8px}
   .hm-parse .hint{display:none}
   .hm-more{align-items:flex-start;flex-direction:column}
+  .hm-budget .b-in{flex:1 1 8ch;min-width:0}
+  .hm-budget input{width:100%;min-width:0}
   .hm-copy>.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 16px}
   .hm-m-tiles .tiles{flex-direction:column;gap:20px}
   .hm-proj .cap{padding-top:48px}

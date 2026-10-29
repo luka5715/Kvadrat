@@ -12,10 +12,13 @@
 .ax-thumb img{width:100%;height:100%;object-fit:cover}
 .ax-page .mk{display:inline-block;width:8px;height:8px;background:var(--accent);flex:none;border-radius:1px}
 .ax-page small{font-size:12px}
-.ax-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:baseline;flex:none}
-.ax-dot-zeleno{background:var(--success)}
-.ax-dot-zuto{background:var(--warning)}
-.ax-dot-crveno{background:var(--danger)}
+/* semafor bez žute/crvene (do-not #1): monohromni znak — pun, polu-pun, prazan kvadrat — uz reč Zeleno/Žuto/Crveno */
+.ax-dot{display:inline-block;width:10px;height:10px;border-radius:1px;margin-right:6px;vertical-align:baseline;flex:none;border:1.5px solid var(--ink);box-sizing:border-box}
+.ax-dot-zeleno{background:var(--ink)}
+.ax-dot-zuto{box-shadow:inset 4px 0 0 var(--ink)}
+.ax-dot-crveno{background:transparent}
+/* vidljiv fokus na inline selectima (base.css gasi outline) */
+.ax-page .select-inline:focus-visible,.ax-page .select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .ax-map-off{display:grid;place-items:center;background:var(--surface);border-radius:var(--r-md)}
 
 /* autocomplete */
@@ -53,6 +56,7 @@
 /* grupe redova */
 .cmp-grp th.lab{padding:30px 16px 10px 0;color:var(--ink);border-bottom-color:var(--border-strong)}
 .cmp-grp td{padding:0;border-bottom-color:var(--border-strong)}
+.cmp-grp td.cmp-add{border-bottom-color:transparent}
 /* pobednik u redu */
 .cmp td.win{background:var(--accent-soft)}
 .cmp td.win .cmp-v{color:var(--accent-ink)}
@@ -78,13 +82,18 @@
 .cmp-x{position:absolute;right:8px;top:8px;background:var(--bg);color:var(--ink);box-shadow:var(--shadow-pin)}
 .cmp-x:hover{background:var(--bg);color:var(--danger-ink)}
 .cmp-price{margin-top:12px;font-family:var(--f-display);font-variation-settings:var(--soft);font-size:var(--fs-price-sm);font-weight:500;letter-spacing:-.01em;line-height:1.1;color:var(--ink);font-variant-numeric:tabular-nums}
-.cmp-ttl{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:6px;font-size:15px;font-weight:600;line-height:1.3;color:var(--ink)}
+.cmp-ttl{min-height:40px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:6px;font-size:15px;font-weight:600;line-height:1.3;color:var(--ink)}
 .cmp-ttl:hover{text-decoration:underline;text-underline-offset:3px}
 .cmp-loc{margin-top:3px;font-size:var(--fs-xs);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cmp-wins{display:inline-flex;align-items:center;gap:4px;margin-top:10px;font-size:var(--fs-xs);color:var(--muted)}
 .cmp-wins b{font-weight:700;color:var(--ink)}
 .cmp-wins.top{height:24px;padding:0 8px;border-radius:2px;background:var(--accent-soft);color:var(--accent-ink)}
 .cmp-wins.top b{color:var(--accent-ink)}
+.cmp-refpick{display:flex;min-height:40px;margin-top:6px;font-size:var(--fs-xs);font-weight:500;color:var(--muted)}
+.cmp-refpick:has(input:checked){color:var(--ink);font-weight:600}
+.cmp-d{margin-top:4px;font-size:12px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums;line-height:1.35}
+.cmp-d .meta{font-weight:400;font-size:12px}
+.cmp td.win .cmp-d{color:var(--accent-ink)}
 /* kolona za dodavanje */
 .cmp td.cmp-add{width:176px;min-width:176px;max-width:176px;border-bottom-color:transparent;background:none}
 .cmp-hd td.cmp-add{border-bottom-color:transparent}
@@ -118,6 +127,10 @@
 /* ═════════ SAČUVANO ═════════ */
 .sv-page .tabs{margin-top:24px}
 .sv-page .tabs .tabs-p{padding-top:24px}
+.sv-page .tabs .tabs-ul.ax-end{-webkit-mask-image:none;mask-image:none}
+@media (max-width:860px){
+  .sv-page .tabs .tabs-ul.ax-end:not(.ax-start){-webkit-mask-image:linear-gradient(90deg,transparent,#000 36px);mask-image:linear-gradient(90deg,transparent,#000 36px)}
+}
 .sv-bar{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;padding-bottom:20px}
 .sv-bar .sp{flex:1}
 .sv-sort{display:inline-flex;align-items:center;gap:4px}
@@ -246,6 +259,8 @@
 .pw-step{display:flex;flex-direction:column;gap:22px}
 .pw-step h2{outline:none}
 .pw-f{display:flex;flex-direction:column;gap:10px;min-width:0}
+.pw-f .seg{align-self:flex-start;width:auto}
+.pw-fee{margin-top:-4px}
 .pw-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 20px}
 .pw-grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .pw-step .fld{gap:8px}
@@ -370,3 +385,11 @@
 }
 .pw-card .price{white-space:nowrap}
 .pw-stepper,.pw-q,.mm-form{scroll-margin-top:calc(var(--header-h) + 16px)}
+
+/* štampa poređenja (window.print nije pouzdan u iframe-u, ali Ctrl+P radi) */
+@media print{
+  .cmp-bar,.cmp-share-slot,.cmp-x,.cmp-add,.cmp-refpick,.cmp-page .crumbs{display:none !important}
+  .cmp-scroll .cmp-wrap{overflow:visible;-webkit-mask-image:none !important;mask-image:none !important}
+  .cmp th.lab{position:static}
+  .cmp td,.cmp th.lab{break-inside:avoid}
+}

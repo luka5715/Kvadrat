@@ -181,6 +181,9 @@
       try { cur.root.update(q, path); cur.hash = location.hash; setMeta(path, q, route); after(path, false); return; }
       catch (e) { S(() => console.error('[Kvadrat] update nije uspeo, pun render', e)); }
     }
+    /* skrol: ista stranica zadržava položaj; nazad/napred vraća položaj sačuvan u history.state.kvY
+       (unosi nastali klikom na link ili location.hash= imaju prazan state → na vrh) */
+    const y0 = !same ? S(() => (history.state && typeof history.state.kvY === 'number' ? history.state.kvY : null), null) : null;
     const y = same ? window.scrollY : 0;
     if (!same) closeOverlays();
     if (!same) { document.body.removeAttribute('data-bnav'); document.body.classList.remove('modal-open', 'sheet-open'); }
@@ -195,8 +198,27 @@
     cur = { key, path, root: body, hash: location.hash || '#/' };
     setMeta(path, q, route);
     window.scrollTo(0, y);
-    if (!same && booted && !opts.silent) S(() => main.focus({ preventScroll: true }));
+    if (y0 > 0) restoreScroll(y0);
+    else if (!same && booted && !opts.silent) S(() => main.focus({ preventScroll: true }));
     after(path, !same);
+  }
+  /* vraćanje skrola posle crtanja: dva okvira (raspored), pa još nekoliko ako stranica još nije dovoljno visoka */
+  let restoreTok = 0;
+  function restoreScroll(y0) {
+    const tok = ++restoreTok; let tries = 0;
+    const attempt = () => {
+      if (tok !== restoreTok) return;
+      window.scrollTo(0, y0);
+      if (Math.abs(window.scrollY - y0) > 2 && ++tries < 12) requestAnimationFrame(attempt);
+    };
+    requestAnimationFrame(() => requestAnimationFrame(attempt));
+  }
+  /* pamćenje skrola u tekućem unosu istorije (prigušeno na 250 ms; klik pre navigacije upisuje odmah) */
+  let saveT = 0;
+  function saveScroll() {
+    clearTimeout(saveT); saveT = 0;
+    if (!booted || !cur.hash || location.hash !== cur.hash) return;
+    S(() => { const st = history.state && typeof history.state === 'object' ? history.state : {}; if (st.kvY === window.scrollY) return; history.replaceState({ ...st, kvY: window.scrollY }, '', location.hash); });
   }
   function after(path, isNew) {
     S(() => G().onRoute(path));
@@ -219,8 +241,10 @@
     /* router.onChange pokriva i 'hashchange' i setHash(…, true); bez core rutera — sirov hashchange */
     const viaRouter = S(() => { router.onChange((rr, o) => render(rr, o || {})); return true; }, false);
     if (!viaRouter) window.addEventListener('hashchange', () => render());
-    /* brojači u zaglavlju (Sačuvano) se sami osvežavaju preko store.on u ui.js; ljuska prati fioku i profil bez punog crtanja */
-    S(() => store.on((what) => { if (what === 'compare') S(() => G().tray.update()); }));
+    /* brojači u zaglavlju (Sačuvano) se sami osvežavaju preko store.on u ui.js; fioku „Uporedi” osvežava global.js; ljuska prati profil bez punog crtanja */
+    window.addEventListener('scroll', () => { if (!saveT) saveT = setTimeout(saveScroll, 250); }, { passive: true });
+    document.addEventListener('click', () => { if (saveT) saveScroll(); }, true);
+    window.addEventListener('pagehide', () => { if (saveT) saveScroll(); });
     S(() => KX.profile.on(() => { const pal = S(() => G().palette, null); if (pal && pal.isOpen()) { const inp = document.querySelector('.kp-input'); if (inp) inp.dispatchEvent(new Event('input')); } }));
     render(null, { silent: true });
     booted = true;

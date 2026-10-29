@@ -7,6 +7,8 @@
 .ag-sq{display:inline-flex;gap:3px;align-items:center;vertical-align:-1px}
 .ag-sq i{width:12px;height:12px;border:1.5px solid var(--border-strong);border-radius:1px;display:block}
 .ag-sq i.on{background:var(--accent);border-color:var(--accent)}
+/* pola kvadrata: tvrdi prelaz (dve ravne površine), ne gradijent */
+.ag-sq i.half{border-color:var(--accent);background:linear-gradient(90deg,var(--accent) 0 50%,transparent 50% 100%)}
 .ag-sq.sm{gap:2px}.ag-sq.sm i{width:10px;height:10px}
 .ag-phone{display:inline-flex;align-items:center;gap:8px;min-height:40px;flex-wrap:wrap}
 .ag-phone>.ico{color:var(--accent)}
@@ -74,12 +76,15 @@
 .agp-call{min-height:44px}
 
 /* poruka u stranici */
-.agp-msg{margin:0 0 28px;padding:22px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--bg);box-shadow:var(--shadow)}
+.agp-msg{margin:0 0 28px;padding:22px 0 24px 20px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);border-left:2px solid var(--accent)}
 .agp-msg[hidden]{display:none}
 .agp-msg-hd{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
 .agp-form{display:flex;flex-direction:column;gap:14px;max-width:720px}
 .agp-form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.agp-topic .label{margin-bottom:8px}
+.agp-topic{border:0;margin:0;padding:0;min-width:0}
+.agp-topic .label{padding:0;margin-bottom:4px}
+.agp-topic-o{display:flex;flex-wrap:wrap;gap:0 24px}
+.agp-topic .check input[type="radio"]{border-radius:2px}
 .agp-ta{height:auto;min-height:96px;padding:10px 12px;resize:vertical;line-height:1.5}
 .agp-form-ft{align-items:center;gap:8px 12px;flex-wrap:wrap}
 .agp-sent p:first-child{display:flex;gap:10px;align-items:flex-start;font-size:var(--fs-body);color:var(--text);max-width:var(--container-text)}
@@ -101,6 +106,8 @@
 .agp-types .pr{flex-wrap:nowrap}
 .agp-sort{display:inline-flex;align-items:center;gap:6px;margin-left:auto}
 .agp-more{display:flex;align-items:center;gap:6px;margin-top:20px;color:var(--accent)}
+.agp-more .btn-link{min-height:40px;display:inline-flex;align-items:center;border-bottom:0;text-decoration:underline;text-underline-offset:4px}
+.agp-bar .seg button{height:40px}
 .agp-ls .pager{margin-top:12px}
 
 /* O agenciji */
@@ -125,6 +132,8 @@
 .agp-pin .s{width:8px;height:8px;background:var(--accent);margin-top:-1px}
 
 /* Agenti */
+.agp-team-sum{margin:0 0 16px;font-size:var(--fs-sm);color:var(--text)}
+.agp-team-sum b{color:var(--ink);font-weight:600}
 .agp-agents{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 .agp-agent{display:flex;flex-direction:column;gap:12px;padding:18px;border:1px solid var(--border);border-radius:var(--r-md);min-width:0}
 .agp-agent-top{display:flex;gap:14px;align-items:center;min-width:0}
@@ -201,7 +210,8 @@
   .agp-id .t-h1{font-size:28px}
   .agp-meta .agp-rate{flex-basis:100%;margin:-4px 0 -8px}
   .agp-meta .agp-rate::before{display:none}
-  .agp-msg{padding:16px;margin-left:calc(-1 * var(--gutter) + 4px);margin-right:calc(-1 * var(--gutter-r) + 4px)}
+  .agp-msg{padding:18px 0 20px 14px}
+  .agp-topic-o{gap:0 18px}
   .agp-form-row{grid-template-columns:1fr}
   .agp-kpis .tiles{display:grid;grid-template-columns:1fr 1fr;gap:20px 16px}
   .agp-bar{gap:10px}

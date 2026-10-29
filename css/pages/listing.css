@@ -3,7 +3,10 @@
 .lst{padding-top:16px;padding-bottom:72px}
 .lst [id]{scroll-margin-top:calc(var(--header-h) + 16px)}
 @media (max-width:860px){.lst [id]{scroll-margin-top:calc(var(--header-h) + 56px)}}
-.lst-lnk{color:var(--accent);font-weight:600;font-size:inherit;text-decoration:underline;text-underline-offset:3px;min-height:24px}
+.lst-lnk{color:var(--accent);font-weight:600;font-size:inherit;text-decoration:underline;text-underline-offset:3px;display:inline-flex;align-items:center;min-height:40px;margin:-8px 0;vertical-align:middle}
+/* zona dodira ≥ 40px bez promene ritma reda: element je 40px visok, a negativna margina vraća 24px u tok */
+.lst-head .dloc a,.lst-pb .sub a,.lst-hmini>.lst-more{display:inline-flex;align-items:center;min-height:40px;margin:-8px 0}
+.lst-sh>.btn-link,.lst-readmore{display:inline-flex;align-items:center;min-height:40px;border-bottom:0;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:4px}
 .lst-lnk:hover{color:var(--accent-hover)}
 .lst .meta{font-size:13px;color:var(--muted);line-height:1.45}
 .lst .meta a{color:var(--accent);font-weight:600}
@@ -19,6 +22,17 @@
 .lst-media>.tabs-ul button:first-child[aria-selected="true"]::after{left:0}
 .lst-media>.tabs-p{padding-top:6px}
 .lst .gallery .g{border:0}
+/* mozaik po broju fotografija (desktop): bez praznih rupa kad ih je manje od 5 */
+@media (min-width:861px){
+  .lst .gallery.lst-g4{grid-template-areas:"m a c" "m b c"}
+  .lst .gallery.lst-g4 .g:nth-child(1){grid-area:m}
+  .lst .gallery.lst-g4 .g:nth-child(2){grid-area:a}
+  .lst .gallery.lst-g4 .g:nth-child(3){grid-area:b}
+  .lst .gallery.lst-g4 .g:nth-child(4){grid-area:c}
+  .lst .gallery.lst-g3,.lst .gallery.lst-g2{grid-template-columns:minmax(0,2fr) minmax(0,1fr)}
+  .lst .gallery.lst-g2 .g:nth-child(2){grid-row:1/3}
+  .lst .gallery.lst-g1{grid-template-columns:minmax(0,1fr);aspect-ratio:16/10}
+}
 .lst .gallery-wrap .all{font-variant-numeric:tabular-nums}
 .lst-ph-fb{display:block;width:100%;height:100%;background:var(--surface-2)}
 .lst-galmap-wrap{display:flex;flex-direction:column;gap:8px}
@@ -38,7 +52,7 @@
 
 /* ───────── tlocrt ───────── */
 .lst-plan{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:32px;align-items:start;padding:8px 0 4px}
-.lst-plan-box{position:relative;width:100%;max-height:520px;margin:0 auto}
+.lst-plan-box{position:relative;width:100%;margin:0 auto}
 .lst-plan-box .svg,.lst-plan-box .svg svg{width:100%;height:100%;display:block}
 .lst-plan .rm{fill:var(--bg);stroke:none}
 .lst-plan .rm.k-living{fill:var(--surface)}
@@ -91,9 +105,10 @@
 
 /* ───────── zaglavlje ───────── */
 .lst-head .dmeta{row-gap:4px}
-.lst-ref{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;min-height:32px;text-decoration:underline dotted;text-underline-offset:3px}
+.lst-ref{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;min-height:40px;margin:-4px 0;text-decoration:underline dotted;text-underline-offset:3px}
 .lst-ref:hover{color:var(--ink)}
 .lst-date{display:inline-flex;align-items:center;gap:5px}
+.lst-date[tabindex]{min-height:40px;margin:-10px 0;cursor:help}
 .lst-date .ico{width:14px;height:14px;color:var(--muted)}
 .lst-h1{margin-top:10px;max-width:24ch}
 .lst-head .street{margin-top:14px}
@@ -104,6 +119,8 @@
 .lst-head .dstats .ico{width:14px;height:14px;color:var(--muted)}
 .lst-head .dstats .lst-mv{color:var(--success-ink)}
 .lst-head .dstats .lst-mv .ico{color:var(--success)}
+.lst-head .dstats .lst-mv.no,.lst-head .dstats .lst-mv.no .ico{color:var(--muted)}
+.lst-head .street .lst-approx{font-weight:500}
 @media (max-width:600px){.lst-head .dmeta .dot:nth-of-type(3){display:none}.lst-head .dmeta .lst-date{flex:1 1 100%}}
 .lst-actions .btn[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent-soft);color:var(--accent-ink)}
 .lst-actions .lst-fav[aria-pressed="true"] .ico{fill:var(--accent);stroke:var(--accent)}
@@ -133,12 +150,14 @@
 .lst-hmini.flat{padding-left:16px;border-left:1px solid var(--border);justify-content:flex-start}
 .lst-hm-t{font-family:var(--f-display);font-variation-settings:var(--soft);font-size:22px;color:var(--ink);line-height:1.2}
 .lst-hmini .lst-more{color:var(--accent);font-weight:600;text-decoration:underline;text-underline-offset:3px;align-self:flex-start}
+.lst-hm-own{padding-top:10px;border-top:1px solid var(--border)}
+.lst-hm-own b{color:var(--ink);font-weight:600}
 @media (max-width:860px){.lst-hmini.flat{padding-left:0;border-left:0;padding-top:16px;border-top:1px solid var(--border)}}
 .lst-dom{display:flex;flex-direction:column;gap:6px;max-width:380px}
 .lst-dom .tr{position:relative;height:14px;margin-top:4px}
 .lst-dom .tr::before{content:"";position:absolute;left:0;right:0;top:6px;height:2px;background:var(--border);border-radius:1px}
 .lst-dom .med{position:absolute;left:50%;top:0;width:2px;height:14px;background:var(--border-strong);transform:translateX(-50%)}
-.lst-dom .dot{position:absolute;top:1px;width:12px;height:12px;border-radius:50%;background:var(--ink);border:2px solid var(--bg);transform:translateX(-50%);box-shadow:0 0 0 1.5px var(--ink)}
+.lst-dom .dot{position:absolute;top:1px;width:12px;height:12px;border-radius:50%;background:var(--ink);border:2px solid var(--bg);transform:translateX(-50%);outline:1.5px solid var(--ink)}
 
 /* ───────── sekcije ───────── */
 .lst-sec{padding:40px 0 8px;border-top:1px solid var(--border);margin-top:40px}
@@ -153,6 +172,12 @@
 /* ───────── Koliko me stvarno košta ───────── */
 .lst-cost-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:4px 28px;margin-bottom:12px}
 .lst-cost-ctl .toggle-row{gap:12px}
+/* prekidač: vidljiva staza 44×26, zona dodira 58×40 (providna ivica), ceo natpis je klikabilan */
+.lst-tg .toggle{box-sizing:content-box;border:7px solid transparent;background-clip:padding-box;border-radius:20px;margin:-7px}
+.lst-tg .lst-tg-l{cursor:pointer}
+.lst-tg-wrap{display:flex;flex-direction:column;flex:1 1 100%}
+.lst-tg-wrap .toggle-row{align-self:flex-start}
+.lst-tg-help{max-width:60ch;margin-top:-4px}
 .lst-cost-ctl .lst-fin{flex:1 1 100%}
 .lst-hh{display:inline-flex;align-items:center;gap:8px;font-size:14px;min-height:44px}
 .lst-hh .select-inline{width:auto}
@@ -165,7 +190,7 @@
 .lst-line{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:start;padding:12px 0;border-bottom:1px solid var(--border)}
 .lst-line .l{display:flex;flex-direction:column;gap:3px;min-width:0}
 .lst-line .lb{font-size:15px;color:var(--text)}
-.lst-line .check{min-height:24px;font-size:15px;color:var(--text)}
+.lst-line .check{min-height:40px;margin:-8px 0;font-size:15px;color:var(--text)}
 .lst-line .nt{font-size:13px;color:var(--muted);line-height:1.4;max-width:60ch}
 .lst-line .r1{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px}
 .lst-line .chips{display:inline-flex;flex-wrap:wrap;gap:6px}
@@ -179,9 +204,9 @@
 .lst-payer.is-prodavac,.lst-payer.is-vlasnik{background:var(--accent-soft);color:var(--accent-ink)}
 .lst-payer.is-ref,.lst-payer.is-best{background:var(--success-soft);color:var(--success-ink)}
 .lst-payer.is-opt{background:transparent;border:1px dashed var(--border-strong)}
-button.lst-payer{position:relative;cursor:pointer}
-button.lst-payer::before{content:"";position:absolute;inset:-8px -2px}
-button.lst-payer:hover{color:var(--ink);background:var(--surface-2)}
+button.lst-payer{cursor:pointer;height:40px;padding:8px 0;margin:-8px 0;background-clip:content-box}
+button.lst-payer .in{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px}
+button.lst-payer:hover{color:var(--ink);background-color:var(--surface-2)}
 button.lst-payer .ico{width:12px;height:12px}
 .lst-total{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:16px 0 4px}
 .lst-total span{font-size:14px;font-weight:600;color:var(--text)}
@@ -196,7 +221,7 @@ button.lst-payer .ico{width:12px;height:12px}
 .lst-refbar .meta{margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
 .lst-refbar .k{display:inline-block;width:10px;height:10px;border-radius:2px}
 .lst-refbar .k.non{background:var(--ink)}
-.lst-refbar .k.ref{background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent)}
+.lst-refbar .k.ref{background:var(--accent-soft);border:1px solid var(--accent);box-sizing:border-box}
 .lst-cond{margin-top:16px;padding-left:12px;border-left:2px solid var(--accent)}
 .lst-cond ul{margin:6px 0 8px;padding-left:18px;list-style:disc;font-size:14px;color:var(--text)}
 .lst-cond li+li{margin-top:2px}
@@ -266,7 +291,7 @@ button.lst-payer .ico{width:12px;height:12px}
 .lst .table td .sub.warn{color:var(--warning-ink)}
 .lst .table td .lst-payer{margin-top:4px}
 .lst .table tr.me td{background:var(--surface)}
-.lst .table tr.me td:first-child{box-shadow:inset 2px 0 0 var(--accent);padding-left:10px}
+.lst .table tr.me td:first-child{border-left:2px solid var(--accent);padding-left:8px}
 .lst .table td.go{width:44px;padding-right:0}
 .lst .table td .sub{text-transform:none;letter-spacing:0;font-weight:400}
 .lst .table td .ph-only{display:none}
@@ -318,7 +343,7 @@ button.lst-payer .ico{width:12px;height:12px}
 .lst-desc .t-desc-lede{color:var(--ink);margin-bottom:14px}
 .lst-desc .lst-more-text{margin-top:14px}
 .lst-desc .lst-more-text p+p{margin-top:14px}
-.lst-readmore{margin-top:16px}
+.lst-readmore{margin-top:8px}
 .lst-facts{margin-top:0}
 .lst-facts .kf.na dd{color:var(--muted);font-size:15px;font-weight:400}
 
@@ -400,10 +425,10 @@ button.lst-payer .ico{width:12px;height:12px}
 .lst-trust .hd{display:flex;gap:14px;align-items:center}
 .lst-trust h2{font-family:var(--f-display);font-variation-settings:var(--soft);font-size:22px;color:var(--ink);line-height:1.15;margin-top:2px}
 .lst-dots{display:flex;flex-direction:column;gap:4px;padding:6px;border:1px solid var(--border);border-radius:var(--r);flex:none}
-.lst-dots i{width:12px;height:12px;border-radius:50%;background:var(--bg);box-shadow:inset 0 0 0 1.5px var(--border-strong)}
-.lst-dots i.on.d-zeleno{background:var(--success);box-shadow:none}
-.lst-dots i.on.d-zuto{background:var(--warning);box-shadow:none}
-.lst-dots i.on.d-crveno{background:var(--danger);box-shadow:none}
+.lst-dots i{width:12px;height:12px;box-sizing:border-box;border-radius:50%;background:var(--bg);border:1.5px solid var(--border-strong)}
+.lst-dots i.on.d-zeleno{background:var(--success);border-color:var(--success)}
+.lst-dots i.on.d-zuto{background:var(--warning);border-color:var(--warning)}
+.lst-dots i.on.d-crveno{background:var(--danger);border-color:var(--danger)}
 .lst-tr-legal,.lst-tr-risk{font-size:14px;color:var(--muted)}
 .lst-tr-legal b,.lst-tr-risk b{color:var(--ink)}
 .lst-trust.is-crveno .lst-tr-risk b{color:var(--danger-ink)}
@@ -456,4 +481,5 @@ button.lst-payer .ico{width:12px;height:12px}
   .lst-pb .big{font-size:38px}
   .lst-total b{font-size:24px}
 }
-.lst-slot:empty+.lst-sec{border-top:0;margin-top:0;padding-top:32px}
+.lst-pb+.lst-podaci{border-top:0;margin-top:0;padding-top:32px}
+.lst-podaci .lst-sh{margin-bottom:12px}

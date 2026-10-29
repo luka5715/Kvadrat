@@ -12,7 +12,16 @@
 .srp-meta b{color:var(--ink);font-weight:600}
 .srp-meta .dot,.srp-count .dot{margin:0 9px;color:var(--border-strong)}
 .srp-new{border-bottom:1px dotted var(--border-strong);cursor:help}
-.srp-save{flex:none}
+.srp-save{flex:none;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.srp-saveslot{display:contents}
+.srp-hbtn{gap:6px}
+.srp-hbtn .ico{color:var(--muted)}
+.srp-share{display:grid;gap:6px;max-width:640px;margin-top:14px;padding-left:12px;border-left:2px solid var(--accent)}
+.srp-share[hidden]{display:none}
+.srp-share .input{font-size:13px}
+.srp-freq{grid-column:1/-1;border:0;margin:0;padding:0;min-width:0}
+.srp-freq legend{padding:0;margin-bottom:2px}
+.srp-freq-l{display:flex;flex-wrap:wrap;gap:0 18px}
 .srp-saved .ico{color:var(--accent)}
 .srp-saveform{display:grid;grid-template-columns:minmax(0,360px) auto;align-items:end;gap:8px 12px;margin-top:16px;padding-left:12px;border-left:2px solid var(--accent);max-width:640px}
 .srp-saveform .help{grid-column:1/-1;margin:0}
@@ -23,21 +32,20 @@
 .srp-desk{display:flex;align-items:center;gap:8px;min-width:0}
 .srp-desk-l{flex:1 1 auto}
 .srp-desk-l>.seg,.srp-desk-l>.chip{flex:none}
-.srp-desk-r{margin-left:auto;flex:none}
+.srp-desk-r{margin-left:auto;flex:none;padding-left:12px}
 /* pilule u jednom redu; kad ne staju, skroluju se sa mask-fade (nikad ne prelamaju sticky traku) */
-.srp-pills{display:flex;gap:8px;min-width:0;overflow-x:auto;scrollbar-width:none;padding-right:28px;margin-right:-20px;mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)}
+.srp-pills{display:flex;gap:8px;min-width:0;overflow-x:auto;scrollbar-width:none;padding-right:28px;margin-right:0;mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)}
 .srp-pills::-webkit-scrollbar{display:none}
 @media (min-width:861px){.srp-bar{flex-wrap:nowrap}}
 .srp-desk-r .sort span{white-space:nowrap}
-.srp-desk-r .select-inline{max-width:200px}
+.srp-desk-r .select-inline{max-width:200px;min-width:0;field-sizing:content}
 .srp-desk .seg button{padding:0 14px}
 .srp-desk-r .views button{padding:0 10px}
 .srp-norail .srp-all{display:inline-flex}
-/* bez bočne trake traka ima i „Svi filteri”: prikaz ostaje samo sa ikonama (naziv u aria-label), da sve stane u jedan red */
-@media (min-width:861px){.srp-norail .srp-desk-r .views button span,.srp-norail .srp-desk-r .sort>span{display:none}.srp-norail .srp-desk-r .views button{padding:0 11px}}
-@media (min-width:861px) and (max-width:1299px){.srp-desk-r .views button span,.srp-desk-r .sort>span{display:none}.srp-desk-r .views button{padding:0 11px}.srp-desk-r .sort .ico{display:block}}
+/* SPEC 5.31: prikaz je tekstualno označen (Mreža · Lista · Mapa) od 1100px; pilule se prve skupljaju (skrol + fade).
+   Samo na tabletu (861–1099) ostaju ikone (naziv u aria-label). */
 .srp-desk-r .sort .ico{display:none;color:var(--muted)}
-@media (min-width:861px){.srp-norail .srp-desk-r .sort .ico{display:block}}
+@media (min-width:861px) and (max-width:1099px){.srp-desk-r .views button span,.srp-desk-r .sort>span{display:none}.srp-desk-r .views button{padding:0 11px}.srp-desk-r .sort .ico{display:block}}
 .srp-info{width:40px;height:40px}
 .srp-bar .srp-rail-h{display:none}
 .srp-sortbtn{gap:6px}
@@ -46,6 +54,7 @@
   .srp-bar{flex-wrap:nowrap}
   .srp-bar .srp-rail-h{display:flex}
   .srp-bar .row1 .views{height:40px}
+  .srp-bar .row1 .views button{min-width:44px}
 }
 
 /* aktivni filteri — kvadratni tagovi, prelamaju se */
@@ -90,12 +99,20 @@
 .srp-grp .pr+.toggle-row{margin-top:10px}
 .srp-grp .fld+.srp-checks{margin-top:10px}
 .srp-reset{padding:20px 0 0}
+.srp-costf{display:grid;gap:10px}
+.srp-one{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}
+.srp-one .input{font-variant-numeric:tabular-nums}
+.srp-ext{display:inline-flex;align-items:center;min-height:40px;color:var(--accent);font-weight:600;text-decoration:underline;text-underline-offset:3px}
+.srp-grp .help a{color:var(--accent);font-weight:600}
+.srp-grp .fld+.pr{margin-top:10px}
 
 /* ── kartice: dodaci (meni, prikaz cene, budžet, putovanje, semafor, duplikati) ── */
 .srp-more{width:40px;height:40px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:var(--ink);background:var(--bg);transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
 .srp-more:hover{background:var(--surface)}
 .srp-more.on{background:var(--accent-soft);color:var(--accent-ink)}
 .card>.srp-more{position:absolute;top:10px;right:58px;box-shadow:var(--shadow-pin)}
+/* oznake na fotografiji ne smeju ispod „⋯” i srca (2 × 40px + razmaci) */
+.srp-cards .card .badges{max-width:calc(100% - 112px)}
 .row .side .srp-more{border:1px solid var(--border)}
 .row-c>.srp-more{position:absolute;top:60px;right:0;border:1px solid var(--border)}
 @media (max-width:600px){.row .side{gap:8px}}
@@ -109,16 +126,17 @@
 .srp-aff{display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:2px;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;cursor:help}
 .srp-aff-odmah{background:var(--success-soft);color:var(--success-ink)}
 .srp-aff-kredit{background:var(--accent-soft);color:var(--accent-ink)}
-.srp-aff-samo-kes{background:var(--warning-soft);color:var(--warning-ink)}
+.srp-aff-samo-kes{background:var(--bg);color:var(--ink);box-shadow:inset 0 0 0 1px var(--border-strong)}
 .srp-aff-van-budzeta{background:var(--surface-2);color:var(--muted)}
 .srp-trav{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .srp-tchip{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 8px;border-radius:2px;background:var(--surface);font-size:12px;font-weight:500;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
 .srp-tchip .ico{width:13px;height:13px;color:var(--accent)}
 .row-c .srp-trav,.row-c .srp-affrow{margin-top:5px}
 .srp-sem{position:relative;display:inline-block;flex:none;width:10px;height:10px;border-radius:50%;cursor:help}
-.srp-sem::before{content:"";position:absolute;inset:-12px}
+.srp-sem::before{content:"";position:absolute;inset:-15px}
 .srp-sem-zeleno{background:var(--success)}
-.srp-sem-zuto{background:var(--warning)}
+/* žuto bez žute boje (do-not #1): napola popunjen krug u boji mastila = „proveri” (oštar prelaz, ne gradijent površine) */
+.srp-sem-zuto{background:linear-gradient(90deg,var(--ink) 50%,transparent 50%);box-shadow:inset 0 0 0 1.5px var(--ink)}
 .srp-sem-crveno{background:var(--danger)}
 .table .ag{display:inline-flex;align-items:center;gap:6px}
 .srp-dup{margin-top:10px}
@@ -141,6 +159,16 @@
 .srp-rows{border-top:1px solid var(--border)}
 .srp-table{margin-top:2px}
 .srp-table .table .price{font-size:var(--fs-price-sm)}
+/* Lista pored raila (≥1101): tabela mora da stane u ~940px bez horizontalnog skrola — manja sličica, oglašivač se skraćuje,
+   „Detalji” otpada (naslov i sličica već vode na oglas) */
+.srp:not(.srp-norail) .srp-table .table td,.srp:not(.srp-norail) .srp-table .table th{padding-right:10px}
+.srp:not(.srp-norail) .srp-table .table .thumb{width:80px}
+.srp:not(.srp-norail) .srp-table .table .og{min-width:0;gap:10px}
+.srp:not(.srp-norail) .srp-table .table .ag{display:block;max-width:118px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.srp:not(.srp-norail) .srp-table .table .ag .srp-sem{margin-right:6px;vertical-align:middle}
+.srp:not(.srp-norail) .srp-table .table .ag .ico{vertical-align:middle;margin-left:4px}
+.srp:not(.srp-norail) .srp-table .table tr>:last-child{display:none}
+.srp:not(.srp-norail) .srp-table .table .price s{display:block;margin:2px 0 0}
 /* mapa (desktop/tablet): lista + lepljiva mapa */
 .srp-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.9fr);gap:24px;align-items:start}
 .srp-split-r{position:sticky;top:calc(var(--header-h) + 84px)}
@@ -154,7 +182,7 @@
 .srp-mapfull .srp-map{height:100%;min-height:0;border-radius:0}
 .srp-car{position:absolute;left:0;right:0;bottom:12px;z-index:6;display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;padding:0 16px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .srp-car::-webkit-scrollbar{display:none}
-.srp-car .row-c{flex:none;width:min(320px,82vw);padding:10px;scroll-snap-align:center;background:var(--bg);border:1px solid var(--border);border-radius:var(--r-md);box-shadow:var(--shadow)}
+.srp-car .row-c{flex:none;width:min(320px,82vw);padding:10px;scroll-snap-align:center;background:var(--bg);border:0;border-radius:var(--r);box-shadow:var(--shadow)}
 .srp-car .row-c .fav{top:10px;right:10px}
 .srp-car .row-c>.srp-more{top:56px;right:10px}
 .srp-car .row-c .body{padding-right:48px}
@@ -182,6 +210,9 @@ tr.srp-ph td{height:97px;border-bottom:1px solid var(--border)}
 .srp-below-g{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:48px;align-items:start}
 .srp-bars .bars .lab{max-width:180px}
 .srp-about .prose{margin-top:14px;color:var(--text)}
+.srp-flat{padding-left:12px;border-left:2px solid var(--accent)}
+.srp-flat-v{margin:6px 0 4px;font-family:var(--f-display);font-size:22px;font-weight:500;color:var(--ink)}
+.srp-flat .meta{max-width:46ch}
 .srp-about .prose p{font-size:var(--fs-body)}
 
 /* list sa filterima */
@@ -208,5 +239,8 @@ tr.srp-ph td{height:97px;border-bottom:1px solid var(--border)}
   .srp-meta{margin-top:8px}
   .srp-cmp{margin-left:0}
   .srp-budget{grid-template-columns:1fr}
+  .srp-hbtn{width:40px;padding:0;justify-content:center}
+  .srp-hbtn span{display:none}
 }
 @media (hover:none){.srp-new{border-bottom:0}}
+.row-c .pricerow>.srp-sem{align-self:center}

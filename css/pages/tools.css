@@ -157,8 +157,6 @@ form.tl-step{max-width:640px}
 .tl-lede{margin:var(--s-2) 0 var(--s-5);font-family:var(--f-display);font-variation-settings:var(--soft);font-size:var(--fs-desc-lede);line-height:1.45;color:var(--ink);max-width:60ch}
 .tl-comment .btn{max-width:100%;white-space:normal;text-align:left;height:auto;min-height:44px;padding-top:8px;padding-bottom:8px}
 .tl-struct td:first-child,.tl-cities td:first-child{white-space:nowrap}
-.tl-cities tr.on td{background:var(--surface)}
-.tl-cities tr.on td:first-child{box-shadow:inset 2px 0 0 var(--accent)}
 .tl-cbtn{display:inline-flex;align-items:center;min-height:40px;padding:0 var(--s-2);margin-left:calc(-1 * var(--s-2));font-weight:600;color:var(--ink);border-radius:var(--r)}
 .tl-cbtn:hover{background:var(--surface)}
 .tl-minic{width:112px}
@@ -211,4 +209,62 @@ form.tl-step{max-width:640px}
   .tl-cur{flex-direction:row;flex-wrap:wrap;align-items:center;gap:6px 12px}
   .tl-cur .lbl{display:none}
   .tl-mbar-r .select:not(.select-inline){flex:1 1 140px}
+}
+
+/* ───────── dopune posle QA ───────── */
+/* mete ≥ 40px: linkovi u tabelama, dugme grada, „Kako računamo“ */
+.tl-tlink{display:inline-flex;align-items:center;min-height:40px}
+.tl-cbtn{min-width:40px;justify-content:flex-start}
+.tl-how{display:inline-flex;align-items:center;min-height:40px;font-size:var(--fs-sm)}
+.tl-range .tl-how{margin-top:var(--s-1)}
+/* base.css .select-inline:focus gasi outline — vidljiv fokus za tastaturu (zahtev za base.css u izveštaju) */
+.tl-mbar-r .select-inline:focus-visible,.tl-load .select:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.tl-small{font-size:12px}
+
+/* učitaj iz oglasa */
+.tl-load{display:flex;align-items:center;flex-wrap:wrap;gap:var(--s-2) var(--s-3);margin-top:var(--s-5)}
+.tl-load .lbl{font-size:var(--fs-label);font-weight:600;letter-spacing:var(--ls-label);text-transform:uppercase;color:var(--muted)}
+.tl-load .select{width:auto;max-width:min(100%,520px);height:40px;font-size:var(--fs-sm)}
+.tl-load .link{display:inline-flex;align-items:center;min-height:40px;font-size:var(--fs-sm)}
+
+/* kupovina ili zakup */
+.tl-kinote{margin-top:6px}
+.tl-kinote .link,.tl-kinote .btn-link{display:inline-flex;align-items:center;min-height:40px;vertical-align:middle}
+.tl-assume-f{border:0;margin:0;padding:var(--s-4) 0 0;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:var(--s-5);min-width:0}
+.tl-assume-f legend{padding:0;margin-bottom:var(--s-3);float:left;width:100%}
+.tl-verdict{font-size:clamp(28px,3.2vw,40px);line-height:1.12;text-wrap:balance}
+.tl-2l{margin:var(--s-6) 0 0;min-width:0}
+.tl-2l-k{display:flex;flex-wrap:wrap;gap:var(--s-2) var(--s-5);font-size:13px;color:var(--muted);margin-bottom:var(--s-2)}
+.tl-2l-k .k{display:inline-flex;align-items:center;gap:6px}
+.tl-2l-k b{color:var(--ink);font-weight:600}
+.tl-2l-k i{display:inline-block;width:18px;height:0;border-top:2px solid var(--chart-line)}
+.tl-2l-k .r i{border-top:2px dashed var(--ink)}
+.tl-2l-plot svg{display:block;width:100%;height:160px;overflow:visible}
+.tl-2l-plot .g{stroke:var(--chart-grid);stroke-width:1;vector-effect:non-scaling-stroke}
+.tl-2l-plot .z{stroke:var(--chart-ref);stroke-width:1;vector-effect:non-scaling-stroke}
+.tl-2l-plot .be{stroke:var(--chart-ref);stroke-width:1;stroke-dasharray:3 3;vector-effect:non-scaling-stroke}
+.tl-2l-plot .b{fill:none;stroke:var(--chart-line);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.tl-2l-plot .r{fill:none;stroke:var(--ink);stroke-width:2;stroke-dasharray:6 4;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.tl-2l-ax{position:relative;display:flex;justify-content:space-between;height:18px;margin-top:6px;font-size:12px;color:var(--muted)}
+.tl-2l-ax .be{position:absolute;top:0;transform:translateX(-50%);color:var(--ink);font-weight:600;white-space:nowrap}
+.tl-2l-ax .end{margin-left:auto}
+
+/* sniženja istih oglasa */
+.tl-cut .tl-note{margin-top:var(--s-4);font-size:var(--fs-xs)}
+.tl-cut12{font-size:var(--fs-sm);color:var(--text)}
+
+/* tabele koje staju bez skrolovanja: bez maske; n ispod €/m² samo na telefonu */
+.tl-fit{mask-image:none;-webkit-mask-image:none}
+.tl-n{display:none}
+/* istaknut red: pozadina samo na dugmetu grada (ostaje unutar margine), bez trake do ivice ekrana */
+.tl-cities tr.on td{background:none}
+.tl-cities tr.on td:first-child{box-shadow:none}
+.tl-cities tr.on .tl-cbtn{background:var(--surface);box-shadow:inset 2px 0 0 var(--accent)}
+@media (max-width:600px){
+  .tl-minic,.tl-hm{display:none}
+  .tl-n{display:block;font-size:12px;font-weight:400;color:var(--muted);line-height:1.3}
+  .tl-struct td,.tl-struct th,.tl-cities td,.tl-cities th{padding-right:8px}
+  .tl-struct td:last-child,.tl-struct th:last-child,.tl-cities td:last-child,.tl-cities th:last-child{padding-right:0}
+  .tl-2l-plot svg{height:140px}
+  .tl-load .select{flex:1 1 100%;max-width:100%}
 }

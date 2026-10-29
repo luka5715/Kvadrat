@@ -16,11 +16,13 @@
 .pj-head .tiles{margin-top:28px}
 .pj-bar{border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:10px 0;display:flex;flex-direction:column;gap:6px}
 .pj-row{display:flex;align-items:center;gap:8px 14px;min-width:0;flex-wrap:wrap}
-.pj-row>.label{width:56px;flex:none}
+.pj-row>.label{width:76px;flex:none}
 .pj-rail{flex:1;min-width:0;align-items:center}
 .pj-rail .pr{flex-wrap:nowrap}
 .pj-rail .select-inline{flex:none}
 .pj-sort{display:inline-flex;align-items:center;gap:2px}
+/* vidljiv fokus na inline selektima (base.css .select-inline:focus gasi outline) */
+.pj-bar .select-inline:focus-visible,.pj-usort .select-inline:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .pj-count{margin:22px 0 18px;font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
 .pj-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:44px 32px}
 .pj-grid-3{grid-template-columns:repeat(3,minmax(0,1fr));gap:36px 24px}
@@ -68,7 +70,8 @@
 .pj-price .small{margin-top:10px;color:var(--muted)}
 .pj-price .small b{color:var(--text);font-weight:600}
 .pj-kf{margin-top:24px}
-.pj-kf .kf dd{white-space:nowrap}
+.pj-kf .kf dd{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
+.pj-kf .kf dd .ct-demo{vertical-align:2px}
 .pj-rest>.ct-sec:first-child{margin-top:40px}
 /* kontakt investitora */
 .pj-contact .ct-rev{display:flex;gap:8px;align-items:center}
@@ -95,9 +98,23 @@
 .pj-al .k::before{content:"";width:10px;height:10px;border-radius:2px;background:var(--surface-2)}
 .pj-al .k.dos::before{background:var(--accent)}.pj-al .k.rez::before{background:var(--border-strong)}
 .pj-al b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
-.pj-rest .toggle-row{max-width:520px;margin-top:6px}
+.pj-uctl{display:flex;align-items:center;gap:8px 16px;flex-wrap:wrap;margin-top:6px}
+.pj-uctl .toggle-row{flex:1;min-width:0;max-width:520px;margin:0}
+.pj-usort{display:none}
+.pj-table th button{margin:0 -2px;padding:0 2px;border-radius:2px}
+.pj-table th button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.pj-table th.num button{justify-content:flex-end}
+.pj-acts{display:inline-flex;gap:6px;justify-content:flex-end}
+.pj-ask{font-size:13px;color:var(--muted);white-space:nowrap}
+.pj-ppm{display:inline-flex;align-items:center;gap:6px;justify-content:flex-end}
+.pj-ppm .ppm{white-space:nowrap}
 .pj-tw{margin-top:10px}
-.pj-table{min-width:760px}
+.pj-table{min-width:720px}
+.pj-table .pj-t{display:block;white-space:nowrap}
+.pj-table .pj-or{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+.pj-table .pj-fl{white-space:nowrap}
+.pj-table td .pj-ppm{flex-direction:column;align-items:flex-end;gap:4px}
+.pj-table a.pj-pl:hover .price{color:var(--accent)}
 .pj-table .ttl{white-space:nowrap}
 .pj-table a.ttl{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
 .pj-table .price{font-family:var(--f-display);font-variation-settings:var(--soft);font-size:18px;font-weight:500;color:var(--ink)}
@@ -176,7 +193,6 @@
 @media (max-width:600px){
   .pj-row>.label{display:none}
   .pj-row{gap:8px}
-  .pj-sort{margin-left:-10px}
   .pj-grid-3{grid-template-columns:minmax(0,1fr)}
   .pj-grid-3>:nth-child(3){display:flex}
   .pj-name{font-size:24px}
@@ -291,9 +307,13 @@
   .pj-ul a.ttl{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
   .pj-ul-f{font-size:14px;color:var(--text);margin-top:4px;font-variant-numeric:tabular-nums}
   .pj-ul li.pj-u-pro .pj-ul-f{color:var(--muted)}
-  .pj-ul-p{display:flex;align-items:baseline;gap:10px;margin-top:8px}
+  .pj-ul-p{display:flex;align-items:baseline;gap:8px 10px;margin-top:8px;flex-wrap:wrap}
   .pj-ul-p .price{font-size:var(--fs-price-sm)}
-  .pj-ul-p .btn{margin-left:auto;align-self:center}
+  .pj-ul-p .pj-acts{margin-left:auto;align-self:center}
+  .pj-ul-p .pj-ppm{font-size:13px}
+  .pj-usort{display:inline-flex;margin-left:auto}
+  .pj-usort .select-inline{padding-left:0}
+  .pj-uctl .toggle-row{flex:1 1 100%;max-width:none}
 }
 .ct-fwrap>.btn+.ct-form{margin-top:0}
 .ar-body a{color:var(--accent);font-weight:600;text-decoration:underline;text-underline-offset:3px}
@@ -314,3 +334,6 @@
   .ar-feat{gap:16px}
   .ar-grid{margin-top:0;padding-top:0;border-top:0}
 }
+/* broj građevinske dozvole: cela širina dva stupca, broj ne lomi */
+.pj-kf .kf.pj-kf-w{grid-column:span 2}
+.pj-kf .kf.pj-kf-w .num{white-space:nowrap}

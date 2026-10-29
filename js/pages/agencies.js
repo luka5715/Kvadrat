@@ -96,6 +96,10 @@
     for (const m of team) { if (x < m.weight) return m; x -= m.weight; }
     return team[0];
   }
+  /* iste reči na kartici i na profilu: „2 licencirana posrednika · 1 saradnik“ */
+  const licText = (n) => `${num(n)} ${plu(n, 'licencirani posrednik', 'licencirana posrednika', 'licenciranih posrednika')}`;
+  const assocText = (n) => `${num(n)} ${plu(n, 'saradnik', 'saradnika', 'saradnika')}`;
+  function teamSplit(team) { const lic = team.filter((m) => m.licensed).length; return { lic, assoc: team.length - lic }; }
   const responseHours = (a) => 1 + (H(a.s + '#resp') % (a.v ? 3 : 6));
   const hoursText = (a) => {
     const h = H(a.s + '#hrs') % 3;
@@ -139,7 +143,9 @@
   function agencyReviews(a) {
     const scores = reviewScores(a);
     const L = listingsOf(a);
-    const places = [...new Set(L.map((l) => l.m).filter(Boolean))];
+    /* mesta iz grada agencije; tek ako ih nema — sva mesta iz njenih oglasa */
+    const local = [...new Set(L.filter((l) => l.c === a.c).map((l) => l.m).filter(Boolean))];
+    const places = local.length ? local : [...new Set(L.map((l) => l.m).filter(Boolean))];
     const used = new Set();
     return scores.map((st, i) => {
       const h = H(a.s + '#rev' + i);
@@ -163,11 +169,12 @@
   }
 
   /* ───────── mali gradivni blokovi ───────── */
-  /* ocena kao 5 kvadrata (pine = pun); boja nije jedini signal: aria-label + broj pored */
+  /* ocena kao 5 kvadrata (pine = pun, pola = .25–.75); boja nije jedini signal: aria-label + broj pored */
   function squares(v, size = '') {
-    const full = Math.round(v);
+    v = Math.max(0, Math.min(5, +v || 0));
+    const full = Math.floor(v + 0.25), fr = v - Math.floor(v), half = fr >= 0.25 && fr < 0.75 ? full + 1 : 0;
     return el('span', { class: 'ag-sq' + (size ? ' ' + size : ''), role: 'img', 'aria-label': `Ocena ${num(v, v % 1 ? 1 : 0)} od 5` },
-      [1, 2, 3, 4, 5].map((k) => el('i', { class: k <= full ? 'on' : null })));
+      [1, 2, 3, 4, 5].map((k) => el('i', { class: k <= full ? 'on' : k === half ? 'half' : null })));
   }
   function markTile(a, cls) {
     const src = S(() => img.mark(a), null);
@@ -240,11 +247,15 @@
       if (btn) { btn.setAttribute('href', R.agency(a.s, { tab: 'oglasi' })); btn.textContent = `Pogledaj ${num(a.lc || 0)} ${plu(a.lc || 0, 'oglas', 'oglasa', 'oglasa')}`; }
       const reg = regNo(a);
       const kpi = c.querySelector('.kpi');
+      /* broj agenata istim rečima kao tab „Tim“ na profilu */
+      const agSpan = kpi && kpi.lastElementChild;
+      if (agSpan && /agen/.test(agSpan.textContent)) { const sp = teamSplit(agencyTeam(a)); agSpan.textContent = ''; agSpan.append(el('b', {}, num(sp.lic)), ' ' + licText(sp.lic).replace(/^\S+\s/, '')); }
       const regLine = el('p', { class: 'ag-reg' }, reg ? [ico('check-circle', 14), `Reg. br. posrednika ${reg}`] : [ico('info', 14), 'Broj registra nije dostavljen']);
       if (kpi) kpi.after(regLine); else c.append(regLine);
       if (!a.v) c.classList.add('ag-unver');
       return c;
     }
+    let ready = false;
     function paint() {
       const L = list();
       grid.innerHTML = '';
@@ -255,7 +266,7 @@
       } else { grid.classList.remove('is-empty'); L.forEach((a) => grid.append(cardFor(a))); }
       const lc = L.reduce((s, a) => s + (a.lc || 0), 0);
       count.textContent = `${L.length} ${plu(L.length, 'agencija', 'agencije', 'agencija')} · ${num(lc)} ${plu(lc, 'aktivan oglas', 'aktivna oglasa', 'aktivnih oglasa')}`;
-      replaceUrl(R.index({ q: st.q.trim(), c: st.c, sort: st.sort === 'oglasi' ? '' : st.sort, ver: st.ver }));
+      if (ready) replaceUrl(R.index({ q: st.q.trim(), c: st.c, sort: st.sort === 'oglasi' ? '' : st.sort, ver: st.ver }));
     }
 
     const page = el('div', { class: 'wrap agx' },
@@ -263,7 +274,7 @@
       el('header', { class: 'agx-head' },
         el('p', { class: 'eyebrow' }, 'Imenik posrednika'),
         el('h1', { class: 't-h1' }, 'Agencije za nekretnine'),
-        el('p', { class: 'lede' }, `${all.length} ${plu(all.length, 'agencija', 'agencije', 'agencija')} sa ${num(nList)} aktivnih oglasa u ${cityRows.length} gradova. ${nVer} ${plu(nVer, 'je proverena', 'su proverene', 'je provereno')}: imaju broj u Registru posrednika i licenciranog posrednika.`)),
+        el('p', { class: 'lede' }, `${all.length} ${plu(all.length, 'agencija', 'agencije', 'agencija')} iz ${cityRows.length} ${plu(cityRows.length, 'grada', 'grada', 'gradova')}, sa ukupno ${num(nList)} ${plu(nList, 'aktivnim oglasom', 'aktivna oglasa', 'aktivnih oglasa')}. ${nVer} ${plu(nVer, 'je proverena', 'su proverene', 'je provereno')}: imaju broj u Registru posrednika i licenciranog posrednika.`)),
       el('div', { class: 'agx-bar', role: 'search' },
         el('div', { class: 'input-wrap agx-q' }, ico('search'), input),
         el('div', { class: 'agx-tools' }, verCheck, el('label', { class: 'agx-sort' }, el('span', { class: 'meta' }, 'Sortiraj'), sortSel))),
@@ -275,7 +286,7 @@
         el('div', { class: 'note-rule agx-note-b' },
           el('p', {}, 'Oznaku „Verifikovana agencija“ dobija posrednik koji ispunjava oba uslova: upisan je u Registar posrednika u prometu i zakupu nepokretnosti (vodi ga ministarstvo nadležno za trgovinu) i ima bar jednog zaposlenog sa položenim stručnim ispitom za posrednika (licenca).'),
           el('p', {}, 'Broj registra pišemo na kartici i na profilu, da ga možete sami proveriti. Agencije bez potvrđenog broja ostaju na portalu, ali bez oznake. Ocene ostavljaju klijenti; u ovoj demo verziji brojevi registra, licence i pojedinačne recenzije su ilustrativni.'))));
-    paint();
+    paint(); ready = true;
     return page;
   }
 
@@ -307,8 +318,11 @@
       page: Math.max(1, parseInt(q.get('page'), 10) || 1),
     };
     const nT = { prodaja: L.filter((l) => l.t === 'prodaja').length, izdavanje: L.filter((l) => l.t === 'izdavanje').length };
-    if (!st.t) st.t = nT.prodaja >= nT.izdavanje ? 'prodaja' : 'izdavanje';
-    const syncUrl = () => replaceUrl(R.agency(a.s, { tab: st.tab === 'oglasi' ? '' : st.tab, t: st.tab === 'oglasi' ? st.t : '', pt: st.tab === 'oglasi' ? st.pt : '', sort: st.tab === 'oglasi' && st.sort !== 'rel' ? st.sort : '', page: st.tab === 'oglasi' && st.page > 1 ? st.page : '' }));
+    const defT = nT.prodaja >= nT.izdavanje ? 'prodaja' : 'izdavanje';
+    if (!st.t) st.t = defT;
+    /* prvi prikaz ne menja URL; t se piše samo kad se razlikuje od podrazumevanog */
+    let ready = false;
+    const syncUrl = () => ready && replaceUrl(R.agency(a.s, { tab: st.tab === 'oglasi' ? '' : st.tab, t: st.tab === 'oglasi' && st.t !== defT ? st.t : '', pt: st.tab === 'oglasi' ? st.pt : '', sort: st.tab === 'oglasi' && st.sort !== 'rel' ? st.sort : '', page: st.tab === 'oglasi' && st.page > 1 ? st.page : '' }));
 
     /* ── poruka (forma na stranici) ── */
     const msg = messageBlock(a);
@@ -328,6 +342,7 @@
         el('h1', { class: 't-h1' }, a.n),
         el('p', { class: 'agp-reg' },
           a.v ? S(() => badge('verifikovan', 'Verifikovana agencija'), null) : el('span', { class: 'badge' }, 'Nije verifikovana'),
+          resp <= 2 ? el('span', { class: 'badge', title: `Odgovara na poruke za ~${resp} h radnim danima` }, 'Brzo odgovara (demo)') : null,
           reg ? el('span', { class: 'num' }, `Reg. br. posrednika ${reg}`) : el('span', {}, 'Broj registra nije dostavljen')),
         meta),
       actions);
@@ -355,11 +370,12 @@
     tabsEl = S(() => tabs([
       { id: 'oglasi', label: `Oglasi (${L.length})`, panel: panels.oglasi.el },
       { id: 'o-agenciji', label: 'O agenciji', panel: panels['o-agenciji'].el },
-      { id: 'agenti', label: `Agenti (${team.length})`, panel: panels.agenti },
+      { id: 'agenti', label: `Tim (${team.length})`, panel: panels.agenti },
       { id: 'ocene', label: `Ocene (${a.rc || 0})`, panel: panels.ocene },
     ], { active: st.tab, onChange: (id) => { st.tab = id; syncUrl(); if (id === 'o-agenciji') panels['o-agenciji'].mount(); } }), null);
     if (tabsEl) { tabsEl.id = 'agp-tabs'; tabsEl.classList.add('agp-tabs'); }
     if (st.tab === 'o-agenciji') panels['o-agenciji'].mount();
+    ready = true;
 
     /* ── lepljiva traka na telefonu ── */
     const cta = el('div', { class: 'cta-bar ag-cta' },
@@ -423,7 +439,9 @@
         if (bad) { bad.focus(); return; }
         sent = true; paint(name.value.trim());
       } },
-      el('div', { class: 'agp-topic' }, el('p', { class: 'label' }, 'Tema'), S(() => pills([{ v: 'kupujem', l: 'Kupujem' }, { v: 'prodajem', l: 'Prodajem' }, { v: 'iznajmljujem', l: 'Tražim stan za zakup' }, { v: 'izdajem', l: 'Izdajem' }], [topic], (v) => { topic = v; }, { single: true }), null)),
+      el('fieldset', { class: 'agp-topic' }, el('legend', { class: 'label' }, 'Tema'),
+        el('div', { class: 'agp-topic-o' }, [{ v: 'kupujem', l: 'Kupujem' }, { v: 'prodajem', l: 'Prodajem' }, { v: 'iznajmljujem', l: 'Tražim stan za zakup' }, { v: 'izdajem', l: 'Izdajem' }]
+          .map((o) => S(() => check(o.l, topic === o.v, (on, v) => { if (on) topic = v; }, { type: 'radio', name: 'agp-topic-' + a.s, value: o.v }), null)))),
       el('div', { class: 'agp-form-row' }, fName, fContact),
       fText,
       el('div', { class: 'btn-row agp-form-ft' },
@@ -519,7 +537,7 @@
       ['Telefon', el('span', { class: 'ag-numrow' }, el('span', { class: 'ag-num num' }, a.ph), S(() => copyButton(a.ph, { label: 'Kopiraj broj' }), null))],
       ['E-pošta', el('span', { class: 'ag-numrow' }, el('span', { class: 'ag-num' }, a.em || '—'), a.em ? S(() => copyButton(a.em, { label: 'Kopiraj e-poštu' }), null) : null)],
       ['Radno vreme', hoursText(a)],
-      ['Registar posrednika', reg ? `br. ${reg} · licencirani posrednici: ${Math.max(1, Math.min(3, a.ac || 1))}` : 'broj nije dostavljen'],
+      ['Registar posrednika', reg ? `br. ${reg} · ${licText(Math.max(1, Math.min(3, a.ac || 1)))}` : 'broj nije dostavljen'],
       ['Posluje od', `${a.y}. (${NOW_YEAR - a.y} ${plu(NOW_YEAR - a.y, 'godina', 'godine', 'godina')})`],
       ['Provizija', `Kod prodaje uobičajeno 2 % + PDV; ko plaća piše u ugovoru o posredovanju. ${comm}`],
       ['Odgovor na poruke', `~${resp} h radnim danima (demo)`],
@@ -561,8 +579,11 @@
 
   /* ── tab: Agenti ── */
   function agentsPanel(a, team) {
+    const sp = teamSplit(team);
     return el('div', { class: 'agp-agents-wrap' },
-      el('div', { class: 'agp-agents' }, team.map((m) => el('article', { class: 'agp-agent' },
+      el('p', { class: 'agp-team-sum num' }, el('b', {}, licText(sp.lic)), sp.assoc ? ` · ${assocText(sp.assoc)}` : null,
+        el('span', { class: 'meta' }, ' — na kartici agencije brojimo samo licencirane posrednike.')),
+      el('div', { class: 'agp-agents' }, team.map((m) => el('article', { class: 'agp-agent' + (m.licensed ? '' : ' is-assoc') },
         el('div', { class: 'agp-agent-top' },
           markTile({ s: m.s, n: m.n }, 'agp-ava'),
           el('div', { class: 'agp-agent-id' },
@@ -612,7 +633,13 @@
       const m = readMine();
       let stars = m ? m.stars : 0;
       const picks = [1, 2, 3, 4, 5].map((k) => el('button', { type: 'button', class: 'agp-star', role: 'radio', 'aria-checked': 'false', 'aria-label': `${k} — ${SCORE_L[k]}`, tabindex: '-1', onclick: () => setStars(k),
-        onkeydown: (e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { e.preventDefault(); setStars(Math.min(5, (stars || 0) + 1), true); } if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { e.preventDefault(); setStars(Math.max(1, (stars || 1) - 1), true); } } }, el('i'), el('span', {}, String(k))));
+        onkeydown: (e) => {
+          /* ARIA radio: strelica pomera od fokusiranog dugmeta (ne od izabrane vrednosti) */
+          const cur = picks.indexOf(e.currentTarget) + 1 || stars || 1;
+          if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); setStars(cur >= 5 ? 1 : cur + 1, true); }
+          else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); setStars(cur <= 1 ? 5 : cur - 1, true); }
+          else if (e.key === 'Home') { e.preventDefault(); setStars(1, true); }
+          else if (e.key === 'End') { e.preventDefault(); setStars(5, true); } } }, el('i'), el('span', {}, String(k))));
       const capt = el('span', { class: 'meta agp-star-l' });
       const group = el('div', { class: 'agp-stars', role: 'radiogroup', 'aria-label': 'Vaša ocena od 1 do 5' }, picks, capt);
       function setStars(k, focus) {
