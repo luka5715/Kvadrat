@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="sr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Kvadrat — test mape</title>
+<meta name="description" content="Dev stranica: komponenta mapView (js/map.js) i stranica viewMap (js/pages/map.js) samostalno. Rute: #/ (Beograd), #/mapa?c=novi-sad&m=budzet, #/komponenta (goli API).">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,50;1,9..144,300..700,50&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../css/tokens.css">
+<link rel="stylesheet" href="../../css/base.css">
+<link rel="stylesheet" href="../../css/components.css">
+<link rel="stylesheet" href="../../css/pages/map.css">
+<style>
+/* samo za dev stranicu */
+.dv-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px var(--gutter);border-bottom:1px solid var(--border);font-size:13px;color:var(--muted)}
+.dv-bar a{color:var(--accent);font-weight:600}
+.dv-bar a[aria-current="page"]{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+.dv-comp{padding:16px var(--gutter) 40px;max-width:1280px;margin:0 auto}
+.dv-comp .map{height:min(560px,70vh);margin-top:12px}
+.dv-comp .btn-row{margin-top:12px}
+.dv-comp pre{margin-top:12px;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;color:var(--muted);white-space:pre-wrap}
+.dv-comp h1{font-family:var(--f-display);font-weight:400;font-size:28px;letter-spacing:-.015em}
+#main{--header-h:104px} /* zaglavlje 64 + dev traka 40, da .mp dobije pravu visinu */
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toasts" aria-live="polite"></div>
+
+<script src="../../data.js" charset="utf-8"></script>
+<script src="../../js/core.js" charset="utf-8"></script>
+<script>
+/* ŠIM samo za dev stranicu (nikad u index.html): rezerve za fmt/stats/mock/store/mortgage dok core.js ne dobije novi ugovor.
+   Isti pristup kao dev/index.html (galerija). Ako core.js već definiše ove globale, šim ne radi ništa. */
+(function () {
+  'use strict';
+  const has = (fn) => { try { return fn() !== undefined; } catch (e) { return false; } };
+  const nf = new Intl.NumberFormat('sr-RS', { maximumFractionDigits: 0 });
+  const nf1 = new Intl.NumberFormat('sr-RS', { maximumFractionDigits: 1 });
+  const pl = (n, a, b, c) => { const m10 = n % 10, m100 = n % 100; if (m10 === 1 && m100 !== 11) return a; if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return b; return c; };
+  const median = (arr) => { if (!arr.length) return 0; const s = [...arr].sort((a, b) => a - b); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+  if (!has(() => fmt)) { window.__kvShim = true;
+    window.fmt = {
+      price: (n, t) => nf.format(Math.round(n)) + (t === 'izdavanje' ? ' €/mes' : ' €'),
+      ppm: (n) => nf.format(Math.round(n)) + ' €/m²', m2: (n) => nf.format(Math.round(n)) + ' m²', num: (n) => nf.format(n),
+      pct: (x, o = {}) => ((o.sign && x > 0) ? '+' : '') + nf1.format(Math.round(x * 10) / 10).replace('-', '−') + ' %',
+      rel: (d) => d === 0 ? 'danas' : d === 1 ? 'juče' : d < 7 ? `pre ${d} dana` : d < 30 ? `pre ${Math.round(d / 7)} ${pl(Math.round(d / 7), 'nedelju', 'nedelje', 'nedelja')}` : d < 365 ? `pre ${Math.round(d / 30)} ${pl(Math.round(d / 30), 'mesec', 'meseca', 'meseci')}` : 'pre godinu dana',
+      floor: (fl, tf) => fl == null ? null : (fl === 0 ? 'Prizemlje' : fl === -1 ? 'Suteren' : fl + '.') + (tf ? ' od ' + tf : ''),
+      rooms: (ro) => (ROOMS.find((r) => r[0] === ro) || [0, ro + ' sobe'])[1], roomsN: (ro) => ro >= 5 ? '5+' : nf1.format(ro), plural: pl,
+    };
+  }
+  if (!has(() => stats)) {
+    const grp = (l, key) => D.listings.filter((x) => x.t === l.t && x.pt === l.pt && x.ppm && (key === 'all' || x[key] === l[key]));
+    window.stats = {
+      refPpm(l) { for (const [key, scope, label] of [['ns', 'nbhd', l.n], ['ms', 'mun', l.m], ['cs', 'city', l.c], ['all', 'all', 'Srbija']]) { const g = grp(l, key); if (g.length >= 5 || key === 'all') return { ppm: median(g.map((x) => x.ppm)), label, n: g.length, scope }; } },
+      delta(l) { const r = this.refPpm(l); if (!r || !r.ppm || !l.ppm) return null; return { pct: (l.ppm / r.ppm - 1) * 100, ppm: r.ppm, label: r.label, n: r.n, scope: r.scope }; },
+      medians(list) { return { p: median(list.map((x) => x.p)), ppm: median(list.map((x) => x.ppm).filter(Boolean)), a: median(list.map((x) => x.a).filter(Boolean)) }; },
+    };
+  }
+  if (!has(() => mock)) {
+    const STREETS = ['Makenzijeva', 'Bulevar kralja Aleksandra', 'Cvijićeva', 'Vojvode Stepe', 'Požeška', 'Jurija Gagarina', 'Dalmatinska', 'Kneza Miloša', 'Takovska', 'Glavna'];
+    const POI = ['centra', 'glavne pijace', 'gradskog parka', 'stanice'];
+    window.mock = {
+      street(l) { if (l.ad) return l.ad; const h = hash(l.s + '#st'); return `${STREETS[h % STREETS.length]} ${1 + (h >>> 4) % 120}`; },
+      walk(l) { const h = hash(l.s + '#wk'); return { min: 3 + (h % 12), to: POI[(h >>> 3) % POI.length] }; },
+    };
+  }
+  if (!has(() => store)) {
+    const read = (k, fb) => { try { return JSON.parse(localStorage.getItem('kv.' + k)) ?? fb; } catch (e) { return fb; } };
+    const write = (k, v) => { try { localStorage.setItem('kv.' + k, JSON.stringify(v)); } catch (e) { /* ignore */ } };
+    const subs = [];
+    const st = window.store = {
+      favs: new Set(read('favs', [])), compare: read('compare', []), recent: read('recent', []), searches: read('searches', []), notes: read('notes', {}),
+      on(fn) { subs.push(fn); return () => { const i = subs.indexOf(fn); if (i >= 0) subs.splice(i, 1); }; }, emit() { subs.forEach((f) => f()); },
+      toggleFav(s) { if (st.favs.has(s)) st.favs.delete(s); else st.favs.add(s); write('favs', [...st.favs]); st.emit(); }, isFav(s) { return st.favs.has(s); },
+      toggleCompare(s) { const i = st.compare.indexOf(s); if (i >= 0) st.compare.splice(i, 1); else if (st.compare.length < 4) st.compare.push(s); write('compare', st.compare); st.emit(); }, inCompare(s) { return st.compare.includes(s); },
+      pushRecent(s) { st.recent = [s, ...st.recent.filter((x) => x !== s)].slice(0, 12); write('recent', st.recent); st.emit(); },
+    };
+  }
+  if (!has(() => mortgage)) window.mortgage = (p, r, y) => { const m = r / 100 / 12, n = y * 12; const monthly = m ? p * m / (1 - Math.pow(1 + m, -n)) : p / n; return { monthly, total: monthly * n, interest: monthly * n - p }; };
+})();
+</script>
+<script src="../../js/images.js" charset="utf-8"></script>
+<script src="../../js/ui.js" charset="utf-8"></script>
+<script src="../../js/engine.js" charset="utf-8"></script>
+<script src="../../js/map.js" charset="utf-8"></script>
+<script src="../../js/pages/map.js" charset="utf-8"></script>
+<script>
+/* mini ruter dev stranice: #/ → viewMap(c=beograd) · #/mapa?… → viewMap(q) · #/komponenta → goli mapView API */
+(function () {
+  'use strict';
+  const S = (fn, fb) => { try { const v = fn(); return v === undefined ? fb : v; } catch (e) { return fb; } };
+  const app = document.getElementById('app');
+  let api = null;
+  function bar(path) {
+    const link = (h, l) => el('a', { href: h, 'aria-current': path === h.replace(/\?.*$/, '') ? 'page' : null }, l);
+    return el('div', { class: 'dv-bar' }, el('b', {}, 'dev/map'), link('#/', 'Beograd'), link('#/mapa?c=novi-sad&m=budzet', 'Novi Sad · budžet'), link('#/mapa?c=nis&t=izdavanje', 'Niš · izdavanje'), link('#/komponenta', 'komponenta'), el('span', { style: 'margin-left:auto' }, 'fmt/store šim: ' + (window.__kvShim ? 'da' : 'core')));
+  }
+  function componentDemo() {
+    const KV = window.KV; const bg = KV.listings.filter((l) => l.cs === 'beograd');
+    const box = el('div', { class: 'map' });
+    const log = el('pre', {}, 'događaji…');
+    const say = (m) => { log.textContent = (m + '\n' + log.textContent).split('\n').slice(0, 8).join('\n'); };
+    const wrap = el('div', { class: 'dv-comp' }, el('h1', {}, 'mapView — goli API'), el('p', { class: 'muted' }, 'Kontrole proveravaju setMode, setBudget, setPlaces, highlight, setSelected, fit, setListings i setPolygon.'), box,
+      el('div', { class: 'btn-row' },
+        el('button', { class: 'btn btn-secondary btn-sm', type: 'button', onclick: () => { api.setMode('budget'); api.setBudget([{ key: 'vracar', label: 'Vračar', cs: 'beograd', lat: 44.797, lng: 20.475, m2: 38, n: 4, ppm: 2450 }, { key: 'zvezdara', label: 'Zvezdara', cs: 'beograd', lat: 44.8, lng: 20.505, m2: 52, n: 9, ppm: 1810 }, { key: 'novi-beograd', label: 'Novi Beograd', cs: 'beograd', lat: 44.81, lng: 20.41, m2: 44, n: 7, ppm: 2120 }, { key: 'cukarica', label: 'Čukarica', cs: 'beograd', lat: 44.77, lng: 20.41, m2: 61, n: 11, ppm: 1540 }, { key: 'palilula', label: 'Palilula', cs: 'beograd', lat: 44.82, lng: 20.49, m2: 0, n: 0, ppm: 0 }]); } }, 'Budžet'),
+        el('button', { class: 'btn btn-secondary btn-sm', type: 'button', onclick: () => { api.setMode('pins'); api.fit(); } }, 'Pinovi'),
+        el('button', { class: 'btn btn-secondary btn-sm', type: 'button', onclick: () => api.setPlaces([{ id: 'p1', name: 'Posao', lat: 44.8126, lng: 20.4612, who: 'ja', mode: 'gradski' }, { id: 'p2', name: 'Fakultet', lat: 44.7975, lng: 20.477, who: 'partner', mode: 'pesice' }]) }, 'Moja mesta'),
+        el('button', { class: 'btn btn-secondary btn-sm', type: 'button', onclick: () => api.setPlaces([]) }, 'Bez mesta'),
+        el('button', { class: 'btn btn-secondary btn-sm', type: 'button', onclick: () => api.setSelected(bg[3].s) }, 'Izaberi #3'),
+        el('button', { class: 'btn btn-secondary btn-sm', type: 'button', onclick: () => api.highlight(bg[5].s) }, 'Hover #5'),
+        el('button', { class: 'btn btn-secondary btn-sm', type: 'button', onclick: () => api.setListings(bg.filter((l) => l.t === 'izdavanje')) }, 'Samo izdavanje'),
+        el('button', { class: 'btn btn-secondary btn-sm', type: 'button', onclick: () => api.setListings(KV.listings) }, 'Svi (660)'),
+        el('button', { class: 'btn btn-secondary btn-sm', type: 'button', onclick: () => api.setPolygon([{ lat: 44.79, lng: 20.45 }, { lat: 44.82, lng: 20.45 }, { lat: 44.82, lng: 20.49 }, { lat: 44.79, lng: 20.49 }]) }, 'Poligon (centar)'),
+        el('button', { class: 'btn btn-secondary btn-sm', type: 'button', onclick: () => api.setRadius({ lat: 44.8, lng: 20.47, m: 300 }) }, 'Radijus 300 m'),
+        el('button', { class: 'btn btn-secondary btn-sm', type: 'button', onclick: () => api.fit() }, 'Prikaži sve')),
+      log);
+    setTimeout(() => {
+      api = mapView(box, { listings: bg, onSelect: (s) => say('onSelect ' + s), onHover: (s) => say('onHover ' + s), onBoundsChange: (b) => say('onBoundsChange ' + JSON.stringify({ n: b.n, s: b.s, zoom: b.zoom, poly: b.polygon ? b.polygon.length : null, count: b.count })), onViewChange: (b) => say('view z=' + b.zoom + ' ' + b.center.lat + ',' + b.center.lng) });
+      window.__mapApi = api;
+    }, 0);
+    return wrap;
+  }
+  function render() {
+    const raw = location.hash.replace(/^#/, '') || '/';
+    const [path, qs] = raw.split('?'); const q = new URLSearchParams(qs || '');
+    app.innerHTML = '';
+    const hdr = S(() => header(path === '/komponenta' ? '/' : '/mapa'), null) || el('header', { class: 'hdr' }, el('div', { class: 'wrap' }, el('b', {}, 'Kvadrat.rs')));
+    let body;
+    if (path === '/komponenta') body = componentDemo();
+    else if (path === '/mapa') body = viewMap(q);
+    else body = viewMap(new URLSearchParams('c=beograd'));
+    app.append(hdr, bar('#' + path), el('main', { id: 'main' }, body));
+    const ftr = app.querySelector('.hdr'); if (ftr) ftr.style.position = 'static';
+  }
+  window.addEventListener('hashchange', render);
+  render();
+})();
+</script>
+</body>
+</html>

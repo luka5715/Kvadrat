@@ -375,15 +375,21 @@ const img = (() => {
     let dd = ''; let bx = x - 10;
     while (bx < x + w) { const bw = q.i(24, 60), bh = q.i(h * .25, h * .55); dd += RP(bx, y + h * .66 - bh, bw, bh); bx += bw + q.i(0, 6); }
     S.path(dd, P.haze, op(.9));
-    const nb = { x: x + (q.b(.5) ? w * .02 : w * .46), y: y + h * .3, w: w * .52, h: h * .7 };
-    S.rect(nb.x, nb.y, nb.w, nb.h, P.wall[1]);
-    const B = winBatch(); const cols = Math.max(2, Math.floor(nb.w / 22)), rows = Math.max(2, Math.floor(nb.h / 26));
-    for (let r2 = 0; r2 < rows; r2++) for (let c = 0; c < cols; c++) B.list.push({ x: nb.x + 6 + c * (nb.w - 12) / cols + 3, y: nb.y + 8 + r2 * 26, w: (nb.w - 12) / cols - 7, h: 14, row: r2, col: c, b: 0, lit: q.b(.25) });
+    const left = q.b(.5);
+    const nb = { x: x + (left ? -w * .04 : w * .42), y: y + h * .24, w: w * .62, h: h * .76 };
+    S.rect(nb.x, nb.y, nb.w, nb.h, q.p([P.wall[1], P.wall[3], P.wall[0]]));
+    S.rect(nb.x, nb.y, nb.w * .12, nb.h, P.vig, op(.12));
+    S.rect(nb.x, nb.y, nb.w, 5, P.roof, op(.75));
+    const pitch = 34, cols = Math.max(2, Math.floor((nb.w - 16) / 36)), rows = Math.max(2, Math.floor((nb.h - 14) / pitch)), cw = (nb.w - 16) / cols;
+    const B = winBatch();
+    for (let r2 = 0; r2 < rows; r2++) for (let c = 0; c < cols; c++) B.list.push({ x: nb.x + 8 + c * cw + 5, y: nb.y + 14 + r2 * pitch, w: cw - 10, h: 21, row: r2, col: c, b: 0, lit: q.b(.25) });
     const br = brand ? pickBrand(q, B.list) : null;
-    for (const wn of B.list) { if (wn === br) continue; if (wn.lit) B.lit += RP(wn.x, wn.y, wn.w, wn.h); else B.g[q.i(0, 3)] += RP(wn.x, wn.y, wn.w, wn.h); }
+    for (const wn of B.list) { if (wn === br) continue; if (wn.lit) B.lit += RP(wn.x, wn.y, wn.w, wn.h); else B.g[q.i(1, 3)] += RP(wn.x, wn.y, wn.w, wn.h); if (q.b(.3)) B.sill += RP(wn.x - 2, wn.y + wn.h, wn.w + 4, 3); }
     flushWins(S, B); if (br) brandWin(S, br, big);
     S.rect(x, y + h * .8, w, h * .2, mix(P.ground, P.haze, .4));
-    S.ell(nb.x < x + w * .2 ? x + w * .86 : x + w * .14, y + h * .86, w * .16, h * .14, P.tree, op(.85));
+    const tx = left ? x + w * .84 : x + w * .16, tb = y + h * .92, ts = h / 230;
+    S.rect(tx - 3 * ts, tb - 70 * ts, 6 * ts, 70 * ts, P.roof, op(.8));
+    S.ell(tx - 14 * ts, tb - 78 * ts, 30 * ts, 34 * ts, P.tree, op(.9)); S.ell(tx + 12 * ts, tb - 90 * ts, 26 * ts, 30 * ts, mix(P.tree, P.lit, .12), op(.9));
     S.add('</g>');
   }
   function windowFrame(S, x, y, w, h, white = PAPER) {
@@ -562,8 +568,7 @@ const img = (() => {
     S.path(dd, '#BDB5A8');
     S.lin('cg', '#ffffff', '#ffffff', .25, 0); S.rect(0, 0, W, 160, 'url(#cg)');
     S.rect(0, FL - 10, W, 10, '#D4CEC4');
-    // brend prozor (mat)
-    const bwx = q.b(.5) ? 70 : 640; S.glow(bwx + 40, 110, 56, MINT, .2); S.rect(bwx - 6, 64, 92, 92, PAPER); S.rect(bwx, 70, 80, 80, PINE, op(.75)); S.rect(bwx, 70, 80, 80, PAPER, op(.22)); S.add(`<rect x='${bwx + 1}' y='71' width='78' height='78' fill='none' stroke='${MINT}' stroke-width='1.5'/>`); S.rect(bwx - 6, 150, 92, 6, PAPER);
+    const bwx = q.b(.5) ? 70 : 640;
     // ogledalo + lavabo
     const mx = bwx < 300 ? 470 : 150;
     S.rect(mx - 6, 94, 212, 142, PAPER); S.lin('mr', P.sky[0], P.sky[1]); S.rect(mx, 100, 200, 130, 'url(#mr)'); S.rect(mx, 100, 200, 130, '#ffffff', op(.12)); S.rect(mx + 100, 100, 1, 130, '#ffffff', op(.3));
@@ -574,6 +579,12 @@ const img = (() => {
     const tx = bwx < 300 ? 60 : 420;
     if (q.b(.5)) { S.rect(tx + 10, FL - 20, 320, 30, P.vig, op(.1)); S.rect(tx - 8, FL - 104, 336, 120, P.vig, op(.14)); S.rect(tx, FL - 110, 320, 120, '#FFFFFF', ` rx='8'`); S.rect(tx, FL - 40, 320, 50, mix('#FFFFFF', P.vig, .08), ` rx='8'`); S.rect(tx + 10, FL - 100, 300, 12, mix('#ffffff', P.vig, .1), ` rx='4'`); S.rect(tx + 250, FL - 150, 4, 44, '#9A9B98'); S.rect(tx + 250, FL - 152, 24, 4, '#9A9B98', ` rx='2'`); S.rect(tx + 280, FL - 160, 30, 10, mix(P.lit, PAPER, .5)); }
     else { S.rect(tx, 40, 300, FL - 40, mix(P.sky[0], '#ffffff', .4), op(.55)); S.rect(tx, 40, 300, 3, '#9A9B98'); S.rect(tx + 298, 40, 3, FL - 40, '#9A9B98'); S.rect(tx + 220, 60, 50, 6, '#9A9B98', ` rx='3'`); S.rect(tx + 243, 50, 4, 10, '#9A9B98'); dd = ''; for (let i = 0; i < 7; i++) dd += RP(tx + 226 + i * 7, 70, 1, 120); S.path(dd, '#ffffff', op(.5)); S.rect(tx + 10, FL - 14, 280, 14, '#F7F5F1'); S.rect(tx + 140, FL - 6, 20, 4, '#9A9B98'); }
+    // brend prozor (mat staklo) — na zidu pored ogledala, ništa ga ne prekriva
+    const wxp = bwx < 300 ? 700 : 40;
+    S.glow(wxp + 40, 110, 60, MINT, .22); S.rect(wxp - 6, 64, 92, 98, PAPER); S.rect(wxp, 70, 80, 80, PINE, op(.6));
+    S.path(RP(wxp, 86, 80, 10) + RP(wxp, 112, 80, 10) + RP(wxp, 138, 80, 10), '#ffffff', op(.16));
+    S.add(`<rect x='${wxp + 1}' y='71' width='78' height='78' fill='none' stroke='${MINT}' stroke-width='1.5'/>`);
+    S.rect(wxp - 6, 156, 92, 6, mix(PAPER, P.vig, .15));
     // peškir + biljka
     S.rect(mx + 230, 300, 4, 60, '#9A9B98'); S.rect(mx + 236, 296, 36, 70, q.p(['#8A9A84', P.lit, P.wall[1]]), ` rx='2'${op(.95)}`);
     plant(S, q, tx + (bwx < 300 ? 340 : -40), FL + 70, .9);
@@ -602,10 +613,11 @@ const img = (() => {
     const br = pickBrand(q, NB.list.filter((w) => w.x > 60 && w.x < 720));
     for (const wn of NB.list) { if (wn === br) continue; if (wn.lit) lit += RP(wn.x, wn.y, wn.w, wn.h); else dd += RP(wn.x, wn.y, wn.w, wn.h); }
     S.path(dd, P.glass, op(.8)); S.path(lit, P.lit); if (br) brandWin(S, br, true);
-    S.rect(0, hz + 90, W, 330, mix(P.ground, P.vig, .18));
+    S.rect(0, hz + 90, W, 330, mix(P.ground, P.haze, .25));
+    S.rect(0, hz + 150, W, 10, mix(P.ground, PAPER, .3), op(.7));
     for (let i = 0; i < 4; i++) tree(S, q, q.i(0, 800), hz + 120 + q.i(0, 20), q.f(.6, .9), i % 2);
     // ograda terase
-    S.rect(0, 420, W, 180, P.vig, op(.1));
+    S.rect(0, 420, W, 180, P.haze, op(.18));
     dd = ''; for (let bx = 8; bx < W; bx += 24) dd += RP(bx, 424, 2, 176);
     S.path(dd, P.roof, op(.9));
     S.rect(0, 416, W, 8, P.roof, op(.85)); S.rect(0, 592, W, 8, P.roof, op(.85));
@@ -673,15 +685,22 @@ const img = (() => {
       const mir = q.b(.5); if (mir) S.add(`<g transform='translate(${W} 0) scale(-1 1)'>`);
       S.rect(0, hz + 40, W, 300, g1);
       // ugao kuće s desna sa brend prozorom
-      const wall = q.p([P.wall[0], P.wall[3], P.wall[1]]);
-      S.rect(560, 60, 300, 400, wall); S.rect(560, 60, 36, 400, P.vig, op(.12)); S.rect(540, 30, 360, 30, P.roof, op(.85)); S.rect(540, 56, 360, 6, mix(P.roof, P.vig, .3));
-      const B = winBatch(); for (let f = 0; f < 2; f++) for (let c = 0; c < 2; c++) B.list.push({ x: 600 + c * 110, y: 100 + f * 130, w: 50, h: 64, row: f + 1, col: c, b: 0, lit: q.b(.3) });
-      const br = pickBrand(q, B.list); for (const w of B.list) { if (w === br) continue; if (w.lit) B.lit += RP(w.x, w.y, w.w, w.h); else B.g[2] += RP(w.x, w.y, w.w, w.h); B.sill += RP(w.x - 3, w.y + w.h, w.w + 6, 5); B.rev += RP(w.x, w.y, w.w, 3); } flushWins(S, B); if (br) brandWin(S, br);
-      S.rect(600, 340, 60, 120, P.roof); S.rect(596, 334, 68, 6, P.lit);
-      S.poly([[560, 460], [860, 460], [860, 520], [480, 520]], mix(P.ground, PAPER, .25));                   // terasa
-      if (q.b(.7)) { const tx = q.i(240, 380); S.ell(tx + 50, 470, 70, 16, P.vig, op(.1)); S.ell(tx + 50, 440, 60, 14, mix(PAPER, P.ground, .3)); S.rect(tx + 48, 440, 4, 50, P.roof, op(.8)); S.rect(tx - 40, 450, 30, 34, mix(P.roof, P.wall[2], .3)); S.rect(tx + 110, 450, 30, 34, mix(P.roof, P.wall[2], .3)); }
+      const wall = q.p([P.wall[0], P.wall[3], P.wall[1]]), hx = 500, hw = 380;
+      S.rect(hx, 70, hw, 390, wall); S.rect(hx, 70, 40, 390, P.vig, op(.12));
+      S.rect(hx - 24, 36, hw + 60, 34, q.b(.5) ? P.roof : '#7A4A3A', op(.88)); S.rect(hx - 24, 70, hw + 60, 14, P.vig, op(.2)); // streha + senka
+      S.rect(hx - 24, 62, hw + 60, 8, mix(P.roof, P.vig, .3));
+      const B = winBatch(); for (let f = 0; f < 2; f++) for (let c = 0; c < 2; c++) B.list.push({ x: hx + 50 + c * 150, y: 110 + f * 125, w: 62, h: 72, row: f + 1, col: c, b: 0, lit: q.b(.3) });
+      const br = pickBrand(q, B.list); for (const w of B.list) { if (w === br) continue; if (w.lit) B.lit += RP(w.x, w.y, w.w, w.h); else B.g[2] += RP(w.x, w.y, w.w, w.h); B.sill += RP(w.x - 4, w.y + w.h, w.w + 8, 6); B.rev += RP(w.x, w.y, w.w, 4); } flushWins(S, B); if (br) brandWin(S, br);
+      S.rect(hx + 70, 350, 64, 110, P.roof); S.rect(hx + 64, 340, 76, 8, P.lit); S.rect(hx + 60, 336, 84, 5, P.roof, op(.8)); S.glow(hx + 102, 342, 40, P.lit, .4);   // vrata + lampa
+      S.rect(hx + 150, 352, 70, 50, P.glass, op(.85)); S.rect(hx + 146, 402, 78, 5, P.roof, op(.45));                                                  // prizemni prozor
+      const tc = mix(P.ground, PAPER, .3);
+      S.poly([[hx - 60, 460], [860, 460], [860, 540], [hx - 140, 540]], tc);                                                                            // terasa
+      dd = ''; for (let i = 1; i < 5; i++) { const t = i / 5; dd += `M${N(hx - 60 - 80 * t)} ${N(460 + 80 * t)}H860`; } for (let i = 1; i < 8; i++) dd += `M${N(hx - 60 + i * 50)} 460L${N(hx - 140 + i * 50)} 540`;
+      S.lines(dd, P.vig, 1, op(.12));
+      S.rect(hx - 60, 458, 440, 4, mix(tc, P.vig, .25));
+      if (q.b(.75)) { const tx = q.i(200, 360); S.ell(tx, 500, 80, 14, P.vig, op(.1)); S.rect(tx - 2, 300, 4, 200, P.roof, op(.85)); S.poly([[tx - 110, 318], [tx + 110, 318], [tx, 270]], q.p([PAPER, '#C9B9A3', '#8A9A84']), op(.95)); S.ell(tx, 460, 58, 13, mix(PAPER, P.ground, .3)); S.rect(tx - 2, 460, 4, 36, P.roof, op(.8)); S.rect(tx - 90, 452, 30, 34, mix(P.roof, P.wall[2], .3), ` rx='3'`); S.rect(tx + 60, 452, 30, 34, mix(P.roof, P.wall[2], .3), ` rx='3'`); }
       if (q.b(.5)) { S.rect(90, 380, 160, 40, mix(P.roof, '#8C9A6E', .3), ` rx='3'`); S.rect(100, 360, 140, 22, mix(P.roof, '#8C9A6E', .3), ` rx='3'`); }   // ležaljka/klupa
-      S.rect(0, hz + 10, 560, 4, PAPER, op(.6)); dd = ''; for (let x = 0; x < 560; x += 12) dd += RP(x, hz - 6, 8, 40); S.path(dd, PAPER, op(.8));   // ograda
+      S.rect(0, hz + 10, hx - 20, 4, PAPER, op(.6)); dd = ''; for (let x = 0; x < hx - 20; x += 12) dd += RP(x, hz - 6, 8, 40); S.path(dd, PAPER, op(.8));   // ograda
       dd = ''; for (let x = 0; x < W; x += 9) dd += `M${x} ${H}l4 -16l4 16z`; S.path(dd, mix(g1, P.tree, .4), op(.6));                    // trava
       tree(S, q, q.i(80, 200), hz + 90, q.f(1.5, 2.1)); tree(S, q, q.i(380, 500), hz + 60, q.f(.9, 1.3), 1);
       if (q.b(.5)) tree(S, q, q.i(220, 340), hz + 20, q.f(.7, 1), 1);
@@ -729,15 +748,17 @@ const img = (() => {
       S.rect(0, HZ, W, H - HZ, mix(P.ground, P.vig, .1));
       // zid objekta sa garažama
       const wall = q.p([P.wall[1], P.wall[2], '#B9B5AD', P.wall[0]]);
-      const top = HZ - q.i(230, 320);
+      const top = HZ - q.i(300, 340);
       S.rect(-20, top, W + 40, HZ - top, wall); S.rect(-20, top, 120, HZ - top, P.vig, op(.12)); S.rect(-20, top, W + 40, 10, P.roof, op(.85)); S.rect(-20, top + 10, W + 40, 6, mix(wall, P.vig, .25));
       const nD = q.i(1, 3), dw = nD === 1 ? 300 : nD === 2 ? 250 : 200, gap = (W - nD * dw) / (nD + 1);
       for (let i = 0; i < nD; i++) { const dx = gap + i * (dw + gap); rollDoor(dx, HZ - 200, dw, 200); S.rect(dx + dw / 2 - 20, HZ - 230, 40, 20, PAPER); S.text(dx + dw / 2, HZ - 215, String(1 + ((H32(ctx.seed) + i) % 40)), ` font-family='Hanken Grotesk,Helvetica,Arial,sans-serif' font-weight='600' font-size='14' fill='${INK}' text-anchor='middle'`); S.poly([[dx, HZ], [dx + dw, HZ], [dx + dw + 30, H], [dx - 30, H]], mix(P.ground, PAPER, .2)); S.glow(dx + dw / 2, HZ - 236, 50, P.lit, .35); }
-      brandWin(S, { x: q.b(.5) ? 40 : W - 100, y: top + 50, w: 60, h: 46 }); S.rect(q.b(.5) ? 34 : W - 106, top + 96, 72, 5, P.roof, op(.45));
+      const side = q.b(.5), bwx = nD === 1 ? N(gap / 2 - 30) : N(gap + dw + gap / 2 - 30);
+      brandWin(S, { x: bwx, y: top + 26, w: 60, h: 46 }); S.rect(bwx - 6, top + 72, 72, 5, P.roof, op(.45));
+      S.rect(0, HZ, W, H - HZ, mix(P.ground, PAPER, .14));
       S.rect(0, HZ, W, 20, P.vig, op(.08));
-      lamp(S, q.b(.5) ? 60 : 740, HZ + 10, 120);
+      lamp(S, side ? 740 : 60, HZ + 10, 120);
       if (q.b(.6)) car(S, q, q.i(40, 600), HZ + 70, q.p([P.roof, P.glass, PAPER, '#8E8C86']));
-      tree(S, q, q.b(.5) ? q.i(10, 80) : q.i(720, 790), HZ + 20, q.f(1, 1.4));
+      tree(S, q, side ? q.i(720, 790) : q.i(10, 80), HZ + 20, q.f(1, 1.4));
       S.rect(0, H - 60, W, 60, P.vig, op(.08));
       finish(S, .36);
       return;

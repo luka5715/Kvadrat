@@ -29,6 +29,8 @@ p{margin:0 0 6px;color:var(--muted)}
 .ph{position:relative;overflow:hidden;border-radius:3px;background:var(--surface-2)}
 .ph.r43{aspect-ratio:4/3}.ph.r1610{aspect-ratio:16/10}.ph.r11{aspect-ratio:1/1}.ph.r45{aspect-ratio:4/5}
 .ph>img,.ph>svg{width:100%;height:100%;object-fit:cover}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .ph>img,:root:not([data-theme="light"]) .ph>svg{filter:brightness(.9)}}
+:root[data-theme="dark"] .ph>img,:root[data-theme="dark"] .ph>svg{filter:brightness(.9)}
 figure{margin:0;min-width:0}
 figcaption{font-size:12px;color:var(--muted);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 figcaption b{color:var(--text);font-weight:500}
@@ -46,7 +48,7 @@ footer{padding:40px 0 60px;color:var(--muted);font-size:13px}
 <button class="toggle" type="button" id="theme" aria-pressed="false">Tema</button>
 <main class="wrap">
   <h1>Proceduralne fotografije</h1>
-  <p>Svaka slika je <code>data:image/svg+xml</code> URI, determinističan iz <code>hash(slug + '#' + idx)</code>. Tri filmske palete, zlatni sat s desne strane, horizont na 76 %, vinjeta + zrno, tačno jedan pine prozor po sceni.</p>
+  <p>Sve slike su <code>loading=eager</code> na ovoj strani (radi full-page snimka); <code>img.el</code> inače daje <code>lazy</code>. Svaka slika je <code>data:image/svg+xml</code> URI, determinističan iz <code>hash(slug + '#' + idx)</code>. Tri filmske palete, zlatni sat s desne strane, horizont na 76 %, vinjeta + zrno, tačno jedan pine prozor po sceni.</p>
   <div class="stats" id="stats"></div>
   <div class="note" id="note">Učitavanje…</div>
   <div id="out"></div>
@@ -89,7 +91,7 @@ window.__imgTest = function () {
     section(NAMES[t] + ' · idx 0–3 · 4:3', `${ls.length} oglasa × 4 kadra · kinds: ${img.kinds(ls[0]).slice(0, 4).join(', ')}`);
     const g = h('div', 'grid c8'); out.appendChild(g);
     for (const l of ls) for (let i = 0; i < 4; i++) {
-      const k = img.kinds(l)[i % img.kinds(l).length]; const e = img.el(l, i, { aspect: '4:3' });
+      const k = img.kinds(l)[i % img.kinds(l).length]; const e = img.el(l, i, { aspect: '4:3' }); e.loading = 'eager';
       g.appendChild(fig(e, 'r43', `${k} · ${img.palette(l.s).id}`, KB(e.src), t));
     }
   }
@@ -97,18 +99,18 @@ window.__imgTest = function () {
   section('Isečci · 16:10 i 1:1', 'Ista scena, viewBox isečak (preserveAspectRatio slice): galerija 16:10 i kvadratne sličice.');
   const l0 = D.listings.filter((l) => l.pt === 'stan').slice(0, 6);
   const g1 = h('div', 'grid'); out.appendChild(g1);
-  l0.forEach((l, i) => g1.appendChild(fig(img.el(l, i, { aspect: '16:10' }), 'r1610', '16:10 · ' + img.kinds(l)[i], KB(img.src(l, i, { aspect: '16:10' })), 'crop')));
+  l0.forEach((l, i) => g1.appendChild(fig(Object.assign(img.el(l, i, { aspect: '16:10' }), { loading: 'eager' }), 'r1610', '16:10 · ' + img.kinds(l)[i], KB(img.src(l, i, { aspect: '16:10' })), 'crop')));
   const g2 = h('div', 'grid c8'); out.appendChild(g2);
-  l0.forEach((l, i) => g2.appendChild(fig(img.el(l, i, { aspect: '1:1' }), 'r11', '1:1 · ' + img.kinds(l)[i], KB(img.src(l, i, { aspect: '1:1' })), 'crop')));
-  D.listings.filter((l) => l.pt === 'kuca').slice(0, 2).forEach((l) => g2.appendChild(fig(img.el(l, 0, { aspect: '1:1' }), 'r11', '1:1 · house', KB(img.src(l, 0, { aspect: '1:1' })), 'crop')));
+  l0.forEach((l, i) => g2.appendChild(fig(Object.assign(img.el(l, i, { aspect: '1:1' }), { loading: 'eager' }), 'r11', '1:1 · ' + img.kinds(l)[i], KB(img.src(l, i, { aspect: '1:1' })), 'crop')));
+  D.listings.filter((l) => l.pt === 'kuca').slice(0, 2).forEach((l) => g2.appendChild(fig(Object.assign(img.el(l, 0, { aspect: '1:1' }), { loading: 'eager' }), 'r11', '1:1 · house', KB(img.src(l, 0, { aspect: '1:1' })), 'crop')));
 
   section('Gradovi · 34', 'img.city(slug) — silueta sa prepoznatljivim motivima (Hram, Ada, Petrovaradin, Gradska kuća, planine…), 16:10.');
   const gc = h('div', 'grid'); out.appendChild(gc);
-  for (const c of D.cities) { const u = img.city(c.s); const im = new Image(); im.src = u; im.alt = c.n; im.loading = 'lazy'; gc.appendChild(fig(im, 'r1610', c.n, KB(u), 'city')); }
+  for (const c of D.cities) { const u = img.city(c.s); const im = new Image(); im.src = u; im.alt = c.n; gc.appendChild(fig(im, 'r1610', c.n, KB(u), 'city')); }
 
   section('Saveti · 12', 'img.article(slug) — apstraktna editorijalna ilustracija po kategoriji (saveti, vodiči, tržište, kredit, pravni saveti).');
   const ga = h('div', 'grid c4'); out.appendChild(ga);
-  for (const a of D.articles) { const u = img.article(a.s); const im = new Image(); im.src = u; im.alt = a.t; im.loading = 'lazy'; ga.appendChild(fig(im, 'r1610', a.c + ' · ' + a.t, KB(u), 'article')); }
+  for (const a of D.articles) { const u = img.article(a.s); const im = new Image(); im.src = u; im.alt = a.t; ga.appendChild(fig(im, 'r1610', a.c + ' · ' + a.t, KB(u), 'article')); }
 
   section('Agencije · 18', 'img.mark(agency) — monogram pločica 1:1, serif inicijali, pine detalj.');
   const gm = h('div', 'grid c8'); out.appendChild(gm);

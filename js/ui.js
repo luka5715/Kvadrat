@@ -152,9 +152,12 @@
     tipNode.style.left = x + 'px'; tipNode.style.top = y + 'px';
   }
   function hideTip() { clearTimeout(tipTimer); if (tipNode) { tipNode.remove(); tipNode = null; } }
+  let tipSeq = 0;
   function tip(node, text) {
     if (!node || !text) return node;
-    node.setAttribute('aria-label', text);
+    /* čvor bez sopstvenog teksta (ili role=img) dobija aria-label; čvor sa vidljivim tekstom dobija opis (ime ostaje netaknuto) */
+    if (node.getAttribute('role') === 'img' || !node.textContent.trim()) node.setAttribute('aria-label', text);
+    else { const d = el('span', { class: 'sr', id: 'tip-' + (++tipSeq), 'aria-hidden': 'true' }, text); node.appendChild(d); node.setAttribute('aria-describedby', d.id); }
     node.addEventListener('mouseenter', () => { clearTimeout(tipTimer); tipTimer = setTimeout(() => showTip(node, text), 300); });
     node.addEventListener('mouseleave', hideTip);
     node.addEventListener('focus', () => showTip(node, text));
@@ -457,7 +460,9 @@
     const hist = S(() => mock.history(l), []);
     const vals = hist.map((h) => h.p);
     const ref = S(() => stats.refPpm(l), null);
-    const spark = sparkline(vals.length ? vals.map((p) => l.a ? Math.round(p / l.a) : p) : [], {
+    /* €/m² kroz 12 meseci; za male vrednosti (kirija) čuvamo jednu decimalu da linija ne bude ravna */
+    const perM2 = (p) => { if (!l.a) return p; const v = p / l.a; return v < 100 ? Math.round(v * 10) / 10 : Math.round(v); };
+    const spark = sparkline(vals.length ? vals.map(perM2) : [], {
       title: el('span', {}, 'Cena po m² ', ref ? `— ${ref.label}` : '', ' · ', el('b', {}, '12 meseci')),
       months: hist.map((h) => h.m),
       delta: vals.length > 1 ? deltaChip({ pct: (vals[vals.length - 1] / vals[0] - 1) * 100, label: '12 meseci' }, { title: `Promena za 12 meseci: ${fmt.pct((vals[vals.length - 1] / vals[0] - 1) * 100, { sign: true })}` }) : null,

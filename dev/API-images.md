@@ -32,7 +32,9 @@ bezbedno i za `src=""` i za CSS `url("…")`).
 Master platno je 800×600. `16:10` = `viewBox 0 50 800 500`, `1:1` = `viewBox 100 0 600 600`.
 Slika je uvek `slice`, nikad razvučena — CSS `object-fit:cover` je dodatno bezbedan.
 
-Prosečna veličina URI-ja ≈ 8,5 KB (enterijeri 6–10 KB, fasade ≈ 10,5 KB, max ≈ 13 KB).
+Izmerena veličina URI-ja (1 289 slika, svi tipovi): **prosek 7,9 KB, max 12,4 KB**. Po varijanti: entrance 5,6 ·
+garage 5,3 · bath 5,8 · land 6,4 · house 7,6 · office 7,9 · bedroom 8,1 · office-interior 8,3 · living 8,4 ·
+kitchen 9,7 · backyard 9,9 · facade 10,3 · balcony 11,7 KB. Hero 9,0 KB, gradovi ≈ 8,8 KB, članci ≈ 2,3 KB, monogrami ≈ 0,5 KB.
 
 ```js
 card.querySelector('.ph').appendChild(img.el(l, 0));                 // kartica 4:3
@@ -120,9 +122,16 @@ Prima objekat iz `D.agencies` ili slug. ≈ 0,6 KB. Za `.contact .ava` i `.agenc
 - Svetlo s desne strane: leva senčena traka 12 % širine zgrade, meka senka na tlu ulevo.
 - Radijalna vinjeta (0 → 35 %) + `feTurbulence` zrno na svakoj slici. Dark tema **ne** menja generator — `tokens.css`
   primenjuje `filter:brightness(.9)` na `.ph>img, .ph>svg`.
-- Tačno **jedan** pine prozor (`#1F6B52` @ .95, 1,5 px `#8ED0B0` obrub, mint halo) po sceni — na glavnoj zgradi,
-  nikad u gornjem redu, nikad uz upaljen prozor, iznad krošnji; u enterijerima u zgradi viđenoj kroz prozor; kupatilo
-  ima mat pine prozor; plac ima isprekidani pine obris parcele; kancelarijska zgrada ima ceo pine stakleni modul.
+- Tačno **jedan** pine prozor (`#1F6B52` @ .95, 1,5 px `#8ED0B0` obrub, mint halo) po sceni. Gde je po varijanti:
+  - `facade`, `house`, `backyard`, `balcony`: na glavnoj zgradi — nikad u gornjem redu, nikad uz upaljen prozor;
+  - `living`, `kitchen`, `bedroom`, `office-interior`: na bližoj zgradi viđenoj kroz prozor sobe (prozori te zgrade su
+    ≈ 30×20 px da bi pine prozor bio čitljiv i na kartici);
+  - `bath`: mat pine prozor (`#1F6B52` @ .6 + bele „mat“ pruge) na zidu pored ogledala — nikad iza tuš-kabine;
+  - `garage` (spolja): u traci zida iznad garažnih vrata, centriran iznad razmaka između vrata; (unutra) na bočnom zidu;
+  - `entrance`: pine nadstrešnica/prozor iznad vrata; `office`: ceo pine stakleni modul;
+  - `land`: isprekidani pine obris parcele sa 4 tačke (jedini brend element; nema prozora).
+- Eksterijeri: horizont y=456 (76 %), senčena leva traka 12 % širine zgrade, meka senka na tlu ulevo, 1 ulična lampa,
+  3–4 krošnje, red zgrada u izmaglici, tanka linija krova.
 
 ## Napomene za stranice
 
@@ -130,4 +139,6 @@ Prima objekat iz `D.agencies` ili slug. ≈ 0,6 KB. Za `.contact .ava` i `.agenc
   rasterizuje na prikazanoj veličini), ali `loading="lazy"` zadržati — `img.el` ga već postavlja.
 - Za `srcset`/retina ništa nije potrebno — SVG je vektorski.
 - Test stranica: `dev/img/index.html` (`node scratchpad/shot.js dev/img out '#/'`) prikazuje sve varijante i
-  veličine; `dev/images.html` samo preusmerava na nju.
+  veličine; `dev/images.html` samo preusmerava na nju. Na toj strani su slike namerno `loading=eager` (full-page
+  snimak ne skroluje, pa bi lazy slike ostale prazne) i u tamnoj temi imaju `filter:brightness(.9)` kao na sajtu.
+- `img.el` daje `loading="lazy"`: slike ispod prevoja u full-page screenshotu ostaju prazne — to nije greška generatora.

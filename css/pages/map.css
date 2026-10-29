@@ -1,12 +1,241 @@
-/* Kvadrat.rs — mapa: šematska mapa grada, pinovi sa cenama, napomena. */
+/* Kvadrat.rs — mapa: (1) komponenta mapView (.mv — nacrtano tkivo grada, pinovi, zona, budžet, moja mesta, chrome)
+   i (2) stranica #/mapa (.mp — plutajuća pretraga, filteri, desna fioka, telefonski karusel, budžet traka).
+   Boje isključivo kroz tokene (--map-*, --accent, --ink…). Pinovi, legenda i popover su u components.css (§5.22). */
 
-/* ── mapa ── */
-.mapwrap{position:relative;border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;background:var(--map-bg)}
-.bigmap{aspect-ratio:16/11} .bigmap svg{width:100%;height:100%}
-.pins{position:absolute;inset:0}
-.pin{position:absolute;transform:translate(-50%,-50%);padding:4px 9px;border-radius:20px;background:var(--bg);border:1px solid var(--border-str);
-  color:var(--text);font:700 12px var(--f-ui);white-space:nowrap;box-shadow:var(--shadow);font-variant-numeric:tabular-nums}
-.pin:hover{background:var(--brand);border-color:var(--brand);color:var(--on-brand);z-index:5}
-.pin-promo{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
-.pin-promo:hover{background:var(--accent);filter:brightness(1.1)}
-.map-note{padding:12px 15px;border-top:1px solid var(--border);background:var(--surface);color:var(--muted);font-size:13px}
+/* ───────────────────────── 1. komponenta .mv ───────────────────────── */
+.mv{position:relative;overflow:hidden;background:var(--map-bg);touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab;outline-offset:-3px;min-height:240px}
+.mv:focus-visible{outline:2px solid var(--accent);outline-offset:-3px}
+.mv.mv-dragging{cursor:grabbing}
+.mv.mv-drawing{cursor:crosshair}
+.mv.mv-drawing .mv-pins{pointer-events:none}
+.mv [hidden]{display:none!important}
+
+/* slojevi */
+.mv-svg,.mv-overlay{position:absolute;inset:0;width:100%;height:100%;display:block;overflow:visible}
+.mv-overlay{pointer-events:none;z-index:3}
+.mv-labels,.mv-pins{position:absolute;left:0;top:0;width:0;height:0;will-change:transform}
+.mv-labels{pointer-events:none;z-index:1}
+.mv-pins{z-index:2}
+.mv-pins .pin{position:absolute}
+.mv-pop{position:absolute;inset:0;pointer-events:none;z-index:5}
+.mv-popwrap{position:absolute;pointer-events:auto;width:280px;max-width:calc(100% - 16px)}
+.mv-popwrap .pin-pop{max-width:100%}
+.mv-popclose{position:absolute;right:16px;top:16px;width:32px;height:32px;background:var(--bg);color:var(--ink);box-shadow:var(--shadow-sm);border-radius:var(--r)}
+.mv-popclose:hover{background:var(--surface)}
+.mv-chrome{position:absolute;inset:0;pointer-events:none;z-index:4}
+.mv-chrome>*{pointer-events:auto}
+
+/* tkivo grada — sve kroz tokene mape; širine linija zadaje JS preko --av/--st/--sat (jedinice sveta) */
+.mv-cities{--av:4;--st:1.6;--sat:2.2}
+.mv-blocks path{fill:var(--map-block);stroke:none}
+.mv-blocks.mv-fine path{fill:var(--map-block);opacity:.55}
+.mv-sat path.mv-blocks{fill:var(--map-block);opacity:.75}
+.mv-sat .mv-sat-road{stroke:var(--map-road);stroke-width:calc(var(--sat) * 1px);stroke-linecap:round}
+.mv-streets path{stroke:var(--map-road);stroke-width:calc(var(--st) * 1px);stroke-linecap:round;opacity:.9}
+.mv-avenues path{stroke:var(--map-road);stroke-width:calc(var(--av) * 1px);stroke-linecap:round}
+.mv-avenues path.mv-ring{stroke-width:calc(var(--av) * .7px);opacity:.85}
+.mv-parks path{fill:var(--map-park);stroke:none}
+.mv-water path{stroke:var(--map-water);fill:none}
+/* na malom zumu fino tkivo i ulice nestaju (manje šuma, brže crtanje) */
+.mv[data-z="11"] .mv-blocks.mv-fine,.mv[data-z="11"] .mv-streets,.mv[data-z="12"] .mv-blocks.mv-fine{display:none}
+.mv[data-z="12"] .mv-streets{opacity:.5}
+
+/* natpisi */
+.mv-label{position:absolute;transform:translate(-50%,-50%);white-space:nowrap;pointer-events:none;color:var(--map-label);font-weight:600;text-transform:uppercase;letter-spacing:3px;text-shadow:0 0 6px var(--map-bg),0 0 2px var(--map-bg)}
+.mv-label.mv-city{font-size:14px;letter-spacing:4px}
+.mv-label.mv-mun{font-size:13px}
+.mv-label.mv-nb{font-size:12px;letter-spacing:2px;opacity:.85}
+.mv-plabel{position:absolute;transform:translate(-50%,-50%);white-space:nowrap;pointer-events:none;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-ink);background:var(--bg);padding:1px 5px;border-radius:2px;border:1px solid var(--border)}
+.mv-plabel.mv-b{color:var(--ink)}
+.mv-plabel.mv-pname{transform:translate(0,-50%);font-size:12px;letter-spacing:.04em;text-transform:none;font-weight:600}
+
+/* moja mesta: krugovi 10/20/30 min + kvadratni marker */
+.mv-places .mv-ring{fill:var(--accent);stroke:var(--accent);vector-effect:non-scaling-stroke}
+.mv-places .mv-ring.r0{fill-opacity:.04;stroke-opacity:.35}
+.mv-places .mv-ring.r1{fill-opacity:.05;stroke-opacity:.5}
+.mv-places .mv-ring.r2{fill-opacity:.08;stroke-opacity:.8}
+.mv-places .mv-ring.mv-b{fill:var(--ink);stroke:var(--ink)}
+.mv-places .mv-pmark{fill:var(--accent);stroke:var(--bg)}
+.mv-places .mv-pmark.mv-b{fill:var(--ink)}
+
+/* radijus (približna lokacija) */
+.mv-radius-c{fill:var(--accent);fill-opacity:.1;stroke:var(--accent);stroke-opacity:.6;stroke-dasharray:4 3}
+
+/* nacrtana zona */
+.mv-zone-path{fill:var(--accent);fill-opacity:.07;stroke:var(--accent);stroke-linejoin:round}
+.mv-draw-path{fill:var(--accent);fill-opacity:.06;stroke:var(--ink);stroke-width:1.5;stroke-dasharray:5 4;stroke-linejoin:round}
+.mv-draw-pt{fill:var(--bg);stroke:var(--ink);stroke-width:1.5}
+.mv-draw-pt.first{fill:var(--accent);stroke:var(--accent)}
+
+/* budžet: krugovi po opštinama + natpisi */
+.mv-bc{fill:var(--accent);stroke:var(--accent);cursor:pointer;transition:fill-opacity var(--dur) var(--ease)}
+.mv-bc:hover{fill-opacity:.6!important}
+.mv-bc.on{stroke:var(--ink);stroke-width:2}
+.mv-bc.hollow{fill:var(--bg);fill-opacity:.35!important;stroke:var(--border-strong);stroke-dasharray:3 3}
+.mv-blabel{position:absolute;transform:translate(-50%,-50%);text-align:center;pointer-events:none;line-height:1.1;white-space:nowrap}
+.mv-blabel b{display:block;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.mv-blabel span{display:block;font-family:var(--f-display);font-variation-settings:var(--soft);font-weight:500;font-size:18px;color:var(--ink);letter-spacing:var(--ls-display);font-variant-numeric:tabular-nums}
+.mv-blabel.hollow span{font-family:var(--f-body);font-size:12px;font-weight:500;color:var(--muted)}
+.mv-legend-b{align-items:center}
+.mv-ramp{display:inline-flex;align-items:center;gap:6px}
+.mv-ramp i{width:64px;height:9px;border:0;background:linear-gradient(90deg,var(--accent-soft),var(--accent));margin:0}
+.mv-legend i.hollow{border-style:dashed;border-color:var(--border-strong)}
+.mv-legend i.mv-la{background:var(--accent);border-color:var(--accent);border-radius:50%}
+.mv-legend i.mv-lb{background:var(--ink);border-color:var(--ink);border-radius:50%}
+.mv-lnote{color:var(--faint)}
+
+/* chrome: dugmad, traka za crtanje, čip zone, „Pretraži u ovom području“, razmernik */
+.mv .ctl button:hover{background:var(--surface)}
+.mv .draw{cursor:pointer}
+.mv .draw .ico{width:16px;height:16px}
+.mv .draw[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.mv-drawbar{position:absolute;left:50%;top:12px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;max-width:calc(100% - 24px);padding:6px 6px 6px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-sm);font-size:13px;color:var(--muted);z-index:5}
+.mv-drawhint{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mv-zone{position:absolute;left:12px;top:12px;display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 4px 0 12px;background:var(--accent-soft);color:var(--accent-ink);border-radius:var(--r);font-size:14px;font-weight:500;box-shadow:var(--shadow-sm);z-index:5}
+.mv-zone .ico{width:14px;height:14px}
+.mv-zone button{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;color:var(--accent-ink);border-radius:2px}
+.mv-zone button:hover{background:var(--bg)}
+.mv-area{position:absolute;left:50%;top:12px;transform:translateX(-50%);box-shadow:var(--shadow);z-index:5;white-space:nowrap;max-width:calc(100% - 24px)}
+.mv-area .ico{width:16px;height:16px}
+.mv-scale{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-size:11px;font-weight:600;letter-spacing:.04em;color:var(--map-label);pointer-events:none;font-variant-numeric:tabular-nums}
+.mv-scale i{display:block;height:6px;border:1.5px solid var(--map-label);border-top:0;min-width:24px}
+@media (max-width:600px){
+  .mv-drawbar{top:auto;bottom:64px;flex-wrap:wrap;justify-content:center;padding:8px}
+  .mv-drawhint{flex:1 0 100%;white-space:normal;text-align:center;font-size:12px}
+  .mv-area{top:auto;bottom:64px}
+}
+@media (hover:none){.mv{cursor:default}}
+
+/* ───────────────────────── 2. stranica .mp ───────────────────────── */
+.mp{position:relative;height:calc(100dvh - var(--header-h));min-height:460px;overflow:hidden;--mp-drawer:0px;--mp-car:0px}
+.mp .mp-map{position:absolute;inset:0;right:var(--mp-drawer)}
+.mp .map{border-radius:0;height:100%}
+.mp .map .ctl{top:12px}
+.mp .mv-zone,.mp .mv-drawbar,.mp .mv-area{top:68px}
+.mp .mv-zone{left:16px}
+
+/* plutajuća pretraga (gore-levo) */
+.mp-top{position:absolute;left:var(--gutter);top:12px;right:calc(var(--gutter-r) + 56px);z-index:7;display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;pointer-events:none}
+.mp-top>*{pointer-events:auto}
+.mp-loc{position:relative;flex:0 1 360px;min-width:200px}
+.mp-loc .input{box-shadow:var(--shadow);border-color:var(--border);height:44px;padding-right:40px}
+.mp-loc .input-wrap .ico{color:var(--muted)}
+.mp-loc .clr{position:absolute;right:4px;top:2px;width:40px;height:40px;color:var(--muted)}
+.mp-loc .clr:hover{color:var(--ink)}
+.mp-ac{position:absolute;left:0;right:0;top:48px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r-md);box-shadow:var(--shadow-lg);max-height:min(340px,50vh);overflow:auto;padding:6px 0;z-index:9}
+.mp-ac[hidden]{display:none}
+.mp-ac button{display:flex;align-items:center;gap:10px;width:100%;height:40px;padding:0 12px;font-size:14px;color:var(--text);text-align:left}
+.mp-ac button .ico{width:15px;height:15px;color:var(--muted);flex:none}
+.mp-ac button .k{margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap}
+.mp-ac button:hover,.mp-ac button[aria-selected="true"]{background:var(--surface)}
+.mp-ac .none{padding:10px 12px;font-size:13px;color:var(--muted)}
+.mp-top .btn,.mp-top .chip{box-shadow:var(--shadow);height:44px;background:var(--bg)}
+.mp-top .chip-filters{background:var(--ink)}
+.mp-top .btn-secondary[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.mp-top .seg{box-shadow:var(--shadow);background:var(--bg)}
+.mp-top .seg button{height:36px;padding:0 14px}
+.mp-chips{display:flex;gap:6px;flex-wrap:wrap;flex-basis:100%;pointer-events:none}
+.mp-chips .tag{box-shadow:var(--shadow-sm);pointer-events:auto}
+
+/* desna fioka (≥1100) */
+.mp-drawer{position:absolute;top:0;right:0;bottom:0;width:var(--mp-drawer);background:var(--bg);border-left:1px solid var(--border);display:flex;flex-direction:column;z-index:6}
+.mp-drawer .hd{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px 10px;border-bottom:1px solid var(--border);flex:none}
+.mp-drawer .hd h2{font-family:var(--f-display);font-variation-settings:var(--soft);font-weight:400;font-size:20px;letter-spacing:var(--ls-display);color:var(--ink);line-height:1.2}
+.mp-drawer .hd p{font-size:13px;color:var(--muted);margin-top:2px}
+.mp-drawer .bd{overflow:auto;padding:0 16px 24px;flex:1;overscroll-behavior:contain}
+.mp-drawer .row{grid-template-columns:128px minmax(0,1fr) auto;gap:14px;padding:14px 0;cursor:pointer}
+.mp-drawer .row .walk,.mp-drawer .row .side .btn{display:none}
+.mp-drawer .row h3{font-size:15px}
+.mp-drawer .row .price{font-size:var(--fs-price-sm)}
+.mp-drawer .row.hl{margin:0 -16px;padding-left:16px;padding-right:16px}
+.mp-drawer .row.on{box-shadow:inset 3px 0 0 var(--accent);margin:0 -16px;padding-left:16px;padding-right:16px}
+.mp-drawer .more{padding:16px 0;font-size:13px;color:var(--muted);text-align:left}
+.mp-drawer .empty{padding:48px 8px}
+
+/* telefonski / tablet karusel (<1100) */
+.mp-carousel{position:absolute;left:0;right:0;bottom:0;z-index:6;display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;padding:10px var(--gutter) calc(10px + env(safe-area-inset-bottom,0px)) var(--gutter);scrollbar-width:none;-webkit-overflow-scrolling:touch;pointer-events:none}
+.mp-carousel::-webkit-scrollbar{display:none}
+.mp-slide{flex:0 0 min(340px,calc(100vw - 2 * var(--gutter)));scroll-snap-align:center;background:var(--bg);border:1px solid var(--border);border-radius:var(--r-md);box-shadow:var(--shadow);padding:0 12px;pointer-events:auto;position:relative}
+.mp-slide .row-c{border-bottom:0;padding:12px 0}
+.mp-slide.on{border-color:var(--accent);box-shadow:var(--shadow),0 0 0 1px var(--accent)}
+.mp-slide .area{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:12px 0;align-items:center}
+.mp-slide .area b{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.mp-slide .area .m2{grid-row:1/3;font-family:var(--f-display);font-variation-settings:var(--soft);font-weight:500;font-size:28px;color:var(--ink);letter-spacing:var(--ls-display);font-variant-numeric:tabular-nums;line-height:1}
+.mp-slide .area p{font-size:13px;color:var(--muted)}
+.mp-slide .area .btn{grid-column:1/-1;margin-top:8px}
+
+/* budžet traka (m=budzet) */
+.mp-budget{position:absolute;left:var(--gutter);top:12px;z-index:7;width:min(420px,calc(100% - var(--gutter) - var(--gutter-r) - 56px));background:var(--bg);border:1px solid var(--border);border-radius:var(--r-md);box-shadow:var(--shadow);padding:14px 16px}
+.mp-budget h1{font-family:var(--f-display);font-variation-settings:var(--soft);font-weight:400;font-size:22px;letter-spacing:var(--ls-display);line-height:1.15;color:var(--ink)}
+.mp-budget h1 em{font-style:italic;color:var(--accent)}
+.mp-budget .row2{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:8px;margin-top:12px}
+.mp-budget .input-wrap .input{padding-left:12px;padding-right:34px;font-weight:600;font-variant-numeric:tabular-nums}
+.mp-budget input[type="range"]{width:100%;margin:12px 0 2px;accent-color:var(--accent);height:24px}
+.mp-budget .net{font-size:13px;color:var(--muted);margin-top:6px;line-height:1.4}
+.mp-budget .net b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+.mp-budget .note{font-size:12px;color:var(--muted);margin-top:8px}
+.mp-budget .foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin-top:12px}
+.mp-budget .seg{margin-top:0}
+.mp-budget .seg button{height:34px;padding:0 12px;font-size:13px}
+.mp-budget .back{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--accent);height:32px}
+.mp-budget .back .ico{width:14px;height:14px}
+.mp[data-mode="budget"] .mv-drawbar,.mp[data-mode="budget"] .mv-area{display:none}
+
+/* lista krajeva (budžet, u fioci) */
+.mp-brow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 14px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);cursor:pointer;width:100%;text-align:left}
+.mp-brow:hover,.mp-brow.hl{background:linear-gradient(to right,var(--surface),transparent);margin:0 -16px;padding-left:16px;padding-right:16px}
+.mp-brow.on{box-shadow:inset 3px 0 0 var(--accent);margin:0 -16px;padding-left:16px;padding-right:16px}
+.mp-brow b{font-size:15px;font-weight:600;color:var(--ink)}
+.mp-brow .m2{grid-row:1/3;font-family:var(--f-display);font-variation-settings:var(--soft);font-weight:500;font-size:24px;color:var(--ink);letter-spacing:var(--ls-display);font-variant-numeric:tabular-nums}
+.mp-brow .m2.none{font-family:var(--f-body);font-size:13px;font-weight:500;color:var(--muted)}
+.mp-brow p{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.mp-brow .bar{grid-column:1/-1;height:3px;background:var(--surface-2);margin-top:6px}
+.mp-brow .bar i{display:block;height:100%;background:var(--accent)}
+.mp-drawer .barea{padding:12px 0 0}
+.mp-drawer .barea .btn{width:100%}
+
+/* prazno / napomena ispod mape na telefonu */
+.mp-note{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:5;background:var(--bg);border:1px solid var(--border);border-radius:var(--r-md);box-shadow:var(--shadow);padding:20px 22px;max-width:min(360px,calc(100% - 32px));text-align:center}
+.mp-note h3{font-family:var(--f-display);font-variation-settings:var(--soft);font-weight:400;font-size:22px;color:var(--ink);letter-spacing:var(--ls-display)}
+.mp-note p{font-size:14px;color:var(--muted);margin-top:6px}
+.mp-note .btn{margin-top:14px}
+
+/* prelomi */
+@media (min-width:1101px){
+  .mp{--mp-drawer:400px}
+  .mp-carousel{display:none}
+}
+@media (max-width:1100px){
+  .mp-drawer{display:none}
+  .mp{--mp-car:170px}
+  .mp[data-empty="1"]{--mp-car:0px}
+  .mp .map .legend,.mp .mv-scale{bottom:calc(var(--mp-car) + 8px)}
+  .mp[data-empty="1"] .map .legend,.mp[data-empty="1"] .mv-scale{bottom:12px}
+  .mp .mv-drawbar,.mp .mv-area{top:auto;bottom:calc(var(--mp-car) + 12px)}
+  .mp .mv-area{bottom:calc(var(--mp-car) + 64px)}
+}
+@media (max-width:860px){
+  body.has-bnav .mp{height:calc(100dvh - var(--header-h) - var(--bottom-nav-h) - env(safe-area-inset-bottom,0px))}
+  .mp-top{gap:6px}
+  .mp-loc{flex:1 1 100%}
+  .mp-top .btn,.mp-top .chip{height:40px;font-size:14px;padding:0 12px}
+  .mp .mv-zone,.mp .mv-drawbar,.mp .mv-area{top:auto}
+  .mp .mv-zone{left:auto;right:var(--gutter-r);bottom:calc(var(--mp-car) + 56px);top:auto}
+  .mp .map .legend{max-width:calc(100% - 90px);gap:4px 10px;padding:5px 8px;font-size:11px}
+  .mp-top .seg button{height:32px;padding:0 10px;font-size:13px}
+  .mp-top .seg{padding:2px}
+  .mp .map .ctl button:nth-child(3){display:none}
+  .mp-carousel{padding-bottom:10px}
+  .mp-budget{padding:12px 14px;width:calc(100% - var(--gutter) - var(--gutter-r) - 56px)}
+  .mp-budget h1{font-size:19px}
+  .mp-budget .row2{margin-top:10px}
+  .mp-budget input[type="range"]{margin:8px 0 0}
+  .mp-budget .net{font-size:12px}
+  .mp-budget .foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}
+  .mp-budget .seg{margin-top:0}
+  .mp-budget .back{margin-top:0}
+}
+@media (max-width:600px){
+  .mp-slide{flex-basis:calc(100vw - 2 * var(--gutter) - 24px)}
+  .mp-budget .note{display:none}
+}

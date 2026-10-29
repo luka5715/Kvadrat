@@ -136,16 +136,16 @@ const mapView = (() => {
     const Ru = R * u;
     const blockPass = (cellM, maxR, fine) => {
       for (let s = 0; s < nSec; s++) {
-        const rot = bounds[s] + (r() - 0.5) * 0.4, cell = cell_(cellM, s); const cs_ = Math.cos(rot), sn = Math.sin(rot);
+        const rot = (r() - 0.5) * 0.7 + (s % 2 ? 0.26 : -0.18) * r(), cell = cell_(cellM, s); const cs_ = Math.cos(rot), sn = Math.sin(rot);
         const gap = (fine ? 18 : 26) * u; const n = Math.ceil((maxR * u) / cell) + 1; let d = '', sd = '';
         const sr = RNG(H('blk:' + city.s + s + (fine ? 'f' : 'c')));
         for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) {
           const lx = i * cell, ly = j * cell; const x = cx + lx * cs_ - ly * sn, y = cy + lx * sn + ly * cs_;
-          const dd = Math.sqrt(dist2(x, y, cx, cy)) / u; if (dd > maxR * (0.82 + 0.3 * sr())) continue;
+          const dd = Math.sqrt(dist2(x, y, cx, cy)) / u; if (dd > maxR * (0.88 + 0.3 * sr())) continue;
           if (secOf(x, y) !== s) continue;
-          const keep = 1 - 0.72 * Math.pow(dd / R, 1.6); if (sr() > keep) continue;
+          const keep = 1 - 0.62 * Math.pow(dd / R, 1.7); if (sr() > keep) continue;
           if (nearWater(x, y, 70) || inPark(x, y)) continue;
-          const w = cell - gap - sr() * cell * 0.18, h = cell - gap - sr() * cell * 0.18; const hw = w / 2, hh = h / 2;
+          const asp = 0.7 + sr() * 0.6; const w = (cell - gap) * Math.min(1, asp), h = (cell - gap) * Math.min(1, 1 / asp); const hw = w / 2, hh = h / 2;
           const c = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(([px, py]) => [x + px * cs_ - py * sn, y + px * sn + py * cs_]);
           d += `M${c[0][0].toFixed(1)} ${c[0][1].toFixed(1)}L${c[1][0].toFixed(1)} ${c[1][1].toFixed(1)}L${c[2][0].toFixed(1)} ${c[2][1].toFixed(1)}L${c[3][0].toFixed(1)} ${c[3][1].toFixed(1)}Z`;
         }
@@ -186,8 +186,8 @@ const mapView = (() => {
     mine.forEach((l) => { const [x, y] = proj.toW(l.lat, l.lng); if (Math.sqrt(dist2(x, y, cx, cy)) / u > R * 1.25) { const k = l.ms || l.ns; const e = far.get(k) || { x: 0, y: 0, n: 0 }; e.x += x; e.y += y; e.n++; far.set(k, e); } });
     const gsat = svg('g', { class: 'mv-sat' });
     [...far.entries()].forEach(([k, e]) => {
-      const sx = e.x / e.n, sy = e.y / e.n; const sr = RNG(H('sat:' + city.s + k)); const rad = (700 + Math.min(e.n, 8) * 120) * u; const rot = sr() * Math.PI; const cs_ = Math.cos(rot), sn = Math.sin(rot); const cell = 170 * u; const n = Math.ceil(rad / cell); let d = '';
-      for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) { const lx = i * cell, ly = j * cell; if (lx * lx + ly * ly > rad * rad * (0.6 + sr() * 0.5)) continue; if (sr() > 0.72) continue; const x = sx + lx * cs_ - ly * sn, y = sy + lx * sn + ly * cs_; const hw = cell * 0.36, hh = cell * 0.36; const c = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(([px, py]) => [x + px * cs_ - py * sn, y + px * sn + py * cs_]); d += `M${c[0][0].toFixed(1)} ${c[0][1].toFixed(1)}L${c[1][0].toFixed(1)} ${c[1][1].toFixed(1)}L${c[2][0].toFixed(1)} ${c[2][1].toFixed(1)}L${c[3][0].toFixed(1)} ${c[3][1].toFixed(1)}Z`; }
+      const sx = e.x / e.n, sy = e.y / e.n; const sr = RNG(H('sat:' + city.s + k)); const rad = (800 + Math.min(e.n, 8) * 130) * u; const rot = (sr() - 0.5) * 0.6; const cs_ = Math.cos(rot), sn = Math.sin(rot); const cell = 170 * u; const n = Math.ceil(rad / cell); let d = '';
+      for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) { const lx = i * cell, ly = j * cell; if (lx * lx + ly * ly > rad * rad * (0.6 + sr() * 0.5)) continue; if (sr() > 0.8) continue; const x = sx + lx * cs_ - ly * sn, y = sy + lx * sn + ly * cs_; const hw = cell * 0.36, hh = cell * 0.36; const c = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(([px, py]) => [x + px * cs_ - py * sn, y + px * sn + py * cs_]); d += `M${c[0][0].toFixed(1)} ${c[0][1].toFixed(1)}L${c[1][0].toFixed(1)} ${c[1][1].toFixed(1)}L${c[2][0].toFixed(1)} ${c[2][1].toFixed(1)}L${c[3][0].toFixed(1)} ${c[3][1].toFixed(1)}Z`; }
       gsat.appendChild(svg('path', { d, class: 'mv-blocks' }));
       const a = sr() * Math.PI; gsat.appendChild(svg('path', { d: `M${(sx - Math.cos(a) * rad * 1.3).toFixed(1)} ${(sy - Math.sin(a) * rad * 1.3).toFixed(1)}L${(sx + Math.cos(a) * rad * 1.3).toFixed(1)} ${(sy + Math.sin(a) * rad * 1.3).toFixed(1)}`, class: 'mv-sat-road', fill: 'none' }));
     });
@@ -250,7 +250,7 @@ const mapView = (() => {
     const zout = el('button', { type: 'button', 'aria-label': 'Udalji', title: 'Udalji (−)', onclick: () => zoomBy(-1) }, icon('zoom-out'));
     const zfit = el('button', { type: 'button', 'aria-label': 'Prikaži sve oglase', title: 'Prikaži sve', onclick: () => api.fit() }, icon('map'));
     ctl.append(zin, zout, zfit);
-    const drawBtn = el('button', { class: 'draw', type: 'button', 'aria-pressed': 'false', onclick: () => (drawing ? cancelDraw() : startDraw()) }, icon('pen'), el('span', {}, 'Nacrtaj zonu'));
+    const drawBtn = el('button', { class: 'draw', type: 'button', 'aria-pressed': 'false', onclick: () => (drawing ? cancelDraw() : startDraw()) }, icon('draw'), el('span', {}, 'Nacrtaj zonu'));
     const drawBar = el('div', { class: 'mv-drawbar', hidden: true },
       el('span', { class: 'mv-drawhint' }, 'Klikni tačke oko zone, dupli klik ili „Završi” zatvara.'),
       el('button', { class: 'btn btn-primary btn-sm', type: 'button', onclick: () => finishDraw() }, 'Završi'),
@@ -261,7 +261,7 @@ const mapView = (() => {
     const scale = el('div', { class: 'mv-scale', 'aria-hidden': 'true' }, el('i'), el('span'));
     const live = el('div', { class: 'sr', 'aria-live': 'polite' });
     if (o.interactive) chrome.append(ctl);
-    if (o.interactive && o.drawTool) chrome.append(drawBtn, drawBar);
+    if (o.interactive && o.drawTool) { if (o.drawButton !== false) chrome.append(drawBtn); chrome.append(drawBar); }
     chrome.append(zoneChip);
     if (o.interactive && o.showAreaButton) chrome.append(areaBtn);
     if (o.legend) chrome.append(legend);
@@ -415,9 +415,9 @@ const mapView = (() => {
       const hit = (b) => placed.some((p) => b[0] < p[2] && b[2] > p[0] && b[1] < p[3] && b[3] > p[1]);
       const frag = document.createDocumentFragment();
       labelData.forEach((d) => {
-        const show = d.kind === 'city' ? z < 13.5 : d.kind === 'mun' ? z >= 12 && z < 16 : z >= 14.2;
+        const show = d.kind === 'city' ? z < 13.5 : mode === 'budget' ? false : d.kind === 'mun' ? z >= 12 && z < 16 : z >= 14.2;
         if (!show) return; if (d.x < x1 || d.x > x2 || d.y < y1 || d.y > y2) return;
-        const px = d.x * kk, py = d.y * kk; const fs = d.kind === 'city' ? 14 : d.kind === 'mun' ? 13 : 11;
+        const px = d.x * kk, py = d.y * kk; const fs = d.kind === 'city' ? 14 : d.kind === 'mun' ? 13 : 12;
         const hw = (d.name.length * (fs * 0.62 + 2.2)) / 2 + 4, hh = fs * 0.8;
         /* probaj nekoliko pomeraja da izbegneš pinove */
         const cands = [[0, 0], [0, -26], [0, 26], [-40, 0], [40, 0]];
@@ -565,7 +565,7 @@ const mapView = (() => {
       if (!o.interactive) return;
       if (e.target.closest('.mv-chrome') || e.target.closest('.mv-pop')) return;
       if (e.button != null && e.button !== 0) return;
-      container.setPointerCapture(e.pointerId);
+      S(() => container.setPointerCapture(e.pointerId));
       const r = container.getBoundingClientRect(); ptrs.set(e.pointerId, { x: e.clientX - r.left, y: e.clientY - r.top });
       cancelAnimationFrame(inertiaRaf);
       if (ptrs.size === 1) { drag = { x0: e.clientX, y0: e.clientY, cx: view.cx, cy: view.cy, moved: false, target: e.target, t: performance.now(), lx: e.clientX, ly: e.clientY, type: e.pointerType }; vel = { x: 0, y: 0, t: performance.now() }; }
@@ -608,7 +608,7 @@ const mapView = (() => {
       if (d.moved) {
         /* inercija */
         const sp = Math.hypot(vel.x, vel.y); if (sp > 0.25 && !reduced() && performance.now() - vel.t < 60) {
-          let vx = vel.x, vy = vel.y; const stepI = () => { const kk = k(); view.cx -= (vx * 16) / kk; view.cy -= (vy * 16) / kk; vx *= 0.9; vy *= 0.9; schedule(); if (Math.hypot(vx, vy) > 0.03) inertiaRaf = requestAnimationFrame(stepI); };
+          const cap = Math.min(1, 1.6 / sp); let vx = vel.x * cap, vy = vel.y * cap; const stepI = () => { const kk = k(); view.cx -= (vx * 16) / kk; view.cy -= (vy * 16) / kk; vx *= 0.86; vy *= 0.86; schedule(); if (Math.hypot(vx, vy) > 0.04) inertiaRaf = requestAnimationFrame(stepI); };
           inertiaRaf = requestAnimationFrame(stepI);
         }
         return;
@@ -661,7 +661,7 @@ const mapView = (() => {
     function startDraw() {
       if (!o.interactive) return;
       drawing = true; freehand = false; drawPts = []; container.classList.add('mv-drawing'); drawBtn.setAttribute('aria-pressed', 'true'); drawBar.hidden = false; areaBtn.hidden = true;
-      api.setSelected(null); schedule();
+      api.setSelected(null); if (o.onDraw) o.onDraw('drawing'); schedule();
     }
     function addDrawPoint(p) {
       if (drawPts.length >= 3) { const f = toScreen(...drawPts[0]); const s = toScreen(...p); if (Math.hypot(f[0] - s[0], f[1] - s[1]) < 12) { finishDraw(); return; } }
@@ -678,17 +678,17 @@ const mapView = (() => {
       if (!drawing) return;
       const pts = simplify(drawPts, 3 / k());
       drawing = false; freehand = false; container.classList.remove('mv-drawing'); drawBtn.setAttribute('aria-pressed', 'false'); drawBar.hidden = true; drawPts = [];
-      if (pts.length < 3) { polygon = null; applyPolygon(); return; }
-      polygon = pts; applyPolygon();
+      if (pts.length < 3) { polygon = null; applyPolygon(); if (o.onDraw) o.onDraw('cancel'); return; }
+      polygon = pts; applyPolygon(); if (o.onDraw) o.onDraw('zone');
     }
-    function cancelDraw() { drawing = false; freehand = false; drawPts = []; container.classList.remove('mv-drawing'); drawBtn.setAttribute('aria-pressed', 'false'); drawBar.hidden = true; schedule(); }
+    function cancelDraw() { drawing = false; freehand = false; drawPts = []; container.classList.remove('mv-drawing'); drawBtn.setAttribute('aria-pressed', 'false'); drawBar.hidden = true; if (o.onDraw) o.onDraw(polygon ? 'zone' : 'cancel'); schedule(); }
     function applyPolygon() {
       visible = polygon ? all.filter((l) => { const [x, y] = lw(l); return inPoly(x, y, polygon); }) : all;
       clusterCache = null; needPins = true;
       zoneChip.innerHTML = '';
       if (polygon) {
         zoneChip.hidden = false;
-        zoneChip.append(icon('pen', 14), el('span', {}, `Nacrtana zona · ${oglasa(visible.length)}`), el('button', { type: 'button', 'aria-label': 'Obriši zonu', onclick: () => { polygon = null; applyPolygon(); } }, icon('x', 14)));
+        zoneChip.append(icon('draw', 14), el('span', {}, `Nacrtana zona · ${oglasa(visible.length)}`), el('button', { type: 'button', 'aria-label': 'Obriši zonu', onclick: () => { polygon = null; applyPolygon(); if (o.onDraw) o.onDraw('cancel'); } }, icon('x', 14)));
         drawBtn.hidden = true;
       } else { zoneChip.hidden = true; drawBtn.hidden = false; }
       if (o.onBoundsChange) o.onBoundsChange({ ...getBounds(), count: visible.length });
@@ -731,7 +731,7 @@ const mapView = (() => {
       setPlaces(p) { places = p || []; paintLegend(); schedule(); },
       setRadius(r) { radius = r; schedule(); },
       getBounds, getVisible: () => visible.filter((l) => inView(l)), getFiltered: () => visible, getPolygon: () => (polygon ? polygon.map(([x, y]) => latLngOfW(x, y)) : null),
-      startDraw, finishDraw, cancelDraw, clearZone() { polygon = null; applyPolygon(); },
+      startDraw, finishDraw, cancelDraw, isDrawing: () => drawing, clearZone() { polygon = null; applyPolygon(); if (o.onDraw) o.onDraw('cancel'); },
       setPolygon(latlngs) { polygon = latlngs && latlngs.length >= 3 ? latlngs.map((p) => proj.toW(p.lat, p.lng)) : null; applyPolygon(); },
       refresh() { needPins = true; needLabels = true; clusterCache = null; schedule(); },
       destroy() {
