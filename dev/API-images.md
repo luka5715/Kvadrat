@@ -29,7 +29,7 @@ bezbedno i za `src=""` i za CSS `url("…")`).
 | `opts.aspect` | `'4:3'` \| `'16:10'` \| `'1:1'` | isečak iste scene (`viewBox` + `preserveAspectRatio="xMidYMid slice"`). Podrazumevano `'4:3'` |
 | `opts.w` | int | opciono: `width` atribut SVG korena (visina se računa iz odnosa); nema uticaja na sadržaj |
 
-Master platno je 800×600. `16:10` = `viewBox 0 50 800 500`, `1:1` = `viewBox 100 0 600 600`.
+Master platno je 800×600. `16:10` = `viewBox 0 30 800 500`, `1:1` = `viewBox 100 0 600 600`.
 Slika je uvek `slice`, nikad razvučena — CSS `object-fit:cover` je dodatno bezbedan.
 
 Izmerena veličina URI-ja (1 289 slika, svi tipovi): **prosek 7,9 KB, max 12,4 KB**. Po varijanti: entrance 5,6 ·
@@ -70,7 +70,7 @@ Niz naziva varijanti dužine `max(1, l.im)`. `idx` 0 je uvek eksterijer koji odg
 | `kuca` | `house, living, kitchen, bedroom, backyard, entrance, bath, house, land` |
 | `vikendica` | `house, living, kitchen, bedroom, backyard, land, bath, house, living` |
 | `poslovni-prostor` | `office, office-interior, entrance, office-interior, bath, office, kitchen, office-interior, balcony` |
-| `zemljiste` | `land, land, land, backyard, land, …` |
+| `zemljiste` | `land` × n (bez kuće; varijanta po `idx % 3`: 0 njiva + zemljani put + ograda uz put · 1 livada bez puta, šupa, bale · 2 voćnjak u redovima uz put) |
 | `garaza` | `garage, garage, facade, garage, entrance, …` (parni idx = garaža spolja, neparni = iznutra) |
 | `soba` | `bedroom, living, facade, kitchen, bath, entrance, …` |
 
@@ -129,9 +129,21 @@ Prima objekat iz `D.agencies` ili slug. ≈ 0,6 KB. Za `.contact .ava` i `.agenc
   - `bath`: mat pine prozor (`#1F6B52` @ .6 + bele „mat“ pruge) na zidu pored ogledala — nikad iza tuš-kabine;
   - `garage` (spolja): u traci zida iznad garažnih vrata, centriran iznad razmaka između vrata; (unutra) na bočnom zidu;
   - `entrance`: pine nadstrešnica/prozor iznad vrata; `office`: ceo pine stakleni modul;
-  - `land`: isprekidani pine obris parcele sa 4 tačke (jedini brend element; nema prozora).
+  - `garage` (spolja/unutra): brend prozor je jedan od uokvirenih prozora (okvir, sims, pregrada) — čita se kao prozor, ne tabla;
+  - `land`: isprekidani pine obris parcele sa 4 tačke (jedini brend element; nema prozora). Parcela je uvek na široj
+    strani puta, temena unutar x 60–740 / y ≤ 560 i ≥ 18 px od ivice puta; ograda/stubovi su na suprotnoj strani.
 - Eksterijeri: horizont y=456 (76 %), senčena leva traka 12 % širine zgrade, meka senka na tlu ulevo, 1 ulična lampa,
   3–4 krošnje, red zgrada u izmaglici, tanka linija krova.
+- Nebo: krovna linija glavne zgrade (`facade`, `office`) nikad iznad y=70 u 800×600 masteru (`MIN_TOP`, ≥ 12 % neba),
+  pa i isečci 16:10 (od y=30) i 1:1 uvek pokazuju krov i nebo. Broj spratova se skraćuje da stane (blok: etaža 34 px,
+  maks. 9; stara: 60 px; nova: 44 px). Izuzetak je `img.hero()` (4:5 kadar sa sopstvenim nebom).
+- `office`: tri kompozicije po rng — uska kula (260–360 px, 9–11 etaža, viši susedi), široka niska lamela (4–6 etaža),
+  ugaona/pomerena zgrada; × tri fasade (staklena zavesa / parapetne ploče / trakasti prozori); susedi nasumične širine,
+  visine i boje zida; lampa bilo gde osim ispred ulaza.
+- `house`: prednje drvo nikad ispred vrata ni staze (pojas vrata ± ~110 px ostaje slobodan).
+- Tekst u slikama (broj ulaza, broj garaže): `font-family='Hanken Grotesk,Arial,sans-serif'`, `font-weight` 600/700.
+  Web fontovi se **ne učitavaju** unutar `data:` SVG-a u `<img>`, pa se u praksi crta Arial/sans-serif — to je
+  namerni, prihvaćeni fallback (odstupanje od SPEC §7 „Hanken 600“).
 
 ## Napomene za stranice
 

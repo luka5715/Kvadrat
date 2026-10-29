@@ -305,9 +305,17 @@ const mock = (() => {
   };
   const streetsFor = (l) => STREETS[l.cs + '/' + l.ms] || STREETS[l.cs] || STREETS['*'];
   /* street(l) → "Makenzijeva 41" (l.ad ako postoji) */
+  /* l.ad se poštuje samo ako ulica zaista pripada opštini/gradu (izvorni podaci ponekad
+     dodele „Makenzijevu“ Voždovcu ili „Gospodar Jevremovu“ Grockoj); za grad bez tabele
+     ulica l.ad se prihvata bez provere. */
+  const adStreet = (ad) => String(ad).replace(/\s+\d+[a-zA-Z]?(\/\d+)?\s*$/, '').trim();
+  const adFits = (l) => {
+    const tbl = STREETS[l.cs + '/' + l.ms] || STREETS[l.cs];
+    return !tbl || tbl.includes(adStreet(l.ad));
+  };
   function street(l) {
     if (!l) return '';
-    if (l.ad) return l.ad;
+    if (l.ad && adFits(l)) return l.ad;
     const r = rng(hash(l.s + '#street'));
     return `${pick(r, streetsFor(l))} ${between(r, 1, 150)}`;
   }
@@ -356,16 +364,12 @@ const mock = (() => {
     '*': ['centra grada', 'gradske pijace', 'gradskog parka', 'autobuske stanice', 'doma zdravlja', 'reke'],
   };
   const poisFor = (l) => POIS[l.cs + '/' + l.ms] || POIS[l.cs] || POIS['*'];
-  const nomin = (g) => { /* grubo: „pijace Vidikovac“ → „Pijaca Vidikovac“ za nazive u listi */
-    const s = g.replace(/^pijace /, 'Pijaca ').replace(/^parka /, 'Park ').replace(/^stanice /, 'Stanica ').replace(/^keja/, 'Kej').replace(/^centra /, 'Centar ').replace(/^trga /i, 'Trg ');
-    return s.charAt(0).toUpperCase() + s.slice(1);
-  };
-  /* walk(l) → {min:6, to:'pijace Vidikovac', name:'Pijaca Vidikovac'} (3–14 min) */
+  /* walk(l) → {min:6, to:'pijace Vidikovac'} (3–14 min); `to` je u genitivu („do …“) */
   function walk(l) {
     if (!l) return null;
     const r = rng(hash(l.s + '#walk'));
     const to = pick(r, poisFor(l));
-    return { min: between(r, 3, 14), to, name: nomin(to) };
+    return { min: between(r, 3, 14), to };
   }
 
   /* history(l) → 12 mesečnih tačaka [{m:'2025-11', p}] koje se završavaju na trenutnoj ceni; mali drift + najviše jedan skok */
@@ -417,6 +421,24 @@ const mock = (() => {
     'nis': [['Autobus', '1'], ['Autobus', '2'], ['Autobus', '3'], ['Autobus', '5'], ['Autobus', '10'], ['Autobus', '12'], ['Autobus', '34']],
     'kragujevac': [['Autobus', '1'], ['Autobus', '2'], ['Autobus', '3'], ['Autobus', '7'], ['Autobus', '13'], ['Autobus', '16'], ['Autobus', '24']],
     '*': [['Autobus', '1'], ['Autobus', '2'], ['Autobus', '3'], ['Autobus', '5'], ['Autobus', '8']],
+    /* Beograd po opštinama: tramvaj/trolejbus samo tamo gde zaista saobraćaju; prigradske opštine samo autobus */
+    'beograd/stari-grad': [['Tramvaj', '2'], ['Tramvaj', '5'], ['Tramvaj', '10'], ['Trolejbus', '28'], ['Trolejbus', '41'], ['Autobus', '26'], ['Autobus', '31'], ['Autobus', '37'], ['Autobus', '58']],
+    'beograd/vracar': [['Trolejbus', '19'], ['Trolejbus', '21'], ['Trolejbus', '22'], ['Trolejbus', '29'], ['Trolejbus', '40'], ['Trolejbus', '41'], ['Autobus', '31'], ['Autobus', '33'], ['Autobus', '39']],
+    'beograd/savski-venac': [['Tramvaj', '2'], ['Tramvaj', '3'], ['Tramvaj', '9'], ['Tramvaj', '12'], ['Trolejbus', '40'], ['Trolejbus', '41'], ['Autobus', '23'], ['Autobus', '37'], ['Autobus', '52'], ['Autobus', '53']],
+    'beograd/novi-beograd': [['Tramvaj', '7'], ['Tramvaj', '9'], ['Tramvaj', '11'], ['Tramvaj', '13'], ['Autobus', '16'], ['Autobus', '65'], ['Autobus', '67'], ['Autobus', '68'], ['Autobus', '71'], ['Autobus', '75'], ['Autobus', '95']],
+    'beograd/zemun': [['Autobus', '15'], ['Autobus', '17'], ['Autobus', '18'], ['Autobus', '45'], ['Autobus', '83'], ['Autobus', '84'], ['Autobus', '704'], ['Autobus', '706']],
+    'beograd/cukarica': [['Tramvaj', '12'], ['Tramvaj', '13'], ['Autobus', '23'], ['Autobus', '37'], ['Autobus', '50'], ['Autobus', '51'], ['Autobus', '53'], ['Autobus', '56'], ['Autobus', '88'], ['Autobus', '89']],
+    'beograd/rakovica': [['Tramvaj', '3'], ['Autobus', '37'], ['Autobus', '47'], ['Autobus', '48'], ['Autobus', '59'], ['Autobus', '94'], ['Autobus', '504']],
+    'beograd/vozdovac': [['Tramvaj', '9'], ['Tramvaj', '10'], ['Tramvaj', '14'], ['Trolejbus', '40'], ['Trolejbus', '41'], ['Autobus', '25'], ['Autobus', '26'], ['Autobus', '33'], ['Autobus', '39'], ['Autobus', '47'], ['Autobus', '48']],
+    'beograd/zvezdara': [['Tramvaj', '5'], ['Tramvaj', '6'], ['Tramvaj', '7'], ['Trolejbus', '19'], ['Trolejbus', '21'], ['Trolejbus', '22'], ['Trolejbus', '28'], ['Trolejbus', '29'], ['Autobus', '20'], ['Autobus', '25'], ['Autobus', '65']],
+    'beograd/palilula': [['Tramvaj', '2'], ['Tramvaj', '5'], ['Tramvaj', '6'], ['Tramvaj', '14'], ['Autobus', '16'], ['Autobus', '24'], ['Autobus', '26'], ['Autobus', '32E'], ['Autobus', '35'], ['Autobus', '43'], ['Autobus', '95'], ['Autobus', '105']],
+    'beograd/surcin': [['Autobus', '601'], ['Autobus', '605'], ['Autobus', '606'], ['Autobus', '607']],
+    'beograd/grocka': [['Autobus', '302'], ['Autobus', '307'], ['Autobus', '308'], ['Autobus', '309']],
+    'beograd/obrenovac': [['Autobus', '551'], ['Autobus', '553'], ['Autobus', '860']],
+    'beograd/lazarevac': [['Autobus', '860'], ['Autobus', '861']],
+    'beograd/mladenovac': [['Autobus', '470'], ['Autobus', '471']],
+    'beograd/sopot': [['Autobus', '491'], ['Autobus', '492']],
+    'beograd/barajevo': [['Autobus', '502'], ['Autobus', '503']],
   };
   const byKey = (tbl, l) => tbl[l.cs + '/' + l.ms] || tbl[l.cs] || tbl['*'];
 
@@ -748,6 +770,14 @@ const nf = { format: (n) => fmtNum(Math.round(n)) };
 const eur = (n) => fmt.price(n);
 const m2 = (n) => fmt.m2(n);
 const oglasa = (n) => plural(n, 'oglas', 'oglasa', 'oglasa');
+/* stari home.js zove heroArt()/cityArt() (globali iz starog images.js) — prosleđuju na img.* u trenutku poziva */
+function heroArt() { return typeof img !== 'undefined' && img.hero ? img.hero() : ''; }
+function cityArt(seed) {
+  if (typeof img === 'undefined') return '';
+  const isArticle = !D.cities.some((c) => c.s === seed) && D.articles.some((a) => a.s === seed);
+  const src = isArticle && img.article ? img.article(seed) : img.city(seed);
+  return `<img src="${src}" alt="" width="400" height="220" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block">`;
+}
 const daysAgo = (d) => fmt.rel(d);
 const roomLabel = (v) => (v == null ? null : fmt.rooms(v));
 const floorLabel = (f, t) => (f == null ? null : (f === 0 ? 'Prizemlje' : f === -1 ? 'Suteren' : f + '.') + (t ? ' / ' + t : ''));

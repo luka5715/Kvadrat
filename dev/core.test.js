@@ -40,7 +40,7 @@ function load({ storage, dom = true, hash = '' } = {}) {
   vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/core.js'), 'utf8'), ctx, { filename: 'core.js' });
   /* top-level const/let/function u skripti žive u leksičkom opsegu konteksta — izvučemo ih eval-om */
   const names = ['D', '$', 'el', 'hash', 'rng', 'fmt', 'stats', 'mock', 'store', 'router', 'parseHash', 'setHash', 'FILTER_DEFAULTS', 'filtersToParams', 'paramsToFilters', 'applyFilters', 'countActive',
-    'mortgage', 'amortization', 'purchaseCosts', 'rentCosts', 'toast', 'TYPES', 'ROOMS', 'COND', 'HEAT', 'FURN', 'ORIENT', 'AMEN', 'CITIES_MAJOR', 'SORTS', 'find', 'eur', 'm2', 'oglasa', 'daysAgo', 'nf', 'favs', 'DEFAULTS', 'F', 'typeOf', 'roomLabel', 'floorLabel', 'plural'];
+    'mortgage', 'amortization', 'purchaseCosts', 'rentCosts', 'toast', 'TYPES', 'ROOMS', 'COND', 'HEAT', 'FURN', 'ORIENT', 'AMEN', 'CITIES_MAJOR', 'SORTS', 'find', 'eur', 'm2', 'oglasa', 'daysAgo', 'nf', 'favs', 'DEFAULTS', 'F', 'typeOf', 'roomLabel', 'floorLabel', 'plural', 'heroArt', 'cityArt'];
   const api = vm.runInContext('({' + names.map((n) => `${JSON.stringify(n)}: ${n}`).join(',') + '})', ctx);
   api.ctx = ctx;
   return api;
@@ -124,15 +124,22 @@ test('similar', () => {
 
 console.log('\nmock (determinizam)');
 test('street', () => {
-  const noAd = D.listings.find((l) => !l.ad), withAd = D.listings.find((l) => l.ad);
-  eq(mock.street(withAd), withAd.ad);
+  const noAd = D.listings.find((l) => !l.ad);
+  const bare = (ad) => ad.replace(/\s+\d+[a-zA-Z]?(\/\d+)?\s*$/, '');
+  /* l.ad koji pripada opštini se poštuje (Knez Mihailova u Starom gradu) */
+  const fits = D.listings.find((l) => l.ad && l.ms === 'stari-grad' && /^Knez Mihailova/.test(l.ad)) || D.listings.find((l) => l.ad && l.cs !== 'beograd' && !['novi-sad', 'nis', 'kragujevac'].includes(l.cs));
+  assert(fits, 'postoji oglas sa validnim l.ad'); eq(mock.street(fits), fits.ad);
+  /* l.ad iz pogrešnog dela grada se zamenjuje ulicom te opštine */
+  const wrong = D.listings.filter((l) => l.ad && l.cs === 'beograd' && ['vozdovac', 'grocka', 'zemun'].includes(l.ms) && /^(Makenzijeva|Gospodar Jevremova|Knez Mihailova|Njegoševa)\b/.test(l.ad));
+  for (const l of wrong) assert(mock.street(l) !== l.ad, l.ms + ': ' + l.ad);
+  const reject = D.listings.filter((l) => l.ad && mock.street(l) !== l.ad).length; assert(reject < D.listings.filter((l) => l.ad).length, 'ne odbacuje sve');
   const s = mock.street(noAd); eq(mock.street(noAd), s); assert(/^.+ \d{1,3}$/.test(s), s);
   const n = +s.match(/(\d+)$/)[1]; assert(n >= 1 && n <= 150);
   const bg = D.listings.filter((l) => l.cs === 'beograd' && !l.ad).map(mock.street); assert(new Set(bg).size > 20, 'raznovrsno');
 });
 test('walk', () => {
   const l = D.listings.find((x) => x.ms === 'rakovica');
-  const w = mock.walk(l); deq(mock.walk(l), w); assert(w.min >= 3 && w.min <= 14); assert(typeof w.to === 'string' && w.to.length > 3); assert(typeof w.name === 'string');
+  const w = mock.walk(l); deq(mock.walk(l), w); assert(w.min >= 3 && w.min <= 14); assert(typeof w.to === 'string' && w.to.length > 3); deq(Object.keys(w).sort(), ['min', 'to']);
   const all = D.listings.map((x) => mock.walk(x)); assert(all.every((x) => x.min >= 3 && x.min <= 14 && x.to));
   const rak = D.listings.filter((x) => x.ms === 'rakovica').map((x) => mock.walk(x).to); assert(rak.some((t) => /Vidikovac|Košutnjak|Miljakov|Rakovica|Kanarev/.test(t)), rak.join(','));
 });
@@ -154,6 +161,11 @@ test('hood', () => {
   assert(h.note.length > 40 && h.note.length < 320, h.note); assert(!/\{/.test(h.note), 'bez neiskorišćenih placeholdera');
   for (const x of D.listings) { const hh = mock.hood(x); assert(hh.note && !/\{/.test(hh.note), x.s); assert(hh.pijaca.min >= 4 && hh.skola.min >= 3 && hh.park.min >= 4); }
   const kinds = new Set(D.listings.map((x) => mock.hood(x).kind)); assert(kinds.size >= 6, [...kinds].join(','));
+  /* prigradske opštine i Zemun: samo autobus; Vračar bez tramvaja na Novom Beogradu itd. */
+  for (const x of D.listings.filter((y) => y.cs === 'beograd' && ['mladenovac', 'lazarevac', 'obrenovac', 'sopot', 'barajevo', 'grocka', 'surcin', 'zemun'].includes(y.ms)))
+    for (const t of mock.hood(x).transport) eq(t.type, 'Autobus', x.ms + ' ' + t.type + ' ' + t.line);
+  for (const x of D.listings.filter((y) => y.ms === 'vracar')) for (const t of mock.hood(x).transport) assert(t.type !== 'Tramvaj', 'Vračar ' + t.line);
+  assert(D.listings.filter((y) => y.ms === 'novi-beograd').some((x) => mock.hood(x).transport.some((t) => t.type === 'Tramvaj')), 'NBG ima tramvaj');
   eq(mock.cityGen('novi-sad'), 'Novog Sada'); eq(mock.cityGen('beograd'), 'Beograda');
 });
 
@@ -253,6 +265,10 @@ test('konstante', () => { eq(K.TYPES.length, 7); eq(K.COND.novogradnja, 'Novogra
 test('legacy aliasi', () => {
   eq(K.eur(125000), '125.000 €'); eq(K.m2(46), '46 m²'); eq(K.oglasa(3), 'oglasa'); eq(K.daysAgo(1), 'juče'); eq(K.nf.format(1234.6), '1.235'); assert(K.favs === K.store.favs);
   eq(K.DEFAULTS.sort, 'preporuceno'); eq(K.F.t, 'prodaja'); eq(K.typeOf('kuca').l, 'Kuće'); eq(K.roomLabel(2), 'Dvosoban'); eq(K.floorLabel(2, 5), '2. / 5');
+  /* heroArt/cityArt prosleđuju na img.* (ovde lažni img u kontekstu) */
+  eq(K.heroArt(), ''); K.ctx.img = { hero: () => '<svg/>', city: (s) => 'data:c,' + s, article: (s) => 'data:a,' + s };
+  vm.runInContext('var img = globalThis.img;', K.ctx);
+  eq(K.heroArt(), '<svg/>'); assert(K.cityArt('beograd').includes('src="data:c,beograd"')); assert(K.cityArt(D.articles[0].s).includes('src="data:a,' + D.articles[0].s + '"'));
   const f = paramsToFilters(new URLSearchParams('c=beograd&m=vracar&ro=2&co=lux')); deq(f.loc, ['beograd', 'vracar']); deq(f.rooms, [2]); deq(f.cond, ['lux']); assert(!Object.keys(f).includes('loc'));
 });
 

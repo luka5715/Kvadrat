@@ -725,17 +725,20 @@ const img = (() => {
         dd = ''; for (let i = -8; i <= 16; i++) dd += `M${N(vx + i * 110)} ${H}L${N(vx + i * 10)} ${hz + 10}`;
         S.lines(dd, P.vig, 1, op(.1));
       }
+      const rw = q.i(120, 200);
+      const k = (y) => (y - hz - 4) / (H - hz - 4), roadL = (y) => vx - 4 + k(y) * (34 - rw), roadR = (y) => vx + 6 + k(y) * (rw - 6);   // ivice puta
       if (lv !== 1) { // zemljani put
-        const rw = q.i(120, 200);
         S.poly([[vx - 4, hz + 4], [vx + 6, hz + 4], [vx + rw, H], [vx - rw + 30, H]], mix(P.ground, '#C9B48A', .5), op(.95));
         S.poly([[vx, hz + 20], [vx + 3, hz + 20], [vx + 24, H], [vx + 8, H]], g1, op(.6));
       }
-      // strana ograde/voćnjaka (fl=1 desno) — parcela ide na SUPROTNU stranu puta da je stubovi ne seku
-      const fl = vx > 500 ? 0 : 1; const fx0 = fl ? W - 40 : 40, fx1 = fl ? vx + 60 : vx - 60;
+      // strana ograde/voćnjaka (fl=1 desno) — parcela ide na SUPROTNU, širu stranu puta da je stubovi ne seku
+      const fl = vx >= 400 ? 1 : 0;    // ograda/voćnjak idu paralelno sa putem, van kolovoza
+      const fx0 = fl ? roadR(hz + 30) + 24 : roadL(hz + 30) - 24, fx1 = fl ? roadR(hz + 180) + 54 : roadL(hz + 180) - 54;
       if (lv === 0) { // ograda + stubovi
-        dd = ''; const nP = q.i(6, 10); for (let i = 0; i < nP; i++) { const t = i / (nP - 1); const x = fx0 + t * (fx1 - fx0), y = hz + 30 + t * 150, s = .6 + t; dd += RP(x, y - 40 * s, 5 * s, 40 * s); }
+        dd = ''; let w1 = '', w2 = ''; const nP = q.i(6, 10);
+        for (let i = 0; i < nP; i++) { const t = i / (nP - 1); const x = fx0 + t * (fx1 - fx0), y = hz + 30 + t * 150, s = .6 + t; dd += RP(x, y - 40 * s, 5 * s, 40 * s); w1 += `${i ? 'L' : 'M'}${N(x + 2.5 * s)} ${N(y - 34 * s)}`; w2 += `${i ? 'L' : 'M'}${N(x + 2.5 * s)} ${N(y - 18 * s)}`; }
         S.path(dd, mix(P.roof, '#C9B48A', .4), op(.9));
-        S.lines(`M${fx0} ${hz + 10}L${fx1} ${hz + 110}M${fx0} ${hz + 20}L${fx1} ${hz + 140}`, mix(P.roof, '#C9B48A', .4), 1.5, op(.6));
+        S.lines(w1 + w2, mix(P.roof, '#C9B48A', .4), 1.5, op(.6));
       } else if (lv === 1) { // daleka ograda duž horizonta
         dd = ''; for (let x = 20; x < W; x += 36) dd += RP(x, hz + 14, 3, 22); S.path(dd, mix(P.roof, '#C9B48A', .4), op(.7));
         S.rect(0, hz + 22, W, 1.5, mix(P.roof, '#C9B48A', .4), op(.5));
@@ -746,13 +749,21 @@ const img = (() => {
       const px0 = lv === 1 ? 170 : (fl ? 60 : vx + 60), px1 = lv === 1 ? 630 : (fl ? vx - 60 : W - 60);
       const yb = Math.min(560, hz + 230), clampP = (p) => [Math.max(60, Math.min(740, p[0])), Math.max(hz + 28, Math.min(560, p[1]))];
       const px = [[px0 + q.i(20, 60), hz + q.i(40, 70)], [px1 - q.i(0, 40), hz + q.i(30, 60)], [px1 + q.i(-20, 20), yb - q.i(0, 30)], [px0 + q.i(-10, 30), yb - q.i(0, 20)]].map(clampP);
+      if (lv !== 1) { // unutrašnja temena ne prelaze ivicu puta koji se širi ka kameri (razmak 18 px)
+        const inner = fl ? [1, 2] : [0, 3], pair = fl ? { 1: 0, 2: 3 } : { 0: 1, 3: 2 };   // temena uz put → njihov par na spoljnoj strani
+        for (const i of inner) {
+          const p = px[i], o = px[pair[i]];
+          p[0] = fl ? Math.min(p[0], roadL(p[1]) - 18) : Math.max(p[0], roadR(p[1]) + 18);
+          if (Math.abs(o[0] - p[0]) < 120) o[0] = Math.max(60, Math.min(740, p[0] + (fl ? -120 : 120)));   // parcela ostaje bar 120 px široka
+        }
+      }
       S.poly(px, PINE, op(.1));
       S.add(`<path d='M${px.map((p) => N(p[0]) + ' ' + N(p[1])).join('L')}z' fill='none' stroke='${PINE}' stroke-width='2.5' stroke-dasharray='12 7'/>`);
       for (const p of px) S.circle(p[0], p[1], 4.5, PINE);
       // detalji: šupa, bale, bandera (šupa i bandera na strani ograde, dalje od parcele)
       if (lv === 1 || q.b(.4)) { const sx = lv === 1 ? q.i(60, 120) : fl ? q.i(560, 700) : q.i(80, 240); S.rect(sx, hz - 26, 60, 36, mix(P.roof, P.wall[2], .5)); S.poly([[sx - 6, hz - 26], [sx + 30, hz - 50], [sx + 66, hz - 26]], P.roof, op(.85)); S.rect(sx + 24, hz - 10, 12, 20, P.roof); }
-      if (lv === 1 || q.b(.4)) for (let i = 0; i < (lv === 1 ? 5 : 3); i++) { const bx = q.i(60, 740), by = hz + 100 + q.i(0, 120), s = .6 + (by - hz) / 200; S.ell(bx, by, 22 * s, 13 * s, mix('#C9B48A', P.lit, .3)); S.ell(bx, by, 22 * s, 13 * s, P.vig, op(.12)); }
-      if (lv !== 2 && q.b(.6)) { const bx = fl ? q.i(600, 740) : q.i(100, 300); S.rect(bx, hz - 110, 4, 170, P.roof, op(.8)); S.rect(bx - 14, hz - 104, 32, 3, P.roof, op(.8)); S.lines(`M${bx - 14} ${hz - 104}L${fl ? 800 : 0} ${hz - 70}M${bx + 18} ${hz - 104}L${fl ? 800 : 0} ${hz - 80}`, P.roof, 1, op(.4)); }
+      if (lv === 1 || q.b(.4)) for (let i = 0; i < (lv === 1 ? 5 : 3); i++) { const bx = q.i(60, 740), by = hz + 100 + q.i(0, 120), s = .6 + (by - hz) / 200; if (lv !== 1 && bx > roadL(by) - 30 && bx < roadR(by) + 30) continue; S.ell(bx, by, 22 * s, 13 * s, mix('#C9B48A', P.lit, .3)); S.ell(bx, by, 22 * s, 13 * s, P.vig, op(.12)); }
+      if (lv !== 2 && q.b(.6)) { const bx = lv === 1 ? (fl ? q.i(600, 740) : q.i(100, 300)) : fl ? Math.min(770, Math.max(q.i(600, 740), N(roadR(hz + 60)) + 24)) : Math.max(30, Math.min(q.i(100, 300), N(roadL(hz + 60)) - 28)); S.rect(bx, hz - 110, 4, 170, P.roof, op(.8)); S.rect(bx - 14, hz - 104, 32, 3, P.roof, op(.8)); S.lines(`M${bx - 14} ${hz - 104}L${fl ? 800 : 0} ${hz - 70}M${bx + 18} ${hz - 104}L${fl ? 800 : 0} ${hz - 80}`, P.roof, 1, op(.4)); }
       const nt = lv === 2 ? q.i(1, 2) : q.i(2, 4); for (let i = 0; i < nt; i++) tree(S, q, q.i(20, 780), hz + q.i(10, 60), q.f(.7, 1.4), i % 2);
       S.glow(q.i(520, 740), hz, 200, P.lit, .2);
     }

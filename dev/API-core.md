@@ -72,7 +72,7 @@ Sve vraćaju `''` za `null`/`undefined`. Elementi koji prikazuju brojeve treba d
 stats.refPpm(l)   // → { ppm, label, n, scope: 'nbhd'|'mun'|'city'|'all' }
 ```
 Medijana €/m² oglasa **istog `t` i `pt`** u istom naselju ako ih ima ≥ 5, inače opština (≥ 5), inače grad (≥ 5), inače svi (`label: 'Srbija'`).
-`label` je ime naselja / opštine / grada. Uvek vraća objekat; ako je i `all` ispod 5 (`n < 5`), **ne prikazuj Δ čip** (spec §5.7). `stats.MIN_N === 5`.
+`label` je ime naselja / opštine / grada. Uvek vraća objekat; ako je i `all` ispod 5 (`n < 5`), **ne prikazuj Δ čip** (spec §5.7). `stats.MIN_N === 5`. Napomena: u trenutnom data.js nijedno naselje nema ≥ 5 oglasa istog t+pt (najviše 4), pa se `scope:'nbhd'` u praksi ne javlja — UI mora da radi sa bilo kojim opsegom i da prikazuje `label`.
 U ovom skupu podataka nijedno naselje nema ≥ 5 oglasa istog t+pt, pa je opseg u praksi `mun`/`city`/`all`.
 
 ```js
@@ -96,11 +96,12 @@ stats.median(numbers)           // → number | null
 ## `mock` — deterministički podaci o lokaciji (iz `hash(l.s + '#…')`)
 
 ```js
-mock.street(l)   // → 'Makenzijeva 41'   (l.ad ako postoji; inače ~15 realnih ulica po beogradskoj opštini, ~25 po Novom Sadu/Nišu/Kragujevcu, 15 generičkih; broj 1–150)
-mock.walk(l)     // → { min: 6, to: 'pijace Vidikovac', name: 'Pijaca Vidikovac' }   min 3–14; `to` je u genitivu → "6 min hoda do pijace Vidikovac"
+mock.street(l)   // → 'Makenzijeva 41'   (l.ad ako postoji I ako se ta ulica nalazi u tabeli ulica opštine/grada — data.js ponekad dodeli ulicu iz pogrešnog dela grada, pa se tada generiše; za grad bez tabele l.ad se uvek prihvata — **nikad ne prikazuj `l.ad` direktno, uvek `mock.street(l)`**; inače ~15 realnih ulica po beogradskoj opštini, ~25 po Novom Sadu/Nišu/Kragujevcu, 15 generičkih; broj 1–150)
+mock.walk(l)     // → { min: 6, to: 'pijace Vidikovac' }   min 3–14; `to` je u genitivu → "6 min hoda do pijace Vidikovac"
 mock.history(l, months=12) // → [{ m: '2025-11', p: 118000 }, … 12 tačaka], poslednja = tekući mesec i tačno l.p; mali drift + najviše jedan skok (±3–8 %); cene zaokružene (100 € / 10 € / 5 €)
 mock.hood(l)     // → { transport: [{type:'Autobus'|'Tramvaj'|'Trolejbus', line:'23', stop:'Vidikovac', min:4}, ×2–3],
                  //     pijaca:{name,min}, skola:{name:'OŠ „Vuk Karadžić“',min}, vrtic:{name,min}, park:{name,min}, prodavnica:{name,min},
+                 //     linije po beogradskoj opštini: tramvaj/trolejbus samo gde realno saobraćaju; prigradske opštine (Surčin, Grocka, Obrenovac, Lazarevac, Mladenovac, Sopot, Barajevo) i Zemun samo autobus
                  //     note: 'Kakav je kraj…' (1–2 rečenice, šablon po tipu opštine), kind: 'centar'|'blokovi'|'brdo'|'stari'|'prigradski'|'centar-grad'|'mirno'|'odmor' }
 mock.cityGen(cs) // → 'Novog Sada' (genitiv imena grada; lokativ je u D.cities[].loc: 'Novom Sadu')
 ```
@@ -198,7 +199,7 @@ Renderuje u `#toasts` (kreira ga u `body` ako ne postoji), `role="status"`, auto
 
 ## Legacy aliasi (samo dok se stare `js/pages/*.js` ne prepišu — **ne koristiti u novom kodu**)
 `nf.format(n)`, `eur(n)`, `m2(n)`, `oglasa(n)`, `daysAgo(d)`, `roomLabel(v)`, `floorLabel(f, t)` (`'2. / 5'`), `LS = {fav:'kv.favs', theme:'kv.theme'}`, `readFav()`, `favs` (= `store.favs`), `saveFav()`,
-`DEFAULTS` (stari oblik filtera), `let F`, `PROMO_RANK`. Objekat iz `paramsToFilters` ima **ne-enumerabilne** gettere `loc`, `rooms`, `cond`, `heat`, `furn`, `promo` da stari search.js ne pukne.
+`DEFAULTS` (stari oblik filtera), `let F`, `PROMO_RANK`, `heroArt()` (= `img.hero()`), `cityArt(slug)` (→ `<img>` string sa `img.city(slug)`, ili `img.article(slug)` za slug članka). Objekat iz `paramsToFilters` ima **ne-enumerabilne** gettere `loc`, `rooms`, `cond`, `heat`, `furn`, `promo` da stari search.js ne pukne.
 `setHash(…, true)` bez `router.onChange` pretplatnika poziva globalni `render()` ako postoji (stari app.js).
 
 ## Testovi
