@@ -473,8 +473,8 @@
     const affPills = has ? pillsCounted(AFF_OPTS.map((o) => ({ v: o.v, l: o.l })), s.aff, F.aff, (v, on, all) => ch({ aff: all }, 'push')) : null;
     return grp('Moj budžet', [
       el('div', { class: 'srp-budget' },
-        el('label', { class: 'fld' }, el('span', { class: 'lbl' }, 'Neto primanja (€/mes)'), inc),
-        el('label', { class: 'fld' }, el('span', { class: 'lbl' }, 'Ušteđevina (€)'), cash)),
+        el('label', { class: 'fld' }, el('span', { class: 'lbl' }, 'Primanja €/mes'), inc),
+        el('label', { class: 'fld' }, el('span', { class: 'lbl' }, 'Ušteđevina €'), cash)),
       summary, affPills,
     ], { id: 'budzet', aside: el('span', { class: 'srp-est' }, 'procena') });
   }
@@ -550,7 +550,7 @@
     const c = safe(() => KX.cost(l), null);
     if (!c) return null;
     if (l.t === 'prodaja') {
-      if (mode === 'ukupno') { const extra = c.onPurchase - l.p; return { text: eur(c.onPurchase), note: `cena + ${eur(extra)} porez, provizija, overa, kredit`, title: `Cena iz oglasa ${eur(l.p)}; ukupno pri kupovini ${eur(c.onPurchase)} (procena)` }; }
+      if (mode === 'ukupno') { const extra = c.onPurchase - l.p; return { text: eur(c.onPurchase), note: `cena + ${eur(extra)} troškova kupovine`, title: `Cena iz oglasa ${eur(l.p)}; ukupno pri kupovini ${eur(c.onPurchase)} (procena)` }; }
       const rata = (c.lines.find((x) => x.key === 'rata') || {}).amount || 0;
       return { text: eur(c.monthly, 'izdavanje'), note: rata ? `rata ${eur(rata)} + računi ~${eur(c.monthly - rata)}` : `računi i održavanje ~${eur(c.monthly)}`, title: `Mesečno: kredit 80 %, ${safe(() => profile().years, 25)} god. + računi (procena)` };
     }

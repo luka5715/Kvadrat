@@ -4,9 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Kvadrat.rs</title>
+<meta name="description" content="Kvadrat.rs — stanovi, kuće i poslovni prostori u Srbiji. Cena po m² uz svaki oglas, poređenje sa prosekom opštine, stvarni troškovi kupovine i fer cena.">
+<meta name="color-scheme" content="light dark">
+<script>
+/* tema pre prvog crtanja (bez bljeska): kv.theme = 'light' | 'dark'; bez vrednosti važi sistemska */
+(function () { try { var t = localStorage.getItem('kv.theme'); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) { /* localStorage nedostupan */ } })();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Source+Sans+3:wght@400;600&display=swap">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,50;1,9..144,300..700,50&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/tokens.css">
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/components.css">
@@ -15,24 +21,33 @@
 <link rel="stylesheet" href="css/pages/listing.css">
 <link rel="stylesheet" href="css/pages/map.css">
 <link rel="stylesheet" href="css/pages/tools.css">
+<link rel="stylesheet" href="css/pages/account.css">
 <link rel="stylesheet" href="css/pages/agencies.css">
+<link rel="stylesheet" href="css/pages/content.css">
+<link rel="stylesheet" href="css/pages/shell.css">
 </head>
 <body>
 
-<div id="app"></div>
+<a class="skip kv-skip" href="#main">Preskoči na sadržaj</a>
+<div id="app"><p class="kv-boot">Učitavanje Kvadrat.rs…</p></div>
 <div id="toasts" aria-live="polite"></div>
+<noscript><p class="kv-boot">Kvadrat.rs radi u pregledaču i za prikaz oglasa mu je potreban JavaScript.</p></noscript>
 
 <script src="data.js" charset="utf-8"></script>
 <script src="js/core.js" charset="utf-8"></script>
 <script src="js/images.js" charset="utf-8"></script>
 <script src="js/ui.js" charset="utf-8"></script>
+<script src="js/engine.js" charset="utf-8"></script>
+<script src="js/map.js" charset="utf-8"></script>
 <script src="js/pages/home.js" charset="utf-8"></script>
 <script src="js/pages/search.js" charset="utf-8"></script>
 <script src="js/pages/listing.js" charset="utf-8"></script>
 <script src="js/pages/map.js" charset="utf-8"></script>
+<script src="js/pages/tools.js" charset="utf-8"></script>
+<script src="js/pages/account.js" charset="utf-8"></script>
 <script src="js/pages/agencies.js" charset="utf-8"></script>
-<script src="js/pages/calc.js" charset="utf-8"></script>
-<script src="js/pages/saved.js" charset="utf-8"></script>
+<script src="js/pages/content.js" charset="utf-8"></script>
+<script src="js/global.js" charset="utf-8"></script>
 <script src="js/app.js" charset="utf-8"></script>
 
 </body>

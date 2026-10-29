@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="sr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Kvadrat — test detalja oglasa</title>
+<meta name="description" content="Dev stranica: viewListing (js/pages/listing.js) samostalno, sa zaglavljem i podnožjem iz ui.js. Rute: #/oglas?s=slug ili #/oglas/slug; podrazumevano prvi stan na prodaju.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,50;1,9..144,300..700,50&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../css/tokens.css">
+<link rel="stylesheet" href="../../css/base.css">
+<link rel="stylesheet" href="../../css/components.css">
+<link rel="stylesheet" href="../../css/pages/map.css">
+<link rel="stylesheet" href="../../css/pages/listing.css">
+</head>
+<body>
+<div id="app"></div>
+<div id="toasts" aria-live="polite"></div>
+
+<script src="../../data.js" charset="utf-8"></script>
+<script src="../../js/core.js" charset="utf-8"></script>
+<script src="../../js/images.js" charset="utf-8"></script>
+<script src="../../js/ui.js" charset="utf-8"></script>
+<script src="../../js/engine.js" charset="utf-8"></script>
+<script src="../../js/map.js" charset="utf-8"></script>
+<script src="../../js/pages/listing.js" charset="utf-8"></script>
+<script>
+/* mini ruter dev stranice: #/oglas?s=slug | #/oglas/slug → viewListing; prazan hash → prvi stan na prodaju;
+   svaka druga ruta prikazuje traku sa odredištem (provera linkova). */
+(function () {
+  'use strict';
+  const app = document.getElementById('app');
+  const firstSale = (D.listings.find((l) => l.t === 'prodaja' && l.pt === 'stan') || D.listings[0]).s;
+  let lastSlug = null;
+  function render() {
+    const raw = location.hash.replace(/^#/, '') || '/oglas?s=' + firstSale;
+    const [path, qs] = raw.split('?');
+    const q = new URLSearchParams(qs || '');
+    let body, slug = null;
+    if (path === '/oglas' || path === '/' || path === '') { if (!q.get('s')) q.set('s', firstSale); slug = q.get('s'); body = viewListing(q); }
+    else if (path.startsWith('/oglas/')) { slug = decodeURIComponent(path.slice(7)); body = viewListing(new URLSearchParams({ s: slug })); }
+    else body = el('div', { class: 'wrap', style: 'padding:48px 16px' }, el('p', { class: 'eyebrow' }, 'dev/listing — odredište'),
+      el('h1', { class: 't-h1', id: 'dest' }, raw), el('p', { style: 'margin-top:16px' }, el('a', { class: 'btn btn-secondary', href: '#/oglas?s=' + firstSale }, 'Nazad na oglas')));
+    app.innerHTML = '';
+    app.append(header('/oglas'), el('main', { id: 'main' }, body), footer());
+    if (slug !== lastSlug) window.scrollTo(0, 0);
+    lastSlug = slug;
+  }
+  window.addEventListener('hashchange', render);
+  try { if (typeof KX !== 'undefined') KX.enrich(); } catch (e) { console.error(e); }
+  render();
+})();
+</script>
+</body>
+</html>

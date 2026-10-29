@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="sr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Kvadrat — test sadržaja</title>
+<meta name="description" content="Dev stranica: js/pages/content.js samostalno (viewProjects, viewProject, viewArticles, viewArticle) sa zaglavljem i podnožjem iz ui.js.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,50;1,9..144,300..700,50&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../css/tokens.css">
+<link rel="stylesheet" href="../../css/base.css">
+<link rel="stylesheet" href="../../css/components.css">
+<link rel="stylesheet" href="../../css/pages/map.css">
+<link rel="stylesheet" href="../../css/pages/content.css">
+</head>
+<body>
+<div id="app"></div>
+<div id="toasts" aria-live="polite"></div>
+
+<script src="../../data.js" charset="utf-8"></script>
+<script src="../../js/core.js" charset="utf-8"></script>
+<script src="../../js/images.js" charset="utf-8"></script>
+<script src="../../js/ui.js" charset="utf-8"></script>
+<script src="../../js/engine.js" charset="utf-8"></script>
+<script src="../../js/map.js" charset="utf-8"></script>
+<script src="../../js/pages/content.js" charset="utf-8"></script>
+<script>
+/* mini ruter dev stranice: #/novogradnja, #/projekat?s=, #/saveti, #/savet?s=; ostale rute prikazuju odredište (provera linkova). */
+(function () {
+  'use strict';
+  const app = document.getElementById('app');
+  const ROUTES = { '/novogradnja': viewProjects, '/projekat': viewProject, '/saveti': viewArticles, '/savet': viewArticle };
+  function render() {
+    const raw = location.hash.replace(/^#/, '') || '/novogradnja';
+    const [path, qs] = raw.split('?');
+    const q = new URLSearchParams(qs || '');
+    app.innerHTML = '';
+    const fn = ROUTES[path];
+    const body = fn ? fn(q) : el('div', { class: 'wrap', style: 'padding:48px 16px' }, el('p', { class: 'eyebrow' }, 'dev/content — odredište'),
+      el('h1', { class: 't-h1', id: 'dest' }, raw), el('p', { style: 'margin-top:16px' }, el('a', { class: 'btn btn-secondary', href: '#/novogradnja' }, 'Nazad na novogradnju')));
+    app.append(header(path), el('main', { id: 'main' }, body), footer());
+    window.scrollTo(0, 0);
+  }
+  window.addEventListener('hashchange', render);
+  try { if (typeof KX !== 'undefined') KX.enrich(); } catch (e) { console.error(e); }
+  render();
+})();
+</script>
+</body>
+</html>

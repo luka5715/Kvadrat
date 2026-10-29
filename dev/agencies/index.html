@@ -30,13 +30,10 @@
 (function () {
   'use strict';
   const app = document.getElementById('app');
-  let last = '';
   function render() {
     const raw = location.hash.replace(/^#/, '') || '/agencije';
     const [path, qs] = raw.split('?');
     const q = new URLSearchParams(qs || '');
-    if (path === last && (path === '/agencije' || path === '/agencija') && document.getElementById('main') && q.get('s') === (window.__agS || null)) return;
-    last = path; window.__agS = q.get('s');
     app.innerHTML = '';
     let body;
     if (path === '/agencije' || path === '/' || path === '') body = viewAgencies(q);

@@ -103,26 +103,27 @@
   };
 
   /* recenzije: rc komada, zbir ocena = round(r × rc) */
+  /* [tekst, vrsta posla] — posao prati tekst da recenzija bude dosledna */
   const REV_TXT = {
     5: [
-      'Od prvog razgovora do primopredaje sve je išlo po dogovoru. Agent je unapred poslao list nepokretnosti i proverio teret u katastru, tako da smo kod notara samo potpisali.',
-      'Tražili smo dvosoban stan blizu škole i dobili smo uži izbor od četiri stana, svaki sa tlocrtom i realnom procenom troškova. Bez pritiska i bez nepotrebnih obilazaka.',
-      'Odgovarali su i vikendom, a kaparu smo dali tek kada su svi papiri bili provereni. Preporučujem svakome ko kupuje prvi stan.',
-      'Prodali smo stan za šest nedelja, po ceni koju su nam predložili na početku. Fotografije i opis su bili pošteni, pa su dolazili samo ozbiljni kupci.',
+      ['Od prvog razgovora do primopredaje sve je išlo po dogovoru. Agent je unapred poslao list nepokretnosti i proverio teret u katastru, tako da smo kod notara samo potpisali.', 'Kupovina stana'],
+      ['Tražili smo dvosoban stan blizu škole i dobili smo uži izbor od četiri stana, svaki sa tlocrtom i realnom procenom troškova. Bez pritiska i bez nepotrebnih obilazaka.', 'Kupovina stana'],
+      ['Odgovarali su i vikendom, a kaparu smo dali tek kada su svi papiri bili provereni. Preporučujem svakome ko kupuje prvi stan.', 'Kupovina stana'],
+      ['Prodali smo stan za šest nedelja, po ceni koju su nam predložili na početku. Fotografije i opis su bili pošteni, pa su dolazili samo ozbiljni kupci.', 'Prodaja stana'],
+      ['Stan smo iznajmili za deset dana. Proverili su zakupca, sastavili ugovor i zapisnik o stanju stana sa fotografijama.', 'Izdavanje stana'],
     ],
     4: [
-      'Profesionalni i dobro poznaju kraj. Jedino nam je trebalo malo više vremena da dobijemo povratnu informaciju posle drugog obilaska.',
-      'Stan je bio tačno onakav kao na fotografijama. Provizija je bila jasno navedena u ugovoru, a agent nam je pomogao i oko prijave za Infostan.',
-      'Korektna saradnja, dogovor oko cene je prošao bez stresa. Ugovor o posredovanju je mogao biti objašnjen detaljnije.',
+      ['Profesionalni i dobro poznaju kraj. Jedino nam je trebalo malo više vremena da dobijemo povratnu informaciju posle drugog obilaska.', 'Kupovina stana'],
+      ['Stan je bio tačno onakav kao na fotografijama. Provizija je bila jasno navedena u ugovoru, a agent nam je pomogao i oko prijave za Infostan.', 'Zakup stana'],
+      ['Korektna saradnja, dogovor oko cene je prošao bez stresa. Ugovor o posredovanju je mogao biti objašnjen detaljnije.', 'Prodaja stana'],
     ],
     3: [
-      'Sam stan je bio dobar, ali smo na termin obilaska čekali skoro nedelju dana. Komunikacija se popravila kada smo prešli na poziv umesto poruka.',
-      'Agent je ljubazan, ali nismo unapred dobili podatke o troškovima zgrade, pa smo ih saznali tek na obilasku.',
+      ['Sam stan je bio dobar, ali smo na termin obilaska čekali skoro nedelju dana. Komunikacija se popravila kada smo prešli na poziv umesto poruka.', 'Zakup stana'],
+      ['Agent je ljubazan, ali nismo unapred dobili podatke o troškovima zgrade, pa smo ih saznali tek na obilasku.', 'Kupovina stana'],
     ],
-    2: ['Oglas je bio aktivan i posle nego što je stan izdat, pa smo uzalud zakazali obilazak. Izvinili su se, ali je trebalo da ga ranije uklone.'],
-    1: ['Provizija nam nije pomenuta pre obilaska, već tek pri potpisivanju ugovora. Na kraju smo odustali.'],
+    2: [['Oglas je bio aktivan i posle nego što je stan izdat, pa smo uzalud zakazali obilazak. Izvinili su se, ali je trebalo da ga ranije uklone.', 'Zakup stana']],
+    1: [['Provizija nam nije pomenuta pre obilaska, već tek pri potpisivanju ugovora. Na kraju smo odustali.', 'Kupovina stana']],
   };
-  const DEALS = ['Kupovina stana', 'Prodaja stana', 'Zakup stana', 'Kupovina kuće', 'Izdavanje stana'];
   const MONTHS_G = ['januara', 'februara', 'marta', 'aprila', 'maja', 'juna', 'jula', 'avgusta', 'septembra', 'oktobra', 'novembra', 'decembra'];
   const dateText = (d) => `${d.getDate()}. ${MONTHS_G[d.getMonth()]} ${d.getFullYear()}.`;
 
@@ -149,8 +150,8 @@
       const last = LAST[(h >>> 11) % LAST.length];
       const days = 9 + i * 41 + ((h >>> 13) % 37);
       const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - days);
-      const sub = [0, 1, 2].map((j) => Math.max(1, Math.min(5, st - (((h >>> (17 + j * 2)) & 3) === 0 ? 1 : 0))));
-      return { who: `${first} ${last[0]}.`, stars: st, text: pool[k], date: d, days, deal: DEALS[(h >>> 9) % DEALS.length], place: places.length ? places[(h >>> 3) % places.length] : a.c, sub };
+      const sub = [0, 1, 2].map((j) => Math.max(1, Math.min(5, st - (H(a.s + '#sub' + i + '-' + j) % 5 === 0 ? 1 : 0))));
+      return { who: `${first} ${last[0]}.`, stars: st, text: pool[k][0], date: d, days, deal: pool[k][1], place: places.length ? places[(h >>> 3) % places.length] : a.c, sub };
     });
   }
   const SUBS = ['Stručnost', 'Poznavanje kraja', 'Komunikacija'];
