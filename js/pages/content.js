@@ -147,25 +147,38 @@
   const ppmDelta = (l) => (l ? S(() => deltaChip(l), null) : null);
   const ST = { dos: 'Dostupno', rez: 'Rezervisano', pro: 'Prodato' };
 
+  /* pravni status projekta (iz naslovne jedinice); za projekte u izgradnji nema smisla */
+  const NO_PERMIT = new Set(['poseban-zakon', 'ozakonjenje']);
+  const LEGAL_TXT = { uknjizeno: 'Uknjiženo', 'u-procesu': 'U procesu uknjižavanja', 'poseban-zakon': 'Upisano po Zakonu iz 2025. (bez garancije bezbednosti objekta)', ozakonjenje: 'U postupku ozakonjenja', nije: 'Nije uknjiženo' };
+  const legalOf = (P) => (P.rok ? null : P._legal || (P._legal = S(() => KX.trust(P.cover).legal, 'uknjizeno') || 'uknjizeno'));
   function timeline(P) {
     const today = new Date(), h = hash(P.id + ':tl'), dur = 24 + (h % 15);
     let end;
     if (P.rok) end = new Date(+P.rok.slice(3), +P.rok[1] * 3 - 2, 15);
     else { end = new Date(Math.min(P.cover.y || 2025, 2026), 2 + (h % 6), 15); if (end > today) end = addMonths(today, -4); }
     const start = addMonths(end, -dur);
-    const legal = S(() => KX.trust(P.cover).legal, 'uknjizeno');
-    const M = [['Građevinska dozvola', -0.1], ['Početak radova', 0], [P.flats ? 'Temelji i podzemna garaža' : 'Temelji', 0.16], ['Konstrukcija do poslednje ploče', 0.52],
-      ['Krov, fasada i stolarija', 0.72], ['Instalacije i unutrašnji radovi', 0.87], ['Tehnički prijem i upotrebna dozvola', 1], ['Upis u katastar i predaja ključeva', 1.14]];
-    let cur = -1;
+    const legal = legalOf(P), noPermit = !P.rok && NO_PERMIT.has(legal);
+    /* ključevi se predaju uz upotrebnu dozvolu (useljivo); upis u katastar je poseban korak koji može da kasni.
+       Upis po Zakonu iz 2025. i ozakonjenje postoje samo za objekte bez dozvola: tada nema koraka sa dozvolama. */
+    const M = [noPermit ? null : ['Građevinska dozvola', -0.1], ['Početak radova', 0], [P.flats ? 'Temelji i podzemna garaža' : 'Temelji', 0.16], ['Konstrukcija do poslednje ploče', 0.52],
+      ['Krov, fasada i stolarija', 0.72], ['Instalacije i unutrašnji radovi', 0.87], noPermit ? ['Završetak radova i predaja ključeva', 1] : ['Tehnički prijem, upotrebna dozvola i predaja ključeva', 1],
+      legal === 'poseban-zakon' && noPermit ? ['Upisano po Zakonu iz 2025. — bez garancije bezbednosti objekta', 'zakon'] : legal === 'ozakonjenje' && noPermit ? ['U postupku ozakonjenja', 1.14] : ['Upis u katastar (uknjiženje)', 1.14]].filter(Boolean);
     const items = M.map(([label, f], i) => {
-      const d = addMonths(start, f * dur);
-      let done = d <= today;
-      if (i === M.length - 1 && !P.rok) done = legal === 'uknjizeno';
+      let d, done;
+      if (f === 'zakon') {
+        /* zakon važi od oktobra 2025: upis najranije posle toga i najkasnije pre mesec dana */
+        d = new Date(Math.min(addMonths(today, -1).getTime(), Math.max(addMonths(end, 3).getTime(), new Date(2026, 1, 15).getTime())));
+        done = true;
+      } else {
+        d = addMonths(start, f * dur);
+        done = d <= today;
+        if (i === M.length - 1 && !P.rok) { done = legal === 'uknjizeno'; if (done && d > today) d = addMonths(today, -1); }
+      }
       return { label, d, done };
     });
-    cur = items.findIndex((x) => !x.done);
+    const cur = items.findIndex((x) => !x.done);
     const pct = Math.max(0, Math.min(1, (today - start) / (end - start)));
-    return { items, cur, pct, start, end };
+    return { items, cur, pct, start, end, legal, noPermit };
   }
 
   function record(P) {
@@ -190,18 +203,22 @@
     const av = availOf(P);
     return el('article', { class: 'pj-card' + (compact ? ' pj-card-s' : '') },
       el('a', { class: 'ph r16', href: R.project(P.id), 'aria-label': P.name },
-        img.el(P.cover, 0, { aspect: '16:10', alt: '' }),
-        el('div', { class: 'badges' }, badge('novogradnja'))),
+        img.el(P.cover, 0, { aspect: '16:10', alt: '' })),
       el('div', { class: 'pj-cb' },
         el('p', { class: 'eyebrow' + (P.status === 'gradnja' ? ' pj-eb-on' : '') }, statusLabel(P)),
         el('h3', { class: 'pj-name' }, el('a', { href: R.project(P.id) }, P.name)),
         el('p', { class: 'pj-loc' }, `${P.m && P.m !== P.n ? P.m + ' · ' : ''}${P.n}, ${P.c}`),
         el('div', { class: 'pricerow' }, el('span', { class: 'pj-od' }, 'od'), el('span', { class: 'price' }, fmt.price(P.from)),
           el('span', { class: 'ctx' }, el('span', { class: 'ppm' }, 'od ' + fmt.ppm(P.fromPpm)), ppmDelta(P.ppmUnit))),
-        el('div', { class: 'facts' }, el('span', { class: 'fact' }, `${P.units.length} ${plu(P.units.length, 'jedinica', 'jedinice', 'jedinica')} u ponudi`),
+        el('div', { class: 'facts' }, el('span', { class: 'fact' }, unitsFact(P, av)),
           el('span', { class: 'fact' }, areaSpan(P)), el('span', { class: 'fact' }, roomsSpan(P))),
         compact ? null : el('div', { class: 'foot' }, el('span', { class: 'ag' }, el('span', {}, P.agency), P.agv ? icon('check', 14) : null),
-          el('span', { class: 'pj-av' }, P.perFloor ? `dostupno ${av.dos} od ${av.total}` : 'cena sa PDV-om'))));
+          el('span', { class: 'pj-av' }, 'cena sa PDV-om'))));
+  }
+  /* jedan izvor zaliha na kartici: slobodne jedinice zgrade (raspored), a ne broj oglasa sa cenom */
+  function unitsFact(P, av) {
+    if (!P.perFloor) return `${P.units.length} ${plu(P.units.length, 'jedinica', 'jedinice', 'jedinica')} u ponudi`;
+    return `${av.dos} ${plu(av.dos, 'slobodna jedinica', 'slobodne jedinice', 'slobodnih jedinica')} od ${av.total}`;
   }
 
   function viewProjects(q) {
@@ -221,6 +238,10 @@
     const list = el('div', { class: 'pj-grid' });
     const count = el('p', { class: 'pj-count', 'aria-live': 'polite' });
     const more = el('div', { class: 'pj-more' });
+    /* fokus posle „Prikaži još“ / „Prikaži sve projekte“: naslov prve nove kartice (dugme koje je pritisnuto nestaje ili se skriva) */
+    const focusCard = (i) => { const a = list.querySelectorAll('.pj-card .pj-name a')[i]; if (a) a.focus(); else { count.tabIndex = -1; count.focus(); } };
+    const moreBtn = el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => { const old = st.shown; st.shown += 12; update(true); focusCard(old); } });
+    more.append(moreBtn);
     const otherSel = select([{ v: '', l: 'Drugi grad…' }, ...cities.slice(5).map((cs) => ({ v: cs, l: `${cname(cs)} (${cityCount[cs]})` }))], top.includes(st.c) ? '' : st.c,
       (v) => { st.c = v; cityPills.set(v ? [] : ['']); update(); }, { inline: true, label: 'Drugi grad' });
     const cityPills = pills([{ v: '', l: 'Svi gradovi', n: all.length }, ...top.map((cs) => ({ v: cs, l: cname(cs), n: cityCount[cs] }))], [top.includes(st.c) || !st.c ? st.c : '__'],
@@ -240,10 +261,11 @@
       const L = filtered();
       count.textContent = `${L.length} ${plu(L.length, 'projekat', 'projekta', 'projekata')}${st.c ? ' · ' + cname(st.c) : ''}`;
       list.innerHTML = '';
-      if (!L.length) list.append(empty('Nema projekata za ovaj izbor', 'Probaj drugi grad ili ukloni filtere statusa, strukture i roka.', 'Prikaži sve projekte', null, { onClick: () => { st.c = ''; st.s = ''; st.ro = ''; st.rok = ''; cityPills.set(['']); stPills.set(['']); roPills.set(['']); rokSel.value = ''; otherSel.value = ''; update(); } }));
+      if (!L.length) list.append(empty('Nema projekata za ovaj izbor', 'Probaj drugi grad ili ukloni filtere statusa, strukture i roka.', 'Prikaži sve projekte', null, { onClick: () => { st.c = ''; st.s = ''; st.ro = ''; st.rok = ''; cityPills.set(['']); stPills.set(['']); roPills.set(['']); rokSel.value = ''; otherSel.value = ''; update(); focusCard(0); } }));
       L.slice(0, st.shown).forEach((p) => list.append(projectCard(p)));
-      more.innerHTML = '';
-      if (L.length > st.shown) more.append(el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => { st.shown += 12; update(true); } }, `Prikaži još projekata (${L.length - st.shown})`));
+      /* jedno trajno dugme: menja se samo tekst i vidljivost, pa fokus ne pada na <body> */
+      moreBtn.textContent = `Prikaži još projekata (${Math.max(0, L.length - st.shown)})`;
+      more.hidden = L.length <= st.shown;
       replaceUrl('projects', { c: st.c, st: st.s, ro: st.ro, rok: st.rok, sort: st.sort === 'rel' ? '' : st.sort });
     }
     update();
@@ -349,6 +371,54 @@
     return w;
   }
 
+  /* ───── šematski tlocrt jedinice: model sa stranice oglasa (viewListing._planModel), inače jednostavan raspored ─────
+     stvarni oglas → isti tlocrt kao na njegovoj stranici; demo jedinica → seme P.id + šifra, pa je raspored uvek isti */
+  const PLAN_SHORT = { Kupatilo: 'Kup.', 'Kupatilo 2': 'Kup. 2', Toalet: 'WC', Hodnik: 'Hod.', Kuhinja: 'Kuh.', 'Čajna kuhinja': 'Kuh.', Kabinet: 'Kab.', Spavaća: 'Spav.', Trpezarija: 'Trp.', Ostava: 'Ost.', 'Radna soba': 'Rad.', Garderober: 'Gard.', Dnevna: 'Dn.' };
+  const planShort = (n) => PLAN_SHORT[n] || (/^Spavaća \d/.test(n) ? 'Sp. ' + n.slice(-1) : /^Kancelarija \d/.test(n) ? 'K' + n.slice(-1) : n.length > 6 ? n.slice(0, 4) + '.' : n);
+  function fallbackPlan(u) {
+    const a = u.a, W = Math.sqrt(a * 1.4), H = a / W, n = Math.max(1, Math.floor(u.ro || 1));
+    const R = (nm, kind, x, y, w, h) => ({ n: nm, kind, x, y, w, h, area: Math.round(w * h * 2) / 2 });
+    const rooms = [R(n > 1 ? 'Dnevna' : 'Soba', 'living', 0, 0, W * 0.55, H * 0.62), R('Kuhinja', 'kitchen', 0, H * 0.62, W * 0.3, H * 0.38), R('Kupatilo', 'bath', W * 0.3, H * 0.62, W * 0.25, H * 0.38)];
+    for (let i = 1; i < n; i++) rooms.push(R(n > 2 ? `Spavaća ${i}` : 'Spavaća', 'bed', W * 0.55, (H / (n - 1)) * (i - 1), W * 0.45, H / (n - 1)));
+    if (n === 1) rooms.push(R('Hodnik', 'hall', W * 0.55, 0, W * 0.45, H));
+    return { rooms, terrace: null, W, H, a };
+  }
+  function unitPlanModel(P, r) {
+    if (!(r.a > 0) || r.a > 600) return null;
+    const u = r.real ? r.l : { s: P.id + '#' + r.code, pt: 'stan', a: r.a, ro: r.ro, ba: r.ro >= 3 ? 2 : 1, or: r.or, am: hash(P.id + r.code + ':bal') % 3 ? ['hasBalcony'] : [] };
+    if (u.pt === 'stan' && u.ro == null) return null;
+    const m = S(() => (typeof viewListing === 'function' && viewListing._planModel ? viewListing._planModel(u) : null), null);
+    if (m && m.rooms && m.rooms.length) return m;
+    return u.pt === 'stan' || u.pt === 'kuca' ? fallbackPlan(u) : null;
+  }
+  function unitPlan(P, r, m, id, ask) {
+    const SC = 40, pad = 0.35, W = m.W, H = m.H, X = (v) => (v * SC).toFixed(1);
+    const vb = [-pad * SC, -pad * SC, (W + pad * 2) * SC, (H + pad * 2) * SC];
+    const svg = `<svg viewBox="${vb.map((v) => v.toFixed(1)).join(' ')}" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">`
+      + m.rooms.map((p) => `<rect class="rm k-${p.kind || 'bed'}" x="${X(p.x)}" y="${X(p.y)}" width="${X(p.w)}" height="${X(p.h)}"/>`).join('')
+      + `<rect class="ow" x="0" y="0" width="${X(W)}" height="${X(H)}"/></svg>`;
+    const labels = m.rooms.map((p) => {
+      const left = ((p.x + p.w / 2) * SC - vb[0]) / vb[2] * 100, top = ((p.y + p.h / 2) * SC - vb[1]) / vb[3] * 100;
+      const small = p.w < 2.8 || p.h < 1.7, tiny = p.w < 1.6 || p.h < 1.1;
+      return tiny ? null : el('span', { class: 'rl' + (small ? ' sm' : ''), 'aria-hidden': 'true', style: `left:${left.toFixed(2)}%;top:${top.toFixed(2)}%` }, el('b', {}, small ? planShort(p.n) : p.n), small ? null : el('span', { class: 'num' }, fmt.m2(p.area)));
+    });
+    const ratio = vb[2] / vb[3];
+    const rooms = m.rooms.slice().sort((p, q) => (p.kind === 'living' ? -1 : q.kind === 'living' ? 1 : q.area - p.area));
+    const desc = `Šematski tlocrt jedinice ${r.code}: ${rooms.map((p) => `${p.n} ${fmt.m2(p.area)}`).join(', ')}${m.terrace ? `, ${m.terrace.n.toLowerCase()} ${fmt.m2(m.terrace.area)}` : ''}.`;
+    return el('div', { class: 'pj-plan', id, role: 'group', 'aria-label': `Tlocrt jedinice ${r.code}` },
+      el('div', { class: 'pj-plan-box', role: 'img', 'aria-label': desc, style: `aspect-ratio:${ratio.toFixed(4)};width:min(100%, ${Math.round(300 * ratio)}px)` }, el('div', { class: 'svg', html: svg }), labels),
+      el('div', { class: 'pj-plan-side' },
+        el('p', { class: 'eyebrow' }, `${r.code} · ${unitType(r)}, ${fmt.m2(r.a)}`),
+        el('dl', { class: 'pj-plan-leg' }, rooms.map((p) => el('div', {}, el('dt', {}, p.n), el('dd', { class: 'num' }, fmt.m2(p.area)))),
+          m.terrace ? el('div', { class: 'ter' }, el('dt', {}, `${m.terrace.n} (van kvadrature)`), el('dd', { class: 'num' }, fmt.m2(m.terrace.area))) : null,
+          el('div', { class: 'tot' }, el('dt', {}, 'Ukupno'), el('dd', { class: 'num' }, fmt.m2(m.a)))),
+        el('p', { class: 'note-rule' }, 'Šematski tlocrt — pravi raspored tražite od prodavca.'),
+        el('div', { class: 'pj-plan-act' },
+          r.st === 'dos' ? el('button', { class: 'btn btn-primary btn-sm', type: 'button', onclick: () => ask(r) }, `Pošalji upit za ${r.code}`)
+            : el('span', { class: 'meta' }, r.st === 'rez' ? 'Jedinica je rezervisana.' : 'Jedinica je prodata — tlocrt je za poređenje.'),
+          r.real ? el('a', { class: 'btn btn-secondary btn-sm', href: R.listing(r.l.s) }, 'Oglas') : null)));
+  }
+
   function unitsSection(P, ctx) {
     const rows = unitRows(P);
     const cnt = { dos: 0, rez: 0, pro: 0 }; rows.forEach((r) => cnt[r.st]++);
@@ -363,7 +433,28 @@
       const f = KEY[sort.k];
       return L.slice().sort((x, y) => { const a = f(x), b = f(y); if (a == null || b == null) return (a == null) - (b == null) || x.i - y.i; return (a - b) * sort.dir || x.i - y.i; });
     };
-    const ask = (r) => el('button', { class: 'btn btn-secondary btn-sm', type: 'button', 'aria-label': `Pošalji upit za jedinicu ${r.code}`, onclick: () => ctx && ctx.ask && ctx.ask(r) }, 'Upit');
+    const doAsk = (r) => ctx && ctx.ask && ctx.ask(r);
+    const ask = (r) => el('button', { class: 'btn btn-secondary btn-sm', type: 'button', 'aria-label': `Pošalji upit za jedinicu ${r.code}`, onclick: () => doAsk(r) }, 'Upit');
+    /* „Tlocrt“: proširuje red (tabela: red ispod; telefon: blok u stavci). Otvoreni ostaju otvoreni posle sortiranja. */
+    const openPlans = new Set(), models = new Map();
+    const modelOf = (r) => { if (!models.has(r.code)) models.set(r.code, S(() => unitPlanModel(P, r), null)); return models.get(r.code); };
+    let uid = 0;
+    const planToggle = (r, mount) => {
+      const m = modelOf(r);
+      if (!m) return null;
+      const pid = `pj-plan-${++uid}`;
+      const b = el('button', { class: 'btn btn-secondary btn-sm pj-plan-b', type: 'button', 'aria-expanded': 'false', 'aria-controls': pid, 'aria-label': `Tlocrt jedinice ${r.code}` }, 'Tlocrt', icon('chev-d', 14));
+      let node = null;
+      const set = (on) => {
+        b.setAttribute('aria-expanded', on ? 'true' : 'false');
+        if (on && !node) node = mount(unitPlan(P, r, m, pid, doAsk));
+        else if (!on && node) { node.remove(); node = null; }
+        if (on) openPlans.add(r.code); else openPlans.delete(r.code);
+      };
+      b.addEventListener('click', () => set(b.getAttribute('aria-expanded') !== 'true'));
+      b._init = () => { if (openPlans.has(r.code)) set(true); };
+      return b;
+    };
     const priceEl = (r) => (r.real ? el('span', { class: 'price' }, fmt.price(r.p)) : r.st === 'dos' ? el('span', { class: 'pj-ask' }, 'cena na upit') : '—');
     const ppmEl = (r) => (r.real && r.ppm ? el('span', { class: 'pj-ppm' }, el('span', { class: 'ppm' }, fmt.ppm(r.ppm)), ppmDelta(r.l)) : '—');
     const COLS = [['Jedinica'], ['Struktura · strana'], [() => [unitM2()], 'a', 'num'], ['Sprat', 'fl'], ['Cena', 'p', 'num'], [() => ['€/', unitM2(), ' · Δ'], null, 'num'], ['Status', 'st'], ['Akcije', null, 'num sr-th']];
@@ -388,17 +479,23 @@
         const flr = r.fl != null ? S(() => fmt.floor(r.fl, r.tf), String(r.fl)) : '—', ori = r.or ? S(() => ORIENT[r.or], r.or) : '';
         const stEl = () => el('span', { class: 'pj-st pj-st-' + r.st }, ST[r.st]);
         const code = () => (r.real ? el('a', { class: 'ttl', href: R.listing(r.l.s) }, r.code) : el('span', { class: 'ttl' }, r.code));
-        ul.append(el('li', { class: 'pj-u-' + r.st },
-          el('div', { class: 'pj-ul-a' }, code(), stEl()),
+        const li = el('li', { class: 'pj-u-' + r.st });
+        const pbL = planToggle(r, (n) => { li.append(n); return n; });
+        li.append(el('div', { class: 'pj-ul-a' }, code(), stEl()),
           el('p', { class: 'pj-ul-f' }, [t, fmt.m2(r.a), flr, ori].filter(Boolean).join(' · ')),
           r.st === 'dos' ? el('div', { class: 'pj-ul-p' }, priceEl(r), r.real ? ppmEl(r) : null,
-            el('span', { class: 'pj-acts' }, r.real ? el('a', { class: 'btn btn-secondary btn-sm', href: R.listing(r.l.s) }, 'Oglas') : null, ask(r))) : null));
-        tbody.append(el('tr', { class: 'pj-u-' + r.st + (r.real ? ' pj-real' : '') },
-          el('td', {}, code()),
+            el('span', { class: 'pj-acts' }, r.real ? el('a', { class: 'btn btn-secondary btn-sm', href: R.listing(r.l.s) }, 'Oglas') : null, pbL, ask(r)))
+            : pbL ? el('div', { class: 'pj-ul-p' }, el('span', { class: 'pj-acts' }, pbL)) : null);
+        ul.append(li);
+        const tr = el('tr', { class: 'pj-u-' + r.st + (r.real ? ' pj-real' : '') });
+        const pbT = planToggle(r, (n) => { const x = el('tr', { class: 'pj-plan-tr' }, el('td', { colspan: String(COLS.length) }, n)); tr.after(x); return x; });
+        tr.append(el('td', {}, code()),
           el('td', {}, el('span', { class: 'pj-t' }, t), ori ? el('span', { class: 'pj-or' }, ori) : null), el('td', { class: 'num' }, fmt.m2(r.a)), el('td', { class: 'pj-fl' }, flr),
           el('td', { class: 'num' }, r.real ? el('a', { class: 'pj-pl', href: R.listing(r.l.s), 'aria-label': `Oglas ${r.code}, ${fmt.price(r.p)}` }, priceEl(r)) : priceEl(r)), el('td', { class: 'num' }, ppmEl(r)),
           el('td', {}, stEl()),
-          el('td', { class: 'num' }, r.st === 'dos' ? ask(r) : null)));
+          el('td', { class: 'num' }, el('span', { class: 'pj-acts' }, r.st === 'dos' ? ask(r) : null, pbT)));
+        tbody.append(tr);
+        if (pbL) pbL._init(); if (pbT) pbT._init();
       });
     };
     const usort = select([{ v: '', l: 'Redosled: dostupne prvo' }, { v: 'p', l: 'Cena rastuće' }, { v: 'p-d', l: 'Cena opadajuće' }, { v: 'a', l: 'Kvadratura rastuće' }, { v: 'a-d', l: 'Kvadratura opadajuće' }, { v: 'fl', l: 'Sprat rastuće' }, { v: 'fl-d', l: 'Sprat opadajuće' }, { v: 'st', l: 'Status: dostupne → prodate' }, { v: 'st-d', l: 'Status: prodate → dostupne' }], '',
@@ -418,7 +515,7 @@
     const T = timeline(P);
     return sec('Tok izgradnje', null,
       el('div', { class: 'pj-tl-top' }, P.rok ? el('p', { class: 'pj-prog' }, el('b', { class: 'num' }, Math.round(T.pct * 100) + ' %'), el('span', {}, `izgrađeno · početak ${monthLabel(T.start)} · rok ${P.rok}`))
-        : el('p', { class: 'pj-prog' }, el('b', {}, 'Završeno'), el('span', {}, `upotrebna dozvola ${monthLabel(T.end)}`)), demoTag('demo prikaz — datumi nisu od investitora')),
+        : el('p', { class: 'pj-prog' }, el('b', {}, 'Završeno'), el('span', {}, `${T.noPermit ? 'radovi završeni' : 'upotrebna dozvola'} ${monthLabel(T.end)}`)), demoTag('demo prikaz — datumi nisu od investitora')),
       el('div', { class: 'pj-pb', role: 'img', 'aria-label': `Izgrađeno ${Math.round(T.pct * 100)} %` }, el('span', { style: `width:${(T.pct * 100).toFixed(1)}%` })),
       el('ol', { class: 'pj-tl' }, T.items.map((m, i) => el('li', { class: m.done ? 'done' : i === T.cur ? 'cur' : '' },
         el('span', { class: 'mk', 'aria-hidden': 'true' }, m.done ? icon('check', 14) : null), el('span', { class: 'tl-l' }, m.label),
@@ -439,20 +536,21 @@
     }
     return sec('Plan plaćanja', null, el('p', { class: 'pj-p' }, P.status === 'gradnja'
       ? 'Investitor ne nudi plaćanje na rate. Kupovina je moguća odjednom ili kreditom; kredit za stan u izgradnji odobravaju samo neke banke, uz hipoteku na objekat u izgradnji.'
-      : S(() => KX.trust(l).legal, '') === 'uknjizeno' ? 'Useljivo odmah: plaćanje odjednom ili stambenim kreditom. Jedinica je uknjižena, pa banka može da odobri kredit uz svoju procenu.'
-        : `Useljivo odmah: plaćanje odjednom ili stambenim kreditom. Pravni status: ${S(() => KX.trust(l).legalLabel.toLowerCase(), 'proverite list nepokretnosti')} — od toga zavisi da li banka odobrava kredit.`),
+      : legalOf(P) === 'uknjizeno' ? 'Useljivo odmah: plaćanje odjednom ili stambenim kreditom. Jedinica je uknjižena, pa banka može da odobri kredit uz svoju procenu.'
+        : `Useljivo odmah: plaćanje odjednom ili stambenim kreditom. Pravni status: ${LEGAL_TXT[legalOf(P)] ? LEGAL_TXT[legalOf(P)].replace(/^U(?=[ pn])/, 'u') : 'proverite list nepokretnosti'} — od toga zavisi da li banka odobrava kredit.`),
     el('p', { class: 'meta pj-foot' }, P.status === 'gradnja' ? 'Uslovi plaćanja su demo podatak, ne ponuda investitora.' : 'Investitor ne nudi plaćanje na rate (demo podatak).'));
   }
 
   function vatSection(P) {
     const units = P.units.filter((l) => l.pt === 'stan' || l.pt === 'kuca');
-    if (!units.length) return sec('PDV i prvi stan', null, el('p', { class: 'pj-p' }, 'Cene uključuju PDV od 10 %. Povraćaj PDV-a za prvog kupca važi samo za stan ili kuću, pa ga za ovu jedinicu ne računamo.'));
+    /* poslovni prostor: opšta stopa 20 % (čl. 23 Zakona o PDV-u); 10 % samo za prvi promet stanova i kuća, a povraćaj za prvi stan ovde ne važi */
+    const biz = P.units.some((l) => l.pt === 'poslovni-prostor');
+    if (!units.length) return sec('PDV', null, el('p', { class: 'pj-p' }, `${P.units.length > 1 ? 'Cene uključuju' : 'Cena uključuje'} PDV od 20 % (poslovni prostor; stopa od 10 % važi samo za prvu prodaju stanova i kuća). Povraćaj PDV-a za prvi stan ovde ne važi.`));
     let pick = units[0], hh = 1;
     const out = el('div', { class: 'pj-vat-out' });
     const paint = () => {
-      /* oglašivač je agencija: provizija 2 % + PDV ostaje i imenuje se; PDV je u ceni (eksplicitno, ne iz sačuvanog profila) */
-      const l = pick, c = S(() => KX.cost(l, { firstHome: true, household: hh, financing: 'kes', vatIncluded: true, agencyFeePct: 2, agencyPayer: 'kupac' }), null);
-      const prov = c ? (c.lines.find((x) => x.key === 'provizija') || {}).amount || 0 : 0;
+      /* agencija prodaje za investitora: proviziju po pravilu plaća investitor (prodavac), pa ne ulazi u trošak kupca; PDV je u ceni (eksplicitno, ne iz sačuvanog profila) */
+      const l = pick, c = S(() => KX.cost(l, { firstHome: true, household: hh, financing: 'kes', vatIncluded: true, agencyFeePct: 2, agencyPayer: 'prodavac' }), null);
       const vat = c ? (c.lines.find((x) => x.key === 'pdv') || {}).inPrice || Math.round(l.p - l.p / 1.1) : Math.round(l.p - l.p / 1.1);
       const back = c ? c.laterInflow || 0 : Math.round(vat * Math.min(1, (40 + 15 * (hh - 1)) / l.a));
       const day = c ? c.onPurchase : l.p;
@@ -461,7 +559,7 @@
       out.append(
         el('dl', { class: 'pj-vat-t' },
           el('div', {}, el('dt', {}, 'Cena iz oglasa'), el('dd', { class: 'price' }, fmt.price(l.p)), el('p', { class: 'meta' }, `uključuje PDV ${fmt.price(vat)}`)),
-          el('div', {}, el('dt', {}, 'Potrebno na dan kupovine'), el('dd', { class: 'price' }, fmt.price(day)), el('p', { class: 'meta' }, prov ? `sa overom i upisom; uključuje proviziju agencije 2 % + PDV: ${fmt.price(prov)}; bez kredita` : 'sa overom i upisom; bez provizije i bez kredita')),
+          el('div', {}, el('dt', {}, 'Potrebno na dan kupovine'), el('dd', { class: 'price' }, fmt.price(day)), el('p', { class: 'meta' }, l.ags ? 'sa overom i upisom; provizija agencije: plaća investitor (proverite u ugovoru); bez kredita' : 'sa overom i upisom; bez provizije i bez kredita')),
           el('div', { class: 'in' }, el('dt', {}, 'Vraća se posle ≈ 45 dana'), el('dd', { class: 'price' }, '−' + fmt.price(back)), el('p', { class: 'meta' }, `PDV na ${fmt.m2(fh.eligibleM2)} od ${fmt.m2(l.a)}`))),
         el('p', { class: 'pj-p' }, `Stvarni trošak posle povraćaja: `, el('b', {}, fmt.price(day - back)), '. Povraćaj ne smanjuje novac koji vam treba na dan kupovine — planirajte ga kao priliv kasnije.'));
     };
@@ -470,6 +568,7 @@
     const uSel = units.length > 1 ? select(units.map((l) => ({ v: l.s, l: `${fmt.m2(l.a)} · ${fmt.price(l.p)}` })), pick.s, (v) => { pick = units.find((x) => x.s === v) || pick; paint(); }, { label: 'Jedinica' }) : null;
     return sec('PDV i prvi stan', 'Cena uključuje PDV — evo koliko se vraća kupcu prvog stana',
       el('div', { class: 'pj-vat-in' }, uSel ? field('Jedinica', uSel) : null, field('Domaćinstvo', hhSel)), out,
+      biz ? el('p', { class: 'meta pj-foot' }, 'Poslovni prostori u ovom projektu oporezuju se po stopi od 20 % i nemaju povraćaj PDV-a za prvi stan.') : null,
       el('p', { class: 'note-rule pj-cond' }, 'Uslovi: prva kupovina stana od investitora, državljanin sa prebivalištem u Srbiji koji od 1. jula 2006. nije imao stan, članovi domaćinstva prijavljeni na istoj adresi, cela cena plaćena na račun prodavca. Zahtev se podnosi jednom, na obrascu RFN. Povraćaj se računa na cenu bez PDV-a, za 40 m² + 15 m² po svakom sledećem članu.'));
   }
 
@@ -479,7 +578,9 @@
       el('div', { class: 'pj-rec' }, el('p', { class: 'pj-rec-n' }, el('b', { class: 'num' }, `${r.onTime}/${r.items.length}`), el('span', {}, `ranijih projekata iz ponude agencije ${P.agency} predato je u ugovorenom roku`)), demoTag()),
       el('ul', { class: 'pj-recl' }, r.items.map((x) => el('li', {}, el('span', { class: 'tl-l' }, x.name, el('small', {}, ` · ${x.units} ${plu(x.units, 'stan', 'stana', 'stanova')}`)), el('span', { class: 'num' }, `${x.year}.`),
         el('span', { class: 'pj-st ' + (x.delay ? 'pj-st-rez' : 'pj-st-dos') }, x.delay ? `kasnio ${x.delay} ${plu(x.delay, 'mesec', 'meseca', 'meseci')}` : 'na vreme')))),
-      el('p', { class: 'meta pj-foot' }, 'Pre potpisa tražite građevinsku dozvolu, broj predmeta i rok za upotrebnu dozvolu u ugovoru, kao i ugovornu kaznu za kašnjenje.'));
+      el('p', { class: 'meta pj-foot' }, NO_PERMIT.has(legalOf(P)) ? (legalOf(P) === 'ozakonjenje' ? 'Objekat je u postupku ozakonjenja — pre kupovine tražite rešenje o ozakonjenju ili dokaz o podnetom zahtevu; do rešenja nema upisa ni kredita.'
+        : 'Objekat je upisan po Zakonu iz 2025., bez građevinske i upotrebne dozvole — pre kupovine tražite rešenje o upisu i potvrdu banke da finansira.')
+        : 'Pre potpisa tražite građevinsku dozvolu, broj predmeta i rok za upotrebnu dozvolu u ugovoru, kao i ugovornu kaznu za kašnjenje.'));
   }
 
   function viewProject(q) {
@@ -504,9 +605,12 @@
       [P.flats ? 'Broj stanova' : 'Broj jedinica', P.perFloor ? String(availOf(P).total) : `${P.units.length} u ponudi`], ['Spratnost', P.flats ? `P+${P.tf}` : P.tf > 1 ? `P+${P.tf - 1}` : 'P'], ['Grejanje', S(() => HEAT[l.he], '') || 'Nije navedeno'],
       ['Parking', P.parking], ['Prodaja na rate', P.rate ? 'Da' : 'Ne']];
     if (l.en) facts.push(['Energetski razred', l.en]);
-    facts.push(['Građevinska dozvola br.', [el('span', { class: 'num' }, permit), ' ', demoTag('demo')], 'pj-kf-w']);
+    if (!P.rok) facts.push(['Pravni status', LEGAL_TXT[T0.legal] || 'Proverite list nepokretnosti', T0.noPermit ? 'pj-kf-w' : null]);
+    /* bez dozvola (upis po Zakonu iz 2025., ozakonjenje) nema ni demo broja građevinske dozvole */
+    facts.push(['Građevinska dozvola br.', T0.noPermit ? 'Nije navedena' : [el('span', { class: 'num' }, permit), ' ', demoTag('demo')], 'pj-kf-w']);
     const ctx = {};
-    return el('div', { class: 'wrap ct pj pj-page' },
+    /* zaobilaženje: ruta u app.js daje opšti naslov „Projekat novogradnje“; posle setMeta upisujemo ime projekta */
+    const root = el('div', { class: 'wrap ct pj pj-page' },
       crumbs([{ label: 'Novogradnja', href: '#/novogradnja' }, { label: P.c, href: R.projects({ c: P.cs }) }, { label: P.name }]),
       el('header', { class: 'pj-phead' },
         el('div', { class: 'dmeta' }, el('span', { class: 'eyebrow' }, 'Novogradnja · ' + P.c), el('span', { class: 'dot' }), el('span', {}, statusLabel(P))),
@@ -514,7 +618,7 @@
         el('p', { class: 'dloc' }, icon('pin'), el('span', { class: 'pj-addr' }, `${street ? street + ', ' : ''}${P.n}${P.m && P.m !== P.n ? ', ' + P.m : ''}, ${P.c}`))),
       el('div', { class: 'pj-hero' },
         el('button', { class: 'ph r16 pj-main', type: 'button', 'aria-label': 'Otvori fotografije', onclick: () => S(() => lightbox(l, 0)) }, img.el(l, 0, { aspect: '16:10', alt: `${P.name} — zgrada` }),
-          el('div', { class: 'badges' }, badge('novogradnja'), P.status === 'gradnja' ? badge('u-izgradnji', 'U izgradnji') : null)),
+          el('div', { class: 'badges' }, P.status === 'gradnja' ? badge('top', 'U izgradnji') : badge('novo', 'Useljivo odmah'))),
         (l.im || 1) > 2 ? el('div', { class: 'pj-side' }, thumb(1), thumb(2)) : null),
       el('div', { class: 'pj-layout' },
         el('div', { class: 'pj-top' },
@@ -528,6 +632,8 @@
               el('a', { class: 'link', href: R.search({ t: 'prodaja', c: P.cs, newbuild: true }) }, `Svi oglasi novogradnje — ${P.c}`))))),
       near.length ? el('section', { class: 'section pj-others' }, (others.length ? sectionHead(`Ostali projekti — ${P.agency}`, null, '#/agencija?s=' + encodeURIComponent(P.ags), 'Sve od agencije') : sectionHead(`Još novogradnje — ${P.c}`, null, R.projects({ c: P.cs }), `Svi projekti — ${P.c}`)),
         el('div', { class: 'pj-grid pj-grid-3' }, near.map((x) => projectCard(x, true)))) : null);
+    whenMounted(root, () => { if (/^Projekat novogradnje · /.test(document.title)) document.title = `${P.name} — novogradnja, ${P.c} · Kvadrat.rs`; });
+    return root;
   }
 
   /* ═════════════════════════ SAVETI ═════════════════════════ */
@@ -535,6 +641,12 @@
   const CMAP = { saveti: 'saveti', vodici: 'vodici', 'pravni-saveti': 'zakon', kredit: 'finansije', trziste: 'trziste' };
   const tagsOf = (a) => { const t = [CMAP[a.c] || 'saveti']; if (/izda|zakup|kirij|prinos/i.test(a.t + ' ' + a.s)) t.push('iznajmljivanje'); return t; };
   const catLabel = (a) => (CATS.find((c) => c.v === tagsOf(a)[0]) || CATS[1]).l;
+  /* ispravke naslova i izvoda iz data.js (zamrznut): slug ostaje isti */
+  const ART_FIX = {
+    'sta-proveriti-pri-obilasku-stana-checklist': { t: 'Šta proveriti pri obilasku stana: kontrolna lista u 40 tačaka' },
+    'useljenje-i-prenos-brojila-na-novog-vlasnika': { e: 'Kako preneti struju, vodu, grejanje i komunalije (u Beogradu Infostan) na svoje ime, šta mora da uđe u zapisnik o primopredaji i koje rokove ne smete da propustite.' },
+  };
+  const artOf = (a) => (a && ART_FIX[a.s] ? { ...a, ...ART_FIX[a.s] } : a);
   const initials = (n) => n.split(/\s+/).map((w) => w[0]).slice(0, 2).join('');
   const artImg = (a, eager) => el('img', { src: S(() => img.article(a.s), ''), alt: '', width: 800, height: 500, decoding: 'async', loading: eager ? null : 'lazy' });
   const byline = (a) => el('p', { class: 'ar-by' }, el('span', { class: 'ar-av', 'aria-hidden': 'true' }, initials(a.au)), el('span', {}, el('b', {}, a.au), ` · ${a.rm} min čitanja`));
@@ -598,7 +710,8 @@
       el('p', { class: 'meta' }, `Izvor: oglasi na Kvadrat.rs danas (n = broj oglasa; prikazani delovi grada sa najmanje 3 oglasa). Tražene, ne ostvarene cene.`));
   }
 
-  function articleCard(a, size) {
+  function articleCard(a0, size) {
+    const a = artOf(a0);
     return el('article', { class: 'ar-card' + (size ? ' ar-card-' + size : '') },
       el('a', { class: 'ph r16', href: R.article(a.s), tabindex: '-1', 'aria-hidden': 'true' }, artImg(a, size === 'lead')),
       el('div', { class: 'ar-cb' }, el('p', { class: 'eyebrow' }, catLabel(a)),
@@ -638,12 +751,12 @@
 
   function viewArticle(q) {
     const A = D.articles || [];
-    const a = A.find((x) => x.s === qget(q, 's'));
+    const a = artOf(A.find((x) => x.s === qget(q, 's')));
     if (!a) return el('div', { class: 'wrap ct' }, empty('Tekst nije pronađen', 'Link je možda zastareo.', 'Svi saveti', '#/saveti'));
     const { nodes, toc } = renderBody(BODY[a.s] || a.e);
     const tg = tagsOf(a);
-    const rel = A.filter((x) => x !== a).map((x) => ({ x, sc: (tagsOf(x).some((t) => tg.includes(t)) ? 2 : 0) + (x.c === a.c ? 1 : 0) })).sort((p, r) => r.sc - p.sc || (p.x.s < r.x.s ? -1 : 1)).slice(0, 3).map((o) => o.x);
-    return el('div', { class: 'wrap ct ar ar-page' },
+    const rel = A.filter((x) => x.s !== a.s).map((x) => ({ x, sc: (tagsOf(x).some((t) => tg.includes(t)) ? 2 : 0) + (x.c === a.c ? 1 : 0) })).sort((p, r) => r.sc - p.sc || (p.x.s < r.x.s ? -1 : 1)).slice(0, 3).map((o) => o.x);
+    const root = el('div', { class: 'wrap ct ar ar-page' },
       crumbs([{ label: 'Saveti', href: '#/saveti' }, catLabel(a) === 'Saveti' ? null : { label: catLabel(a), href: R.articles(tg[0]) }, { label: a.t }].filter(Boolean)),
       el('div', { class: 'ar-grid2' },
         el('article', { class: 'ar-main' },
@@ -654,6 +767,10 @@
         toc.length ? el('aside', { class: 'ar-aside' }, el('nav', { class: 'ar-toc', 'aria-label': 'Sadržaj teksta' }, el('p', { class: 'label' }, 'U ovom tekstu'),
           el('ol', {}, toc.map((t) => el('li', {}, el('a', { href: '#' + t.id, onclick: (e) => { e.preventDefault(); const h = document.getElementById(t.id); if (h) h.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }, t.t)))))) : null),
       el('section', { class: 'section ar-rel' }, sectionHead('Povezani saveti', null, '#/saveti', 'Svi saveti'), el('div', { class: 'ar-grid' }, rel.map((x) => articleCard(x)))));
+    /* zaobilaženje: app.js naslov dokumenta čita sirovi naslov iz data.js; ispravljeni naslov upisujemo posle setMeta */
+    const raw = S(() => A.find((x) => x.s === a.s).t, a.t);
+    if (raw !== a.t) whenMounted(root, () => { if (document.title.includes(raw)) document.title = document.title.replace(raw, a.t); });
+    return root;
   }
 
   /* ───── tela članaka (2026, Srbija) ───── */

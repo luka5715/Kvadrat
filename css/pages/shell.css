@@ -106,12 +106,28 @@ body.has-tray .ftr{padding-bottom:calc(48px + 96px)}
 @media (max-width:600px){
   .kv-tray-t,.kv-tray-empty{display:none}
   .kv-tray{padding:8px}
-  .kv-tray-in{gap:8px}
-  .kv-tray-list{gap:4px}
+  .kv-tray-in{gap:8px;min-width:0}
+  /* niz sličica se skuplja i klizi vodoravno umesto da gura dugmad van fioke (360/320 px, 4 oglasa);
+     unutrašnji razmak + negativna margina ostavljaju mesta za „×” (top/right −7px) unutar oblasti klizanja */
+  .kv-tray-list{gap:4px;flex:1 1 auto;min-width:0;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scrollbar-width:none;padding:7px 7px 0 0;margin:-7px -7px 0 0}
+  .kv-tray-list::-webkit-scrollbar{display:none}
+  .kv-tray-list.is-clip{-webkit-mask-image:linear-gradient(90deg,var(--ink) calc(100% - 24px),transparent);mask-image:linear-gradient(90deg,var(--ink) calc(100% - 24px),transparent)}
   .kv-tray-list li,.kv-tray-th,.kv-tray-th img,.kv-tray-th .kv-ph{width:40px;height:40px}
-  .kv-tray-act{gap:0}
+  .kv-tray-act{gap:0;flex:none}
   .kv-tray-clear{display:none}
   .kv-tray-go{padding:0 10px}
+}
+/* uski Android (≤ 379 px): bez ikonice za pražnjenje — pražnjenje ostaje na /uporedi i pojedinačnim „×” */
+@media (max-width:379px){
+  .kv-tray-trash{display:none}
+}
+/* 320–359 px: zaglavlje (logo + pretraga + tema + sačuvani + meni = 356 px) ne sme da gura stranu vodoravno;
+   manji logo i bez razmaka između ikonica, dugmad ostaju 40 × 40 */
+@media (max-width:359px){
+  .hdr>.wrap{gap:8px}
+  .hdr .hdr-r{gap:0}
+  .hdr .logo{font-size:20px;gap:8px}
+  .hdr .logo .mark{width:20px;height:20px}
 }
 
 /* ───────── obaveštenje o privatnosti (ZZPL) ───────── */
@@ -129,11 +145,10 @@ body.has-notice #toasts{bottom:calc(var(--kv-notice-b,24px) + var(--kv-notice-h,
 }
 
 /* ───────── zajedničko: zaglavlje stranica ljuske ───────── */
-.kr-head{padding:28px 0 8px}
-.kr-head .t-h1{margin-top:10px;max-width:22ch}
-.kr-head .lede{margin-top:14px;max-width:60ch}
+/* razmak mrvice → nadnaslov → h1 → uvod daje zajednički ritam u base.css */
+.kr-head{padding-bottom:8px}
+.kr-head .t-h1{max-width:22ch}
 .kr-head .tiles{margin-top:28px;padding-top:20px;border-top:1px solid var(--border)}
-.kr .crumbs,.kv-info .crumbs{margin-top:10px}
 @media (min-width:601px){.kr .crumbs a.d,.kv-info .crumbs a.d{display:inline-flex;align-items:center;min-height:40px}}
 .kr-note{margin-top:20px;font-size:var(--fs-xs);color:var(--muted);max-width:var(--container-text);padding-left:12px;border-left:2px solid var(--accent)}
 
@@ -227,3 +242,54 @@ body.has-notice #toasts{bottom:calc(var(--kv-notice-b,24px) + var(--kv-notice-h,
 #kv-rep-err[hidden]{display:none}
 @media (max-width:860px){.kv-contacts{grid-template-columns:1fr}.kv-keys-dl{grid-template-columns:1fr}}
 @media (max-width:600px){.kv-keys td:nth-child(2),.kv-keys th:nth-child(2){display:none}}
+
+/* ───────── mapa: cela visina bez podnožja (§6.4) ───────── */
+main[data-route="/mapa"]+.ftr{display:none}
+body:has(main[data-route="/mapa"]){overscroll-behavior:none}
+main[data-route="/mapa"] .mp{height:calc(100dvh - var(--header-h) - env(safe-area-inset-top,0px))}
+@media (max-width:860px){
+  body.has-bnav main[data-route="/mapa"] .mp{height:calc(100dvh - var(--header-h) - env(safe-area-inset-top,0px) - var(--bottom-nav-h) - env(safe-area-inset-bottom,0px))}
+}
+
+/* ───────── centar obaveštenja (zvonce) ───────── */
+.kv-bell[aria-expanded="true"]{background:var(--surface);color:var(--ink)}
+.kv-nc{position:fixed;z-index:40;width:min(400px,calc(100vw - 32px));max-height:min(640px,calc(100dvh - var(--header-h) - 32px));display:flex;flex-direction:column;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-lg);animation:kvdown var(--dur) var(--ease-out)}
+@keyframes kvdown{from{opacity:0;transform:translateY(-6px)}}
+.kv-nc-hd{display:flex;align-items:center;gap:10px;padding:10px 8px 10px 20px;border-bottom:1px solid var(--border);flex:none}
+.kv-nc-hd h2{font-family:var(--f-display);font-variation-settings:var(--soft);font-size:20px;font-weight:500;letter-spacing:-.01em;color:var(--ink)}
+.kv-nc-n{font-size:var(--fs-xs);font-weight:600;color:var(--muted)}
+.kv-nc-hd .iconbtn{margin-left:auto}
+.kv-nc-in{display:flex;flex-direction:column;min-height:0;flex:1}
+.kv-nc .kv-nc-list{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain}
+.kv-nc .kv-nc-ft{flex:none}
+.kv-nc-ref{white-space:nowrap}
+.kv-nc-list{list-style:none;margin:0;padding:6px 8px}
+.kv-nc-list li+li{border-top:1px solid var(--border)}
+.kv-nc-it{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:12px;align-items:start;padding:12px;border-radius:var(--r);color:var(--text);min-height:56px}
+.kv-nc-it:hover{background:var(--surface)}
+.kv-nc-ic{width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--r);background:var(--surface);color:var(--muted)}
+.kv-nc-it.is-new .kv-nc-ic{background:var(--accent-soft);color:var(--accent-ink)}
+.kv-nc-tx{display:flex;flex-direction:column;gap:2px;min-width:0}
+.kv-nc-t{font-size:var(--fs-sm);font-weight:600;color:var(--ink);line-height:1.35;font-variant-numeric:tabular-nums}
+.kv-nc-s{font-size:var(--fs-xs);color:var(--muted);line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kv-nc-dot{width:8px;height:8px;margin-top:6px;border-radius:2px;background:var(--accent)}
+.kv-nc-empty{padding:24px 20px 20px;font-size:var(--fs-sm);color:var(--text);line-height:1.5}
+.kv-nc-et{font-weight:600;color:var(--ink);margin-bottom:4px}
+.kv-nc-ft{margin-top:auto;padding:12px 20px 14px;border-top:1px solid var(--border);background:var(--surface);font-size:var(--fs-xs);color:var(--muted);line-height:1.45}
+.kv-nc-ch{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;color:var(--text);font-weight:500}
+.kv-nc-ch .label{margin:0}
+.kv-nc-demo{display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:2px;box-shadow:inset 0 0 0 1px var(--border-strong);font-size:11px;font-weight:600;color:var(--muted)}
+.kv-nc-note{margin-top:6px}
+.sheet.kv-nc-sheet .bd{padding:0}
+.sheet.kv-nc-sheet .kv-nc-list{padding:0 8px}
+.sheet.kv-nc-sheet .kv-nc-ft{padding:14px var(--gutter) 16px}
+@media (max-width:860px){.kv-nc-s{white-space:normal}}
+/* telefon: Sačuvano je u donjoj navigaciji, pa zaglavlje ne mora da ga ponavlja — mesto za zvonce bez vodoravnog skrola */
+@media (max-width:600px){.hdr .hdr-r a.iconbtn[href="#/sacuvani"]{display:none}}
+
+/* ───────── pismo: Latinica / Ћирилица (podnožje) ───────── */
+.ftr-bot .kv-script{padding:2px;background:var(--surface)}
+.ftr-bot .kv-script button{height:36px;padding:0 12px;font-size:13px;position:relative}
+.ftr-bot .kv-script button::after{content:"";position:absolute;inset:-2px 0}
+/* Fraunces i Hanken Grotesk nemaju osnovnu ćirilicu: ćirilična slova idu na Literata (naslovi) i Manrope (tekst); brojevi i latinica ostaju isti */
+:root[lang="sr-Cyrl"]{--f-display:'Fraunces','Literata',Georgia,'Times New Roman',serif;--f-body:'Hanken Grotesk','Manrope','Helvetica Neue',Arial,system-ui,sans-serif}

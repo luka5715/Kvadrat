@@ -241,7 +241,7 @@ const stats = (() => {
     }
     return { ppm: null, label: '', n: 0, scope: null, reason: 'malo' };
   }
-  /* da li oglas x pripada obimu reference ref (izračunate za oglas l) — za grafike „oblast Merila” na stranicama */
+  /* da li oglas x pripada obimu reference ref (izračunate za oglas l) — za grafike „oblast Merila“ na stranicama */
   function inScope(x, l, ref) {
     if (!ref || !ref.scope || !x || !l) return false;
     if (x.t !== l.t || x.pt !== l.pt) return false;
@@ -270,14 +270,22 @@ const stats = (() => {
   /* medijana €/m² prodaja+stan po većim gradovima (maj ili ≥10 oglasa) + deterministička mesečna/godišnja promena */
   function cityIndex() {
     if (cityIdx) return cityIdx;
-    const g = group('prodaja', 'stan');
-    const counts = new Map();
-    for (const l of D.listings) if (l.t === 'prodaja' && l.pt === 'stan' && !l.syn) counts.set(l.cs, (counts.get(l.cs) || 0) + 1);
-    cityIdx = D.cities.filter((c) => c.maj || (counts.get(c.s) || 0) >= 10).map((c) => {
-      const r = g.med('city', c.s); const rr = rng(hash(c.s + '#idx'));
+    /* ceo grad (Beograd sa prigradskim opštinama), bez ponovljenih oglasa — isti uzorak kao zaglavlje pretrage i Tržište (listPpm) */
+    const byCity = new Map();
+    for (const l of D.listings) if (l.t === 'prodaja' && l.pt === 'stan' && !l.syn && l.ppm > 0) { let a = byCity.get(l.cs); if (!a) { a = []; byCity.set(l.cs, a); } a.push(l); }
+    cityIdx = D.cities.filter((c) => c.maj || (byCity.get(c.s) || []).length >= 10).map((c) => {
+      const r = listPpm(byCity.get(c.s) || []); const rr = rng(hash(c.s + '#idx'));
       return { c: c.n, cs: c.s, loc: c.loc, ppm: r.ppm, n: r.n, change: Math.round((rr() * 3 - 1.5) * 10) / 10, change12: Math.round((rr() * 12 - 2) * 10) / 10 };
     }).filter((x) => x.ppm != null).sort((a, b) => b.n - a.n || b.ppm - a.ppm);
     return cityIdx;
+  }
+  /* listPpm(list) → {ppm, n}: medijana €/m² liste (bez ponovljenih oglasa l.syn i bez placeva, čija je cena po aru).
+     Jedan broj za „€/m²” iste ponude svuda: zaglavlje pretrage, početna (cityIndex), Tržište. */
+  function listPpm(list) {
+    const v = (list || []).filter((l) => l && !l.syn && l.pt !== 'zemljiste' && l.ppm > 0).map((l) => l.ppm);
+    if (!v.length) return { ppm: null, n: 0 };
+    const md = median(v);
+    return { ppm: md >= 100 ? Math.round(md) : Math.round(md * 100) / 100, n: v.length };
   }
   /* medijane €/m² po opštinama datog grada za t+pt (za bar-chart sa n=) */
   function munIndex(cs, t = 'prodaja', pt = 'stan') {
@@ -317,7 +325,7 @@ const stats = (() => {
     const src = same.length >= n ? same : pool;
     return src.map((x) => [score(x), x]).sort((a, b) => a[0] - b[0]).slice(0, n).map((x) => x[1]);
   }
-  return { refPpm, delta, deltaPct, inScope, reset, isSuburban: isSub, cityIndex, munIndex, histogram, medians, similar, median, MIN_N, SUBURBAN };
+  return { refPpm, delta, deltaPct, inScope, reset, isSuburban: isSub, cityIndex, munIndex, listPpm, histogram, medians, similar, median, MIN_N, SUBURBAN };
 })();
 
 /* ───────────────────────── mock: ulice, hod, istorija cene, komšiluk (sve deterministički iz hash(l.s); fizička svojstva stana iz l.ps || l.s — ponovljeni oglas istog stana deli ulicu, hod i komšiluk) ───────────────────────── */
@@ -342,7 +350,7 @@ const mock = (() => {
     'beograd/sopot': ['Kosmajski trg', 'Milorada Mice Markovića', 'Kneza Miloša', 'Ljubivoja Gajića', 'Kosmajska'],
     'beograd/barajevo': ['Svetosavska', 'Miodraga Vukovića', 'Lipovačka', 'Beogradska', 'Vuka Karadžića'],
     'novi-sad': ['Bulevar oslobođenja', 'Bulevar cara Lazara', 'Narodnog fronta', 'Futoška', 'Dunavska', 'Zmaj Jovina', 'Železnička', 'Jevrejska', 'Maksima Gorkog', 'Stražilovska', 'Bulevar Jaše Tomića', 'Rumenačka', 'Hadži Ruvimova', 'Kisačka', 'Temerinska', 'Šafarikova', 'Laze Kostića', 'Miše Dimitrijevića', 'Cara Dušana', 'Braće Ribnikar', 'Vojvode Šupljikca', 'Bulevar kralja Petra I', 'Novosadskog sajma', 'Pap Pavla', 'Somborska', 'Fruškogorska', 'Sremska'],
-    'nis': ['Obrenovićeva', 'Bulevar Nemanjića', 'Vožda Karađorđa', 'Dušanova', 'Nikole Pašića', 'Bulevar Zorana Đinđića', 'Vizantijski bulevar', 'Bulevar Medijana', 'Somborska', 'Dimitrija Tucovića', 'Cara Dušana', 'Episkopska', 'Kopitareva', 'Jadranska', 'Sinđelićev trg', 'Zetska', 'Pantelejska', 'Knjaževačka', 'Bulevar 12. februar', 'Hajduk Veljkova', 'Učitelj Tasina', 'Ratka Vukićevića', 'Trg kralja Aleksandra', 'Milojka Lešjanina', 'Čairska', 'Stevana Sremca'],
+    'nis': ['Obrenovićeva', 'Bulevar Nemanjića', 'Vožda Karađorđa', 'Dušanova', 'Nikole Pašića', 'Bulevar Zorana Đinđića', 'Vizantijski bulevar', 'Bulevar Medijana', 'Somborska', 'Dimitrija Tucovića', 'Cara Dušana', 'Episkopska', 'Kopitareva', 'Jadranska', 'Sinđelićev trg', 'Zetska', 'Pantelejska', 'Knjaževačka', 'Bulevar 12. februara', 'Hajduk Veljkova', 'Učitelj Tasina', 'Ratka Vukićevića', 'Trg kralja Aleksandra', 'Milojka Lešjanina', 'Čairska', 'Stevana Sremca'],
     'kragujevac': ['Kralja Petra I', 'Kralja Aleksandra I Karađorđevića', 'Lepenički bulevar', 'Bulevar kraljice Marije', 'Nikole Pašića', 'Daničićeva', 'Svetozara Markovića', 'Kneza Mihaila', 'Save Kovačevića', 'Zmaj Jovina', 'Vojvode Putnika', 'Dr Zorana Đinđića', 'Kralja Milana IV', 'Jovana Ristića', 'Radoja Domanovića', 'Branka Radičevića', 'Luja Pastera', 'Cara Lazara', 'Atinska', 'Vojislava Kalanovića', 'Milovana Glišića', '27. marta', 'Miloja Pavlovića', 'Crvenog krsta', 'Ilije Kolovića'],
     '*': ['Kralja Petra I', 'Karađorđeva', 'Cara Dušana', 'Vuka Karadžića', 'Svetog Save', 'Nemanjina', 'Kneza Miloša', 'Hajduk Veljkova', 'Vojvode Mišića', 'Dositejeva', 'Njegoševa', 'Braće Jugovića', 'Save Kovačevića', 'Jovana Cvijića', 'Železnička'],
   };
@@ -611,7 +619,7 @@ const store = (() => {
     toggleCompare(s) {
       const i = S.compare.indexOf(s);
       if (i >= 0) S.compare.splice(i, 1);
-      else if (S.compare.length >= S.COMPARE_MAX) { toast(`Možete uporediti najviše ${S.COMPARE_MAX} oglasa`); return false; }
+      else if (S.compare.length >= S.COMPARE_MAX) { toast(`Možeš da porediš najviše ${S.COMPARE_MAX} oglasa`); return false; }
       else S.compare.push(s);
       write('compare', S.compare); S.emit('compare'); return i < 0;
     },
@@ -830,7 +838,7 @@ function toast(msg, opts = {}) {
   if (!host) { host = el('div', { id: 'toasts', class: 'toasts', 'aria-live': 'polite' }); document.body.appendChild(host); }
   const t = el('div', { class: 'toast' + (opts.kind ? ' ' + opts.kind : ''), role: 'status' }, el('span', { class: 'toast-msg' }, msg),
     opts.action ? el('a', { class: 'toast-act', href: opts.action.href || '#', onclick: (e) => {
-      /* akcija bez href-a (npr. „Poništi”) ne sme da menja adresu (href="#" bi vodio na početnu) */
+      /* akcija bez href-a (npr. „Poništi“) ne sme da menja adresu (href="#" bi vodio na početnu) */
       if (!opts.action.href) e.preventDefault();
       if (typeof opts.action.onClick === 'function') opts.action.onClick(e);
       t.classList.add('is-out'); setTimeout(() => t.remove(), 240);

@@ -1,6 +1,6 @@
 /* Kvadrat.rs — ljuska aplikacije: tabela ruta, preusmerenja, render(), naslovi, skrol, granica grešaka, pokretanje.
    Učitava se poslednji. Stranice su u js/pages/*.js i izvoze view<Ime>(q) funkcije; ljuska ih traži po imenu u trenutku
-   crtanja (window[name]), pa modul koji nedostaje daje uređenu stranicu „u izradi”, a greška u modulu blok greške — nikad prazan ekran.
+   crtanja (window[name]), pa modul koji nedostaje daje uređenu stranicu „u izradi“, a greška u modulu blok greške — nikad prazan ekran.
    render() = ui.header(navPath) + <main id="main"> view(q) + ui.footer(); donja navigacija dolazi uz header (≤860px).
    Ista ruta sa drugim parametrima: root.update(q, path) ako ga pogled nudi (rezultati), inače ponovni render uz zadržan skrol. */
 'use strict';
@@ -49,7 +49,7 @@
   const listingNav = (q) => { const l = S(() => find.listing(q.get('s')), null); return l && l.t === 'izdavanje' ? '/izdavanje' : '/prodaja'; };
 
   /* ───────────────────────── tabela ruta ─────────────────────────
-     view: ime globalne funkcije · title(q) · nav(q) · id: parametar koji određuje „istu stranicu” (drugačiji → skrol na vrh) */
+     view: ime globalne funkcije · title(q) · nav(q) · id: parametar koji određuje „istu stranicu“ (drugačiji → skrol na vrh) */
   const ROUTES = {
     '/': { view: 'viewHome', name: 'Početna', title: () => null, desc: 'Stanovi, kuće i poslovni prostori u Srbiji — cena po m² uz svaki oglas i poređenje sa prosekom kraja.' },
     '/pretraga': { view: 'viewResults', name: 'Pretraga', title: resultsTitle, nav: resultsNav, args: (q, path) => [q, path] },
@@ -75,7 +75,7 @@
     ROUTES[p] = { view: 'viewInfo', name: t, title: () => t, args: (q, path) => [q, path] };
   });
 
-  /* ───────────────────────── preusmerenja (stare i „lepe” adrese) ───────────────────────── */
+  /* ───────────────────────── preusmerenja (stare i „lepe“ adrese) ───────────────────────── */
   const PT_PATH = { stanovi: 'stan', stan: 'stan', kuce: 'kuca', kuca: 'kuca', 'poslovni-prostori': 'poslovni-prostor', lokali: 'poslovni-prostor', zemljista: 'zemljiste', placevi: 'zemljiste', garaze: 'garaza', sobe: 'soba', vikendice: 'vikendica' };
   function pathParams(path) {
     const fn = window.resultsParamsFromPath;
@@ -141,9 +141,28 @@
         S(() => icon('search'), null), el('span', { class: 'kv-search-l' }, 'Pretraga'), el('kbd', { class: 'kv-search-k' }, mac ? '⌘K' : 'Ctrl K'));
       r.insertBefore(b, r.firstChild);
     });
+    /* centar obaveštenja (global.js): zvonce ispred „Sačuvani oglasi“ */
+    S(() => {
+      const r = h.querySelector('.hdr-r');
+      if (!r || r.querySelector('.kv-bell')) return;
+      const b = G().notif.button();
+      const fav = r.querySelector('a.iconbtn[href="#/sacuvani"]') || r.querySelector('.btn-ink');
+      r.insertBefore(b, fav || null);
+    });
     return h;
   }
-  function makeFooter() { return S(() => footer(), null) || el('footer', { class: 'ftr' }, el('div', { class: 'wrap' }, '© 2026 Kvadrat.rs')); }
+  /* podnožje: statični „Srpski (latinica)“ postaje prekidač Latinica / Ћирилица (global.js → kv.script) */
+  function makeFooter() {
+    const f = S(() => footer(), null) || el('footer', { class: 'ftr' }, el('div', { class: 'wrap' }, '© 2026 Kvadrat.rs'));
+    S(() => {
+      const nav = f.querySelector('nav[aria-label="Jezik"]'); if (!nav) return;
+      nav.setAttribute('aria-label', 'Pismo i pravila');
+      const old = [...nav.children].find((n) => n.tagName === 'SPAN' && /latinica/i.test(n.textContent));
+      const ctl = G().script.control();
+      if (old) old.replaceWith(ctl); else nav.insertBefore(ctl, nav.firstChild);
+    });
+    return f;
+  }
 
   function viewFor(path, q, route) {
     const views = S(() => G().views, {}) || {};
@@ -240,6 +259,8 @@
   }
   function after(path, isNew) {
     S(() => G().onRoute(path));
+    /* ćirilica: preslovljavanje novog sadržaja (posle crtanja; kasnije izmene hvata MutationObserver u global.js) */
+    S(() => G().script.apply());
     /* donja navigacija: stranica sa .cta-bar je gasi (body[data-bnav=off]); sigurnosna provera posle montiranja */
     if (isNew) requestAnimationFrame(() => requestAnimationFrame(() => {
       const bar = document.querySelector('.cta-bar');
@@ -260,7 +281,7 @@
     /* router.onChange pokriva i 'hashchange' i setHash(…, true); bez core rutera — sirov hashchange */
     const viaRouter = S(() => { router.onChange((rr, o) => render(rr, o || {})); return true; }, false);
     if (!viaRouter) window.addEventListener('hashchange', () => render());
-    /* brojači u zaglavlju (Sačuvano) se sami osvežavaju preko store.on u ui.js; fioku „Uporedi” osvežava global.js; ljuska prati profil bez punog crtanja */
+    /* brojači u zaglavlju (Sačuvano) se sami osvežavaju preko store.on u ui.js; fioku „Uporedi“ osvežava global.js; ljuska prati profil bez punog crtanja */
     window.addEventListener('scroll', () => { if (!saveT) saveT = setTimeout(saveScroll, 250); }, { passive: true });
     document.addEventListener('click', () => { if (saveT) saveScroll(); }, true);
     window.addEventListener('pagehide', () => { if (saveT) saveScroll(); });

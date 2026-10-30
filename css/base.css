@@ -71,6 +71,19 @@ main,#main{display:block;min-height:50vh}
 @media (max-width:1100px){.grid-4{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:860px){.grid-3{grid-template-columns:repeat(2,minmax(0,1fr))}.section{padding:40px 0 8px}}
 @media (max-width:600px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}.shead{margin-bottom:20px}}
+/* telefon: veza sekcije uvek ide u svoj red i prianja uz uvod (isti obrazac u svim sekcijama) */
+@media (max-width:600px){.shead{row-gap:2px}.shead>div,.shead>header{flex:1 1 100%;min-width:0}.shead .btn-link{align-self:flex-start;min-height:40px;align-items:center;margin-bottom:0}}
+
+/* ───────── zaglavlje stranice: mrvice → nadnaslov → h1 → uvod (isti ritam na svim rutama) ─────────
+   Mrvice su uvek 20px ispod zaglavlja sajta, h1 je 10px ispod mrvica (ili nadnaslova), uvod 14px ispod h1, širine ≤ 60ch.
+   Selektori su namerno jači od pojedinačnih stranica (.agx-head, .ax-head, .tl-head, .pj-head …) da bi ritam bio jedan. */
+main>.wrap:has(>.crumbs:first-child),main>.wrap:has(>:first-child>.crumbs:first-child){padding-top:20px}
+main>.wrap>:first-child:has(>.crumbs:first-child){padding-top:0;margin-top:0}
+main .crumbs:first-child{margin-top:0;margin-bottom:10px}
+main .crumbs:first-child+*{margin-top:0;padding-top:0}
+main .crumbs:first-child+* .eyebrow:first-child,main .crumbs:first-child+.eyebrow{display:block;margin-top:0}
+main .eyebrow+.t-h1{margin-top:10px}
+main .t-h1+.lede{margin-top:14px;max-width:60ch}
 
 /* skip link */
 .skip{position:absolute;left:var(--gutter);top:8px;z-index:80;height:40px;padding:0 14px;display:inline-flex;align-items:center;background:var(--ink);color:var(--bg);border-radius:var(--r);font-weight:600;font-size:14px;transform:translateY(-200%);opacity:0}
@@ -109,7 +122,8 @@ main,#main{display:block;min-height:50vh}
 .ftr-bot nav{display:flex;align-items:center;gap:0 18px;flex-wrap:wrap}
 .ftr-bot nav a,.ftr .wordmark{display:inline-flex;align-items:center;min-height:40px}
 @media (max-width:860px){.ftr-top{grid-template-columns:repeat(2,minmax(0,1fr))}.ftr-top>.ftr-brand{grid-column:1/-1}.ftr{padding-bottom:calc(48px + var(--bottom-nav-h) + env(safe-area-inset-bottom,0px))}}
-@media (max-width:600px){.ftr-top{grid-template-columns:1fr;gap:28px}}
+/* ≤600 ostaju 2 kolone (oznake ≤ 20 znakova staju i na 390px) — podnožje je upola kraće nego u jednoj koloni */
+@media (max-width:600px){.ftr-top{grid-template-columns:repeat(2,minmax(0,1fr));gap:24px 16px}}
 
 /* donja navigacija (≤860) */
 .bnav{display:none}
@@ -192,6 +206,9 @@ textarea.input{height:auto;min-height:120px;padding:10px 12px;resize:vertical;li
 .seg{display:inline-flex;padding:3px;border-radius:var(--r-pill);background:var(--surface-2);border:1px solid var(--border);max-width:100%}
 .seg button{height:40px;padding:0 18px;border-radius:var(--r-pill);font-weight:600;font-size:14px;color:var(--muted);white-space:nowrap;transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
 .seg button[aria-pressed="true"]{background:var(--bg);color:var(--ink);box-shadow:var(--shadow-sm)}
+/* kvadratni segment — sve ostale preklopke (Prikaži kao, EUR/RSD, Stanovi/Kuće, Oglasi/Budžet …); pilula ostaje samo Prodaja/Izdavanje (§9.3) */
+.seg.sq{border-radius:var(--r)}
+.seg.sq button{border-radius:2px}
 /* traka tabova (podvučena) */
 .tabs-ul{display:flex;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none}
 .tabs-ul::-webkit-scrollbar{display:none}

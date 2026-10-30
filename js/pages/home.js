@@ -13,14 +13,42 @@ const HOME_ROUTES = {
   article: (s) => '#/savet?s=' + encodeURIComponent(s),
 };
 
+/* ─────────── vidljivi oglasi — isti podrazumevani skup kao rezultati (search.js run()) ───────────
+   Rezultati po defaultu kriju sporedne duplikate (dup ≠ 0) i oglase koje je korisnik sakrio (bez hid=1),
+   pa se svaki broj na početnoj računa kroz ovaj filter — broj uz link = broj koji link otvara. */
+const homeVisible = (() => {
+  const hasKX = () => typeof KX !== 'undefined';
+  const sec = (l) => { try { return hasKX() && !!KX.dupes && KX.dupes.isSecondary(l.s); } catch (e) { return false; } };
+  const hidden = () => {
+    try { const h = hasKX() && KX.profile ? KX.profile.get().hidden : null; return h instanceof Set ? h : new Set(h || []); } catch (e) { return new Set(); }
+  };
+  /* o.dup === false → prikaži i duplikate (dup=0); o.hid === true → prikaži i sakrivene (hid=1) */
+  function filter(list, o = {}) {
+    const h = o.hid ? null : hidden();
+    const dup = o.dup !== false && hasKX();
+    if (!dup && !(h && h.size)) return list;
+    return list.filter((l) => !(dup && sec(l)) && !(h && h.has(l.s)));
+  }
+  /* opcije iz parametara pretrage (isto čitanje kao search.js: dup ≠ '0'/'false', hid ∈ {'1','true',''}) */
+  function optsFromQs(qs) {
+    try {
+      const p = new URLSearchParams(qs || '');
+      return { dup: !(p.get('dup') === '0' || p.get('dup') === 'false'), hid: p.has('hid') && ['1', 'true', ''].includes(p.get('hid')) };
+    } catch (e) { return {}; }
+  }
+  filter.sec = sec; filter.hidden = hidden; filter.optsFromQs = optsFromQs;
+  filter.sig = () => [...hidden()].sort().join(',');
+  return filter;
+})();
+
 /* ─────────── podaci za početnu (deterministički, keš) ─────────── */
 const homeData = (() => {
-  let cache = null;
+  let cache = null, cacheSig = null;
   const plural = (n, a, b, c) => (typeof fmt !== 'undefined' && fmt.plural ? fmt.plural(n, a, b, c) : (n % 10 === 1 && n % 100 !== 11 ? a : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? b : c));
   const isPromo = (l) => l.pr === 'PREMIUM' || l.pr === 'TOP';
   const isNew = (l) => l.co === 'novogradnja' || l.co === 'u-izgradnji';
 
-  /* Oglas nedelje: PREMIUM sa najviše pregleda među postavljenim ove nedelje (dz ≤ 7; ako ih nema — svi PREMIUM);
+  /* Oglas nedelje: PREMIUM sa najviše pregleda među oglasima postavljenim ove nedelje (dz ≤ 7; ako ih nema — svi PREMIUM);
      jednak broj → prodaja, pa stan, pa najsvežiji, pa slug */
   /* duplikati (isti stan kod više agencija): na početnoj samo glavna ponuda (najjeftinija) i najviše jedna kartica po grupi */
   const isSec = (l) => { try { return typeof KX !== 'undefined' && !!KX.dupes && KX.dupes.isSecondary(l.s); } catch (e) { return false; } };
@@ -84,14 +112,19 @@ const homeData = (() => {
   }
 
   function get() {
-    if (cache) return cache;
+    /* sakriveni oglasi menjaju brojeve → keš važi samo za isti skup sakrivenih */
+    const sig = homeVisible.sig();
+    if (cache && cacheSig === sig) return cache;
+    cacheSig = sig;
+    const hid = homeVisible.hidden();
     const L = D.listings;
-    const pf = pickFeature(L);
+    const V = homeVisible(L);
+    const pf = pickFeature(V);
     const feature = pf.l;
     const used = new Set([feature.s]);
     const usedG = new Set([groupId(feature)].filter(Boolean));
     const take = (l, out) => {
-      if (used.has(l.s) || isSec(l)) return false;
+      if (used.has(l.s) || isSec(l) || hid.has(l.s)) return false;
       const g = groupId(l);
       if (g && usedG.has(g)) return false;
       out.push(l); used.add(l.s); if (g) usedG.add(g);
@@ -107,9 +140,9 @@ const homeData = (() => {
     for (const l of L.filter((x) => x.t === 'prodaja').sort((a, b) => a.dz - b.dz || b.v - a.v || (a.s < b.s ? -1 : 1))) { if (fresh.length >= 4) break; take(l, fresh); }
 
     const byType = {}; const tByType = {};
-    for (const l of L) { byType[l.pt] = (byType[l.pt] || 0) + 1; (tByType[l.pt] = tByType[l.pt] || { prodaja: 0, izdavanje: 0 })[l.t]++; }
+    for (const l of V) { byType[l.pt] = (byType[l.pt] || 0) + 1; (tByType[l.pt] = tByType[l.pt] || { prodaja: 0, izdavanje: 0 })[l.t]++; }
     /* broj po gradu = oglasi za prodaju, jer link #/pretraga?c=… podrazumeva t=prodaja */
-    const cityCount = {}; L.forEach((l) => { if (l.t === 'prodaja') cityCount[l.cs] = (cityCount[l.cs] || 0) + 1; });
+    const cityCount = {}; V.forEach((l) => { if (l.t === 'prodaja') cityCount[l.cs] = (cityCount[l.cs] || 0) + 1; });
     const cities = D.cities.map((c) => ({ s: c.s, n: c.n, count: cityCount[c.s] || 0 })).filter((c) => c.count > 0)
       .sort((a, b) => b.count - a.count || (a.n < b.n ? -1 : 1));
     const agencies = D.agencies.filter((a) => a.v).slice().sort((a, b) => (b.lc || 0) - (a.lc || 0) || (b.r || 0) - (a.r || 0)).slice(0, 4);
@@ -121,9 +154,9 @@ const homeData = (() => {
     const projects = buildProjects(L);
     const projPick = projects.filter((p) => !p.units.some((u) => u.s === feature.s));
     cache = {
-      total: L.length, feature, featureWeek: pf.week, featured, fresh, promotedCount: promoted.length, newToday: L.filter((l) => l.dz <= 1).length,
+      total: V.length, feature, featureWeek: pf.week, featured, fresh, promotedCount: homeVisible(promoted).length, newToday: V.filter((l) => l.dz <= 1).length,
       byType, tByType, cities, agencies, articles, market, natPpm, natN: sale.length,
-      locations: buildLocations(L), projects: projPick.length >= 2 ? projPick : projects,
+      locations: buildLocations(V), projects: projPick.length >= 2 ? projPick : projects,
     };
     return cache;
   }
@@ -150,7 +183,7 @@ const homeRecent = {
 const homeCountParams = (params) => {
   try {
     const qs = (typeof buildHash === 'function' ? buildHash('/pretraga', params) : router.buildHash('/pretraga', params)).split('?')[1] || '';
-    return applyFilters(paramsToFilters(qs)).length;
+    return homeVisible(applyFilters(paramsToFilters(qs)), homeVisible.optsFromQs(qs)).length;
   } catch (e) { return null; }
 };
 
@@ -242,7 +275,10 @@ function homeSearch(init) {
   });
   input.value = st.text;
   const chipBox = el('span', { class: 'loc-chips' });
-  const fLoc = el('div', { class: 'field f-loc' }, el('label', { for: input.id }, 'Lokacija'), el('div', { class: 'loc-in' }, chipBox, input));
+  /* „Izaberi iz liste“: Grad → Opština → Naselje sa brojevima (za one koji ne znaju tačan naziv kraja) */
+  const pickBtn = el('button', { type: 'button', class: 'hm-pick', 'aria-haspopup': 'dialog', 'aria-label': 'Izaberi lokaciju iz liste', onclick: () => openPicker() },
+    icon('list', 16), el('span', { class: 'l1' }, 'Izaberi iz liste'), el('span', { class: 'l2' }, 'Lista'));
+  const fLoc = el('div', { class: 'field f-loc' }, el('div', { class: 'f-lh' }, el('label', { for: input.id }, 'Lokacija'), pickBtn), el('div', { class: 'loc-in' }, chipBox, input));
   const list = el('ul', { class: 'hm-ac', id: listId, role: 'listbox', 'aria-label': 'Predlozi lokacija', hidden: true });
 
   /* dugme sa živim brojem */
@@ -308,16 +344,19 @@ function homeSearch(init) {
   bWrap,
   el('button', { class: 'btn btn-secondary btn-sm', type: 'submit' }, icon('ruler'), 'Koliko kvadrata?'));
 
-  const more = el('div', { class: 'hm-more' }, el('p', { class: 'search-more' }, 'Više filtera: ', moreLink), bForm);
+  /* drugi načini pretrage: oblast nacrtana na mapi, vreme puta do mojih mesta */
+  const drawLink = el('a', { href: '#/mapa?draw=1' }, icon('draw', 16), 'Nacrtaj oblast na mapi');
+  const ways = el('p', { class: 'hm-ways' }, drawLink, el('a', { href: '#/moja-mesta' }, icon('clock', 16), 'Pretraga po udaljenosti'));
+  const more = el('div', { class: 'hm-more' }, el('p', { class: 'search-more' }, 'Više filtera: ', moreLink), bForm, ways);
   const root = el('div', { class: 'hm-search' }, box, list, msg, locNote, parseRow, recentRow, more, live);
 
   /* ── stanje → filteri ── */
-  function locFilters() {
+  function locFilters(locs = st.locs) {
     const f = { c: '', m: [], n: [] };
-    if (!st.locs.length) return f;
-    f.c = st.locs[0].cs;
-    const ms = st.locs.filter((x) => x.kind === 'm').map((x) => x.s);
-    const ns = st.locs.filter((x) => x.kind === 'n').map((x) => x.s);
+    if (!locs.length) return f;
+    f.c = locs[0].cs;
+    const ms = locs.filter((x) => x.kind === 'm').map((x) => x.s);
+    const ns = locs.filter((x) => x.kind === 'n').map((x) => x.s);
     if (ms.length && ns.length) {
       /* opština ILI naselje: core spaja m i n sa I, pa opštine razvijamo u njihova naselja */
       const set = new Set(ns);
@@ -540,7 +579,7 @@ function homeSearch(init) {
       if (out.length >= 2) break;
       try {
         const p = KX.parseQuery(ex);
-        const n = applyFilters({ ...FILTER_DEFAULTS, t: 'prodaja', pt: ['stan'], ...p.filters }).length;
+        const n = homeVisible(applyFilters({ ...FILTER_DEFAULTS, t: 'prodaja', pt: ['stan'], ...p.filters })).length;
         if (n > 0) out.push(ex);
       } catch (e) { /* preskoči */ }
     }
@@ -636,10 +675,11 @@ function homeSearch(init) {
       const f = filters();
       syncControls(textFilters());
       let n = 0;
-      try { n = applyFilters(f).length; } catch (e) { n = 0; }
+      try { n = homeVisible(applyFilters(f)).length; } catch (e) { n = 0; }
       cnt.textContent = '· ' + fmt.num(n);
       goBtn.setAttribute('aria-label', `Pretraži — ${fmt.num(n)} ${pl(n, 'oglas', 'oglasa', 'oglasa')}`);
       moreLink.href = HOME_ROUTES.search(filtersToParams(f));
+      drawLink.href = '#/mapa?' + [f.c ? 'c=' + encodeURIComponent(f.c) : '', f.t === 'izdavanje' ? 't=izdavanje' : '', 'draw=1'].filter(Boolean).join('&');
       clearTimeout(tLive);
       tLive = setTimeout(() => { live.textContent = `${fmt.num(n)} ${pl(n, 'oglas odgovara', 'oglasa odgovaraju', 'oglasa odgovara')} pretrazi`; }, 500);
       renderZero(f, n);
@@ -650,10 +690,108 @@ function homeSearch(init) {
     const old = root.querySelector('.hm-zero'); if (old) old.remove();
     if (n > 0 || typeof KX === 'undefined' || !KX.relax) return;
     let r = [];
-    try { r = KX.relax(f).slice(0, 2); } catch (e) { r = []; }
+    /* broj uz predlog = ono što link otvara (bez sporednih duplikata i sakrivenih), ne sirovi KX.relax count */
+    try {
+      r = KX.relax(f).map((x) => { let c = x.count; try { c = homeVisible(applyFilters({ ...FILTER_DEFAULTS, ...x.filters })).length; } catch (e) { /* zadrži KX broj */ } return { ...x, count: c }; })
+        .filter((x) => x.count > 0).sort((a, b) => b.count - a.count).slice(0, 2);
+    } catch (e) { r = []; }
     if (!r.length) return;
     parseRow.after(el('p', { class: 'hm-zero' }, 'Nema oglasa za ovu kombinaciju. Najmanja promena: ',
       r.map((x, i) => [i ? ' · ' : '', el('a', { href: HOME_ROUTES.search(filtersToParams({ ...FILTER_DEFAULTS, ...x.filters })) }, `${x.label} (${fmt.num(x.count)})`)])));
+  }
+
+  /* ── „Izaberi iz liste“: list sa opštinama izabranog grada (polja za potvrdu), svaka se razvija u naselja sa brojem oglasa ── */
+  function openPicker() {
+    if (typeof sheet !== 'function') return;
+    const cities = H.locations.filter((x) => x.kind === 'c' && x.count > 0).sort((a, b) => b.count - a.count);
+    if (!cities.length) return;
+    let cs = st.locs.length ? st.locs[0].cs : (cities.find((x) => x.s === 'beograd') || cities[0]).s;
+    let sel = new Set(st.locs.filter((x) => x.kind !== 'c').map((x) => x.id));
+    const open = new Set(), shut = new Set();
+    const byId = new Map(H.locations.map((x) => [x.id, x]));
+    const coll = (a, b) => a.label.localeCompare(b.label, 'sr');
+    const citySel = el('select', { id: nid('pkc'), onchange: () => { cs = citySel.value; sel = new Set(); open.clear(); shut.clear(); draw(); } },
+      cities.map((c) => el('option', { value: c.s, selected: c.s === cs }, `${c.label} (${fmt.num(c.count)})`)));
+    const listBox = el('div', { class: 'hm-pk-list' });
+    const sum = el('p', { class: 'hm-pk-sum', 'aria-live': 'polite' });
+    const okBtn = el('button', { type: 'button', class: 'btn btn-ink', onclick: () => apply() }, 'Primeni');
+    const clrBtn = el('button', { type: 'button', class: 'btn btn-ghost', onclick: () => { sel = new Set(); draw(); } }, 'Ceo grad');
+    const chosen = () => [...sel].map((id) => byId.get(id)).filter((x) => x && x.cs === cs)
+      .sort((a, b) => (a.kind === b.kind ? coll(a, b) : a.kind === 'm' ? -1 : 1));
+    function draw() {
+      /* ponovno crtanje ne sme da izgubi fokus ni položaj skrola u listu */
+      const ae = document.activeElement;
+      const fid = ae && ae.dataset ? ae.dataset.pk : null;
+      const scroller = listBox.closest('.bd');
+      const top = scroller ? scroller.scrollTop : 0;
+      listBox.innerHTML = '';
+      const muns = H.locations.filter((x) => x.kind === 'm' && x.cs === cs && x.count > 0).sort(coll);
+      muns.forEach((m) => {
+        const nbs = H.locations.filter((x) => x.kind === 'n' && x.cs === cs && x.ms === m.s && x.count > 0 && fmt.fold(x.label) !== m.fold).sort(coll);
+        const mOn = sel.has(m.id);
+        const nPicked = mOn ? 0 : nbs.filter((n) => sel.has(n.id)).length;
+        /* razvijeno: ručno otvoreno ili ima izabrana naselja (dok ga korisnik ne skupi) */
+        const isOpen = open.has(m.id) || (nPicked > 0 && !shut.has(m.id));
+        const row = el('div', { class: 'hm-pk-m' + (isOpen ? ' open' : '') },
+          tagCheck(check(m.label, mOn, (on) => { if (on) { sel.add(m.id); nbs.forEach((n) => sel.delete(n.id)); } else sel.delete(m.id); draw(); }, { count: m.count }), m.id),
+          nbs.length ? el('button', {
+            type: 'button', class: 'iconbtn hm-pk-x', 'aria-expanded': isOpen ? 'true' : 'false',
+            'aria-label': `${isOpen ? 'Sakrij' : 'Prikaži'} naselja: ${m.label}${nPicked ? ` (izabrano ${nPicked})` : ''}`,
+            onclick: (e) => toggleRow(m.id, e.currentTarget.getAttribute('aria-expanded') !== 'true'),
+          }, icon(isOpen ? 'chev-u' : 'chev-d', 16)) : null);
+        const sub = nbs.length ? el('div', { class: 'hm-pk-ns', hidden: !isOpen },
+          nbs.map((n) => {
+            const c = check(n.label, mOn || sel.has(n.id), (on) => { if (on) sel.add(n.id); else sel.delete(n.id); draw(); }, { count: n.count });
+            if (mOn) { const i = c.querySelector('input'); i.disabled = true; c.classList.add('dis'); }
+            return tagCheck(c, n.id);
+          })) : null;
+        listBox.append(el('div', { class: 'hm-pk-g', 'data-id': m.id }, row, sub));
+      });
+      const pick = chosen();
+      const city = cities.find((c) => c.s === cs);
+      const locs = pick.length ? pick : city ? [city] : [];
+      let n = 0;
+      /* isti broj kao dugme Pretraži posle primene (lokacija iz liste zamenjuje lokaciju iz rečenice) */
+      try { n = homeVisible(applyFilters({ ...filters(), ...locFilters(locs) })).length; } catch (e) { n = 0; }
+      sum.textContent = pick.length ? `Izabrano: ${pick.map((x) => x.label).join(', ')}` : `Ceo grad: ${city ? city.label : ''}`;
+      okBtn.textContent = `Primeni · ${fmt.num(n)} ${pl(n, 'oglas', 'oglasa', 'oglasa')}`;
+      clrBtn.disabled = !pick.length;
+      if (scroller) scroller.scrollTop = top;
+      if (fid) { const f = listBox.querySelector(`[data-pk="${CSS.escape(fid)}"]`); if (f && !f.disabled) f.focus({ preventScroll: true }); }
+    }
+    function tagCheck(lbl, id) { const i = lbl.querySelector('input'); if (i) i.dataset.pk = id; return lbl; }
+    /* razvijanje bez ponovnog crtanja (fokus ostaje na dugmetu) */
+    function toggleRow(id, on) {
+      if (on) { open.add(id); shut.delete(id); } else { open.delete(id); shut.add(id); }
+      const g = listBox.querySelector(`[data-id="${CSS.escape(id)}"]`);
+      if (!g) return;
+      const b = g.querySelector('.hm-pk-x'), sub = g.querySelector('.hm-pk-ns');
+      if (sub) sub.hidden = !on;
+      g.firstChild.classList.toggle('open', on);
+      if (b) {
+        b.setAttribute('aria-expanded', on ? 'true' : 'false');
+        b.setAttribute('aria-label', b.getAttribute('aria-label').replace(/^(Sakrij|Prikaži)/, on ? 'Sakrij' : 'Prikaži'));
+        b.lastChild.replaceWith(icon(on ? 'chev-u' : 'chev-d', 16));
+      }
+    }
+    function apply() {
+      const pick = chosen();
+      const city = cities.find((c) => c.s === cs);
+      offKeys(['c', 'm', 'n']);
+      st.locs = pick.length ? pick : city ? [city] : [];
+      msg.textContent = '';
+      renderChips(); renderParse(); refresh(true);
+      if (sh) sh.close();
+      requestAnimationFrame(() => pickBtn.focus());
+    }
+    const body = el('div', { class: 'hm-pk' },
+      el('div', { class: 'hm-pk-city' }, el('label', { for: citySel.id }, 'Grad'), el('div', { class: 'sel' }, citySel, icon('chev-d', 16))),
+      sum,
+      el('p', { class: 'hm-pk-t' }, 'Opštine i naselja'),
+      listBox);
+    draw();
+    let sh = null;
+    try { sh = sheet('Izaberi lokaciju', body, { footer: [clrBtn, okBtn], onClose: () => requestAnimationFrame(() => { if (!document.activeElement || document.activeElement === document.body) pickBtn.focus(); }) }); } catch (e) { sh = null; }
   }
 
   function submit() {
@@ -663,7 +801,7 @@ function homeSearch(init) {
     const f = filters();
     const params = filtersToParams(f);
     /* u nedavne idu samo pretrage sa rezultatima (prazne ne pomažu pri povratku) */
-    let n = 0; try { n = applyFilters(f).length; } catch (e) { n = 0; }
+    let n = 0; try { n = homeVisible(applyFilters(f)).length; } catch (e) { n = 0; }
     if (n > 0) homeRecent.push(labelFor(f), params);
     /* upiši stanje kutije u trenutni unos istorije (bez hashchange) → Nazad vraća pretragu */
     try {
@@ -725,7 +863,7 @@ function homeHero(init) {
   const facts = [l.ro ? fmt.rooms(l.ro) : null, l.a ? fmt.m2(l.a) : null, fmt.price(l.p, l.t)].filter(Boolean).join(' · ');
   ph.append(photoCap({ eyebrow: 'Oglas nedelje', title: `${l.n}, ${l.m && l.m !== l.n ? l.m : l.c}`, facts, link: { href: HOME_ROUTES.listing(l.s), label: 'Pogledaj oglas' } }));
   const feature = el('figure', { class: 'hm-feature' }, ph,
-    el('figcaption', { class: 'sr' }, `Oglas nedelje — ${l.ti}, ${fmt.price(l.p, l.t)}. Izabran kao premium oglas sa najviše pregleda${H.featureWeek ? ' među postavljenim ove nedelje' : ''}.`));
+    el('figcaption', { class: 'sr' }, `Oglas nedelje — ${l.ti}, ${fmt.price(l.p, l.t)}. Izabran kao premium oglas sa najviše pregleda${H.featureWeek ? ' među oglasima postavljenim ove nedelje' : ''}.`));
 
   return el('section', { class: 'hm-hero', 'aria-labelledby': 'hm-h1' }, copy, feature);
 }
@@ -881,7 +1019,7 @@ function viewHome(q) {
   /* „Svih N izdvojenih“: filter promo (core BOOL_KEYS), broj = tačno ono što link otvara */
   const featF = { ...FILTER_DEFAULTS, promo: true };
   const featP = filtersToParams(featF);
-  let featN = 0; try { featN = applyFilters(featF).length; } catch (e) { featN = 0; }
+  let featN = 0; try { featN = homeVisible(applyFilters(featF)).length; } catch (e) { featN = 0; }
 
   return el('div', { class: 'wrap hm' },
     homeHero(init),

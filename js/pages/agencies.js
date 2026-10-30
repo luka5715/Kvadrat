@@ -440,6 +440,8 @@
         if (text.value.trim().length < 5) { err(text, fText, 'Napišite kratku poruku.'); bad = bad || text; } else ok(text, fText);
         if (bad) { bad.focus(); return; }
         sent = true; paint(name.value.trim());
+        /* potvrda dobija fokus (forma je zamenjena) */
+        const done = box.querySelector('.agp-sent'); if (done) S(() => done.focus());
       } },
       el('fieldset', { class: 'agp-topic' }, el('legend', { class: 'label' }, 'Tema'),
         el('div', { class: 'agp-topic-o' }, [{ v: 'kupujem', l: 'Kupujem' }, { v: 'prodajem', l: 'Prodajem' }, { v: 'iznajmljujem', l: 'Tražim stan za zakup' }, { v: 'izdajem', l: 'Izdajem' }]
@@ -457,20 +459,31 @@
       box.append(el('div', { class: 'agp-msg-hd' }, el('h2', { class: 't-h2s', id: 'agp-msg-h' }, sent ? 'Poruka je poslata' : `Poruka za ${a.n}`),
         el('button', { class: 'iconbtn', type: 'button', 'aria-label': 'Zatvori poruku', onclick: () => api.close() }, ico('x'))));
       if (sent) {
-        box.append(el('div', { class: 'agp-sent', role: 'status' },
+        box.append(el('div', { class: 'agp-sent', role: 'status', tabindex: '-1' },
           el('p', {}, ico('check-circle', 18), el('span', {}, `Hvala${who ? ', ' + who.split(' ')[0] : ''}. Agencija ${a.n} je dobila vašu poruku i javiće se na kontakt koji ste ostavili.`)),
           el('p', { class: 'meta' }, 'Demo: poruka se ne šalje stvarnoj agenciji i ne čuva se na serveru.'),
-          el('button', { class: 'btn btn-secondary btn-sm', type: 'button', onclick: () => { sent = false; paint(); } }, 'Nova poruka')));
+          el('button', { class: 'btn btn-secondary btn-sm', type: 'button', onclick: () => { sent = false; paint(); const f1 = box.querySelector('input, textarea'); if (f1) S(() => f1.focus()); } }, 'Nova poruka')));
       } else box.append(form());
     }
+    /* fokus se vraća na dugme koje je otvorilo formu (Pošalji poruku / Poruka u traci) */
+    let opener = null;
+    const shown = (n) => n && n.isConnected && !n.disabled && n.getClientRects().length > 0;
     const api = {
       el: box,
       open() {
+        const ae = document.activeElement;
+        if (ae && ae !== document.body && !box.contains(ae)) opener = ae;
         if (box.hidden) { paint(); box.hidden = false; }
         S(() => box.scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }));
         const first = box.querySelector('input, textarea, button.btn'); if (first) S(() => first.focus({ preventScroll: true }));
       },
-      close() { box.hidden = true; },
+      close() {
+        const had = box.contains(document.activeElement) || document.activeElement === document.body;
+        box.hidden = true;
+        if (!had) return;
+        const t = [opener, document.querySelector('.agp-actions .btn-secondary'), document.querySelector('.ag-cta .btn-secondary')].find(shown);
+        if (t) S(() => t.focus());
+      },
     };
     return api;
   }
@@ -480,7 +493,7 @@
     const root = el('div', { class: 'agp-ls' });
     const bar = el('div', { class: 'agp-bar' });
     const out = el('div', { class: 'agp-out' });
-    const meta = el('p', { class: 'ag-count', 'aria-live': 'polite' });
+    const meta = el('p', { class: 'ag-count', 'aria-live': 'polite', tabindex: '-1' });
     function typesFor(t) {
       const m = new Map();
       L.filter((l) => l.t === t).forEach((l) => m.set(l.pt, (m.get(l.pt) || 0) + 1));
@@ -493,14 +506,17 @@
       if (r) return r;
       return L.filter((l) => l.t === st.t && (!st.pt || l.pt === st.pt));
     }
+    /* segment i sortiranje se prave jednom (fokus ostaje na dugmetu); menja se samo red sa tipovima */
+    const seg = S(() => segmented([{ v: 'prodaja', l: `Prodaja · ${nT.prodaja}` }, { v: 'izdavanje', l: `Izdavanje · ${nT.izdavanje}` }], st.t, (v) => { st.t = v; st.pt = ''; st.page = 1; paintBar(); paint(); }), null);
+    const typesBox = el('div', { class: 'agp-types rail' });
+    const sortBox = el('label', { class: 'agp-sort' }, el('span', { class: 'meta' }, 'Sortiraj'), S(() => select(SORTS_L, st.sort, (v) => { st.sort = v; st.page = 1; paint(); }, { inline: true, label: 'Sortiraj oglase' }), null));
+    bar.append(seg || '', typesBox, sortBox);
     function paintBar() {
-      bar.innerHTML = '';
       const tps = typesFor(st.t);
       if (st.pt && !tps.some((x) => x.v === st.pt)) st.pt = '';
-      bar.append(
-        S(() => segmented([{ v: 'prodaja', l: `Prodaja · ${nT.prodaja}` }, { v: 'izdavanje', l: `Izdavanje · ${nT.izdavanje}` }], st.t, (v) => { st.t = v; st.pt = ''; st.page = 1; paintBar(); paint(); }), null),
-        el('div', { class: 'agp-types rail' }, S(() => pills([{ v: '', l: 'Svi tipovi' }, ...tps], [st.pt], (v) => { st.pt = v; st.page = 1; paint(); }, { single: true }), null)),
-        el('label', { class: 'agp-sort' }, el('span', { class: 'meta' }, 'Sortiraj'), S(() => select(SORTS_L, st.sort, (v) => { st.sort = v; st.page = 1; paint(); }, { inline: true, label: 'Sortiraj oglase' }), null)));
+      if (seg && seg.set) S(() => seg.set(st.t));
+      typesBox.innerHTML = '';
+      typesBox.append(S(() => pills([{ v: '', l: 'Svi tipovi' }, ...tps], [st.pt], (v) => { st.pt = v; st.page = 1; paint(); }, { single: true }), '') || '');
     }
     function paint(scroll) {
       const list = results();
@@ -513,12 +529,13 @@
       meta.textContent = list.length ? `${num(list.length)} ${plu(list.length, 'oglas', 'oglasa', 'oglasa')} ${tl}${pages > 1 ? ` · prikazano ${from + 1}–${from + slice.length}` : ''}` : '';
       if (!list.length) {
         out.append(S(() => empty('Agencija trenutno nema ovakvih oglasa', st.t === 'prodaja' && nT.izdavanje ? `Pogledajte ${nT.izdavanje} ${plu(nT.izdavanje, 'oglas', 'oglasa', 'oglasa')} za izdavanje.` : 'Pogledajte druge tipove nekretnina.', 'Svi tipovi', null,
-          { onClick: () => { st.pt = ''; st.page = 1; paintBar(); paint(); } }), el('p', {}, 'Nema oglasa.')));
+          { onClick: () => { st.pt = ''; st.page = 1; paintBar(); paint(); const b = typesBox.querySelector('[aria-pressed="true"]') || (seg && seg.querySelector('[aria-pressed="true"]')); if (b) S(() => b.focus()); } }), el('p', {}, 'Nema oglasa.')));
       } else {
         out.append(el('div', { class: 'cards' }, slice.map((l) => S(() => card(l, 'grid'), el('a', { href: '#/oglas?s=' + l.s }, l.ti)))));
-        if (pages > 1) out.append(S(() => pager(st.page, pages, (p) => { st.page = p; paint(true); }), null));
+        /* posle listanja fokus ide na red „N oglasa · prikazano …“ (vrh nove strane), ne na <body> */
+        if (pages > 1) out.append(S(() => pager(st.page, pages, (p) => { st.page = p; paint(true); S(() => meta.focus({ preventScroll: true })); }), null));
       }
-      out.append(el('p', { class: 'agp-more' }, el('a', { class: 'btn btn-link', href: R.search({ agency: a.s, t: st.t, pt: st.pt || '' }) }, 'Otvori u pretrazi sa filterima'), ico('arrow-right', 16)));
+      out.append(el('p', { class: 'agp-more' }, el('a', { class: 'btn btn-link', href: R.search({ agency: a.s, t: st.t, pt: st.pt || '', dup: '0' }) }, 'Otvori u pretrazi sa filterima'), ico('arrow-right', 16)));
       syncUrl();
       if (scroll) S(() => { const top = root.getBoundingClientRect().top + window.scrollY - 140; if (window.scrollY > top) window.scrollTo({ top, behavior: 'auto' }); });
     }
@@ -623,12 +640,16 @@
       const m = readMine();
       if (!m) return;
       const d = new Date(m.date || Date.now());
-      mine.append(el('div', { class: 'agp-rev agp-rev-mine' },
+      mine.append(el('div', { class: 'agp-rev agp-rev-mine', tabindex: '-1' },
         el('p', { class: 'eyebrow' }, 'Vaša ocena'),
         el('div', { class: 'agp-rev-hd' }, squares(m.stars, 'sm'), el('b', {}, m.name || 'Vi'), el('time', { class: 'meta', datetime: d.toISOString().slice(0, 10) }, dateText(d))),
         m.text ? el('p', { class: 'agp-rev-t' }, m.text) : null,
         el('p', { class: 'meta' }, 'Sačuvano samo u ovom pregledaču; ne ulazi u prosek dok je ne potvrdimo.'),
-        el('button', { class: 'btn btn-ghost btn-sm', type: 'button', onclick: () => { const all = revAll(); delete all[a.s]; revSave(all); paintMine(); paintForm(); } }, ico('trash', 16), 'Obriši moju ocenu')));
+        el('button', { class: 'btn btn-ghost btn-sm', type: 'button', onclick: () => {
+          const all = revAll(); delete all[a.s]; revSave(all); paintMine(); paintForm();
+          /* posle brisanja fokus ide na zvezdice prazne forme */
+          const st0 = formWrap.querySelector('.agp-star[tabindex="0"]'); if (st0) S(() => st0.focus());
+        } }, ico('trash', 16), 'Obriši moju ocenu')));
     }
     function paintForm() {
       formWrap.innerHTML = '';
@@ -661,6 +682,8 @@
         all[a.s] = { stars, name: name.value.trim().slice(0, 40), text: text.value.trim().slice(0, 600), date: new Date().toISOString() };
         const okSave = revSave(all);
         paintMine(); paintForm();
+        /* fokus na sačuvanu ocenu (dugme forme je zamenjeno) */
+        const mineCard = mine.querySelector('.agp-rev-mine'); if (mineCard) S(() => mineCard.focus());
         S(() => toast(okSave ? 'Hvala — vaša ocena je sačuvana' : 'Ocena je prikazana, ali pregledač ne dozvoljava čuvanje'));
       } },
       el('h3', { class: 't-h3' }, m ? 'Izmenite svoju ocenu' : 'Ostavite ocenu'),
@@ -680,5 +703,11 @@
         el('div', { class: 'agp-rv-main' }, mine, revs.length ? list : el('p', { class: 'meta' }, 'Agencija još nema ocena.'), formWrap)));
   }
 
-  Object.assign(window, { viewAgencies, viewAgency, agencyTeam, agencyAgentFor, agencyRegNo: regNo });
+  /* jedno vreme odgovora po agenciji svuda (profil, kontakt kartica oglasa): prima agenciju, oglas (ags) ili slug */
+  function agencyResponseHours(x) {
+    const a = !x ? null : typeof x === 'string' ? S(() => find.agency(x), null) : x.ags ? S(() => find.agency(x.ags), null) : x.s ? x : null;
+    return a && a.s ? responseHours(a) : null;
+  }
+
+  Object.assign(window, { viewAgencies, viewAgency, agencyTeam, agencyAgentFor, agencyRegNo: regNo, agencyResponseHours });
 })();

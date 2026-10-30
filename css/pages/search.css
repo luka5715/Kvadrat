@@ -28,7 +28,10 @@
 .srp-saveform[hidden]{display:none}
 
 /* ── traka filtera ── */
-.srp-bar{margin-top:4px}
+.srp-bar{margin-top:4px;top:calc(var(--header-h) + env(safe-area-inset-top,0px) - 1px)}
+/* razdelnik između pilula sa izborom i brzih izbora */
+.srp-pdiv{flex:none;align-self:center;width:1px;height:24px;margin:0 4px;background:var(--border)}
+.srp-quick .n{font-variant-numeric:tabular-nums}
 .srp-desk{display:flex;align-items:center;gap:8px;min-width:0}
 .srp-desk-l{flex:1 1 auto}
 .srp-desk-l>.seg,.srp-desk-l>.chip{flex:none}
@@ -113,14 +116,20 @@
 .srp-more{width:40px;height:40px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:var(--ink);background:var(--bg);transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
 .srp-more:hover{background:var(--surface)}
 .srp-more.on{background:var(--accent-soft);color:var(--accent-ink)}
-.card>.srp-more{position:absolute;top:10px;right:58px;box-shadow:var(--shadow-pin)}
-/* oznake na fotografiji ne smeju ispod „⋯” i srca (2 × 40px + razmaci) */
-.srp-cards .card .badges{max-width:calc(100% - 112px)}
+.card .foot .srp-more{position:static;flex:none;width:40px;height:40px;margin:-10px -10px -10px 0;background:transparent;box-shadow:none;color:var(--muted)}
+.card .foot .srp-more:hover{background:var(--surface);color:var(--ink)}
+.card .foot .srp-more.on{background:var(--accent-soft);color:var(--accent-ink)}
+/* fotografija nosi samo srce (kao kartice na početnoj, oglasu i agenciji): dve oznake staju u jedan red */
+.srp-cards .card .badges{max-width:calc(100% - 60px)}
 .row .side .srp-more{border:1px solid var(--border)}
 .row-c>.srp-more{position:absolute;top:60px;right:0;border:1px solid var(--border)}
 @media (max-width:600px){.row .side{gap:8px}}
 
 .srp .is-seen h3 a,.srp .is-seen .ttl{color:color-mix(in srgb,var(--ink) 70%,var(--bg))}
+.srp .is-seen .ph{opacity:.85}
+.srp-seen{flex:none;font-size:12px;color:var(--muted);white-space:nowrap}
+.card .foot .srp-seen,.row .foot .srp-seen{margin-left:auto}
+.foot .srp-seen+time{margin-left:0}
 .srp .is-hidden{opacity:.6}
 .srp-pmode{letter-spacing:-.01em}
 .srp-pm{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;margin-top:3px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
@@ -137,14 +146,26 @@
 .row-c .srp-trav,.row-c .srp-affrow{margin-top:5px}
 .srp-sem{position:relative;display:inline-block;flex:none;width:10px;height:10px;border-radius:50%;cursor:help}
 .srp-sem::before{content:"";position:absolute;inset:-15px}
+.srp-sem-l .srp-sem::before{display:none}
+/* semafor sa nazivom: početak podnožja kartice (telefon: red ispod činjenica) */
+.srp-sem-l{position:relative;flex:none;display:inline-flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);white-space:nowrap;cursor:help}
+.srp-sem-l::before{content:"";position:absolute;inset:-10px -4px}
+.card .foot .srp-sem-l+.ag,.row .foot .srp-sem-l+.ag{padding-left:2px}
+.srp-crow{display:flex;align-items:center;gap:6px 14px;min-height:20px;margin-top:6px}
+.srp-provrow{margin-top:8px}
 .srp-sem-zeleno{background:var(--ink)}
 /* žuto bez žute boje (do-not #1): napola popunjen krug u boji mastila = „proveri” (oštar prelaz, ne gradijent površine) */
 .srp-sem-zuto{background:linear-gradient(90deg,var(--ink) 50%,transparent 50%);box-shadow:inset 0 0 0 1.5px var(--ink)}
 /* crveno: prazan krug sa obrubom (isti monohromni sistem kao Sačuvano/Uporedi) */
 .srp-sem-crveno{background:transparent;box-shadow:inset 0 0 0 1.5px var(--ink)}
-.srp-dup{margin-top:10px}
-.srp-dup-b{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:6px 10px;border-radius:var(--r);background:var(--surface);font-size:13px;font-weight:500;color:var(--text);text-align:left}
-.srp-dup-b span{flex:1;min-width:0}
+.srp-dup{margin-top:0}
+/* duplikati: tanka linija teksta iznad podnožja (bez obojenog panela, §9.15) */
+.srp-dup-b{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:0;border-top:1px solid var(--border);border-radius:0;background:none;font-size:13px;font-weight:600;color:var(--accent-ink);text-align:left;font-variant-numeric:tabular-nums}
+.srp-dup-b span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.srp-dup-b:hover span{text-decoration:underline;text-underline-offset:3px}
+.card .body>.srp-dup,.row .body>.srp-dup{margin-bottom:-1px}
+.row-c .srp-dup,.row-c>.srp-dupnote{grid-column:1/-1}
+.row-c>.srp-dup{margin-top:-2px}
 .srp-dup-b .ico{color:var(--accent);flex:none}
 .srp-dup-b[aria-expanded="true"] .ico:last-child{transform:rotate(180deg)}
 .srp-dup-l{list-style:none;margin:0;padding:4px 0 0}
@@ -180,7 +201,7 @@
 .srp-table .table .thumb{width:80px}
 .srp-table .table .og{min-width:0;gap:10px}
 .srp-table .table tr>:nth-child(6),.srp-table .table tr>:last-child{display:none}
-.srp-table .table td:nth-child(4){white-space:normal;min-width:52px}
+.srp-table .table td:nth-child(4){white-space:nowrap}
 .srp-table .table .srp-ppmd{display:block;margin-top:4px}
 .srp-table .table .srp-ppmd .delta{margin:0}
 .srp-table .table .ag{display:inline-flex;align-items:center;gap:6px;max-width:150px;min-width:0;white-space:nowrap}
@@ -188,6 +209,8 @@
 .srp-table .table .ag .srp-sem,.srp-table .table .ag .ico{flex:none}
 .srp-table .table .price s{display:block;margin:2px 0 0}
 @media (max-width:1279px){.srp-table .table .ag{max-width:118px}}
+/* ≥ 1280px: kolona „Δ opština” se vraća (tabela se čita kao tabela), kopija ispod €/m² se skriva */
+@media (min-width:1280px){.srp-table .table tr>:nth-child(6){display:table-cell}.srp-table .table .srp-ppmd{display:none}}
 /* mapa (desktop/tablet): lista + lepljiva mapa */
 .srp-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.9fr);gap:24px;align-items:start}
 .srp-split-r{position:sticky;top:calc(var(--header-h) + 84px)}
@@ -265,4 +288,14 @@ tr.srp-ph td{height:97px;border-bottom:1px solid var(--border)}
   .srp-hbtn span{display:none}
 }
 @media (hover:none){.srp-new{border-bottom:0}}
-.row-c .pricerow>.srp-sem{align-self:center}
+
+
+/* brzi izbori (desktop/tablet red ispod trake; telefon: u skrol-railu trake) */
+.srp-qrow{display:flex;align-items:center;gap:12px;padding:12px 0 0;min-width:0}
+.srp-qrow .lbl{flex:none;font-size:var(--fs-label);font-weight:600;letter-spacing:var(--ls-label);text-transform:uppercase;color:var(--muted)}
+.srp-qchips{display:flex;gap:8px;min-width:0;overflow-x:auto;scrollbar-width:none;padding-right:28px;mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)}
+.srp-qchips::-webkit-scrollbar{display:none}
+.srp-qchips .chip{flex:none}
+@media (max-width:860px){.srp-qrow{display:none}}
+.card .foot .ag .nm,.row .foot .ag .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .foot .ag .ico,.row .foot .ag .ico{flex:none}

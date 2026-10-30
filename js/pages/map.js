@@ -37,7 +37,7 @@ function viewMap(q) {
   /* ───────── filteri (core.js ugovor: FILTER_DEFAULTS — t, pt[], c, m[], n[], pmin…, ro[], co[], he[], fu[], am[], reg, newbuild, sort) ───────── */
   const DEF = { t: 'prodaja', pt: [], c: '', m: [], n: [], pmin: '', pmax: '', amin: '', amax: '', ro: [], flmin: '', flmax: '', notLast: false, ymin: '', ymax: '', co: [], he: [], fu: [], reg: false, newbuild: false, am: [], agency: '', advertiser: '', q: '', deltaMax: '', sort: 'rel', view: 'grid', page: 1 };
   const isBudgetParam = q.get('m') === 'budzet';
-  const qf = new URLSearchParams(q); if (isBudgetParam) qf.delete('m'); qf.delete('b'); qf.delete('o'); qf.delete('k');
+  const qf = new URLSearchParams(q); if (isBudgetParam) qf.delete('m'); qf.delete('b'); qf.delete('o'); qf.delete('k'); qf.delete('zona');
   const readFilters = (qs) => {
     const f = S(() => paramsToFilters(qs), null); if (f) return f;
     const list = (k) => (qs.get(k) || '').split(',').filter(Boolean);
@@ -57,6 +57,10 @@ function viewMap(q) {
 
   /* ───────── stanje stranice ───────── */
   const st = { f: readFilters(qf), mode: isBudgetParam ? 'budget' : 'pins', b: +q.get('b') || 0, bUser: +q.get('b') > 0, owner: q.get('o') === '1', credit: q.get('k') === '1' };
+  /* nacrtana zona u adresi: zona=lat,lng~lat,lng… (isti ključ i oblik koji čita pretraga.js), 4 decimale, najviše 40 tačaka */
+  const zonaIn = (() => { const z = (q.get('zona') || '').split('~').map((x) => x.split(',').map(Number)).filter((x) => x.length === 2 && x.every(isFinite)); return z.length >= 3 ? z.slice(0, 40).map(([lat, lng]) => ({ lat, lng })) : null; })();
+  const zonaStr = (poly) => (poly && poly.length >= 3 ? poly.slice(0, 40).map((pt) => `${(+pt.lat).toFixed(4)},${(+pt.lng).toFixed(4)}`).join('~') : '');
+  let zonaBoot = false;
   const cityOf = (s) => (KV.cities || []).find((c) => c.s === s) || null;
   const munOf = (s) => (KV.muns || []).find((m) => m.s === s) || null;
   if (!st.f.c && st.f.m.length) { const mun = munOf(st.f.m[0]); if (mun) st.f.c = mun.cs; }
@@ -67,8 +71,9 @@ function viewMap(q) {
   const writeHash = () => {
     const p = { ...toParams(st.f) };
     if (st.mode === 'budget') { delete p.m; p.m = 'budzet'; if (st.b && st.bUser) p.b = st.b; if (!isRent()) { if (st.owner) p.o = 1; if (st.credit) p.k = 1; } }
+    const z = zonaStr(map ? S(() => map.getPolygon(), null) : zonaIn); if (z) p.zona = z;
     const u = new URLSearchParams(); Object.entries(p).forEach(([k, v]) => { if (v == null || v === '' || v === false || (Array.isArray(v) && !v.length)) return; u.set(k, Array.isArray(v) ? v.join(',') : v === true ? '1' : String(v)); });
-    const s = u.toString().replace(/%2C/g, ','); S(() => history.replaceState(null, '', '#/mapa' + (s ? '?' + s : '')));
+    const s = u.toString().replace(/%2C/gi, ',').replace(/%7E/gi, '~'); S(() => history.replaceState(null, '', '#/mapa' + (s ? '?' + s : '')));
   };
 
   /* ───────── DOM kostur ───────── */
@@ -129,6 +134,7 @@ function viewMap(q) {
   const modeSeg = S(() => UI.segmented([{ v: 'pins', l: 'Oglasi' }, { v: 'budget', l: 'Budžet' }], st.mode, (v) => switchMode(v)), null);
   const chips = E('div', { class: 'mp-chips' });
   top.append(locBox, drawBtn, filtBtn, modeSeg, chips);
+  function paintDraw(s) { const t = s === 'drawing' ? 'Crtam…' : s === 'zone' ? 'Obriši zonu' : 'Nacrtaj zonu'; drawBtn.setAttribute('aria-pressed', s === 'drawing' || s === 'zone' ? 'true' : 'false'); drawBtn.lastChild.textContent = t; drawBtn.setAttribute('aria-label', t); drawBtn.title = t; }
   function switchMode(v) { if (v === st.mode) return; st.mode = v; root.dataset.mode = v; writeHash(); if (v === 'budget') enterBudget(); else leaveBudget(); }
   function paintFilterBtn() { const n = activeCount(st.f); const nEl = filtBtn.querySelector('.n'); if (nEl) nEl.textContent = String(n); else if (n) filtBtn.appendChild(E('span', { class: 'n' }, String(n))); if (nEl && !n) nEl.remove(); }
   function paintChips() {
@@ -167,12 +173,13 @@ function viewMap(q) {
     const grp = (t, ...kids) => E('div', { class: 'grp' }, E('div', { class: 't' }, t), ...kids);
     const num = (key, ph, suffix) => { const i = E('input', { class: 'input', type: 'text', inputmode: 'numeric', placeholder: ph, value: d[key] || '', 'aria-label': ph + ' ' + suffix, oninput: () => { d[key] = i.value.replace(/[^\d]/g, ''); live(); } }); return E('div', { class: 'input-wrap' }, i, E('span', { class: 'suffix' }, suffix)); };
     const liveBtn = E('button', { class: 'btn btn-ink', type: 'button', onclick: () => apply() });
-    const count = () => runFilters(d).length;
+    /* isto kao mapa (map.js collapseDupes): sporedni oglas istog stana se ne broji kad je glavni u skupu */
+    const count = () => { const list = runFilters(d).filter((l) => l && typeof l.lat === 'number' && typeof l.lng === 'number'); const present = new Set(list.map((l) => l.s)); return list.filter((l) => { const g = typeof KX !== 'undefined' && KX && KX.dupes ? S(() => KX.dupes.groupOf(l.s), null) : null; return !g || g.master === l.s || !present.has(g.master); }).length; };
     let t; const live = () => { clearTimeout(t); t = setTimeout(() => { const n = count(); liveBtn.textContent = n ? `Prikaži ${oglasa(n)}` : 'Nema oglasa'; liveBtn.disabled = !n; }, 120); };
     const roomsOpts = [{ v: 0.5, l: 'Garsonjera' }, { v: 1, l: '1' }, { v: 1.5, l: '1,5' }, { v: 2, l: '2' }, { v: 2.5, l: '2,5' }, { v: 3, l: '3' }, { v: '4+', l: '4+' }];
     const roomsSel = d.ro.map((r) => (typeof r === 'string' ? r : +r));
     const setRooms = (arr) => { d.ro = arr.map((v) => (v === '4+' ? '4+' : +v)); live(); };
-    const body = E('div', {},
+    const body = E('div', { class: 'mp-fsheet' },
       grp('Vrsta', S(() => UI.segmented([{ v: 'prodaja', l: 'Prodaja' }, { v: 'izdavanje', l: 'Izdavanje' }], d.t, (v) => { d.t = v; live(); }), null)),
       grp('Tip', S(() => UI.pills([{ v: '', l: 'Sve' }, ...TYPES_.map((x) => ({ v: x.v, l: x.l }))], d.pt.length ? d.pt : [''], (v) => { d.pt = v ? [v] : []; live(); }, { single: true }), null)),
       grp('Cena', E('div', { class: 'range-inputs' }, num('pmin', 'Od', '€'), num('pmax', 'Do', '€'))),
@@ -243,12 +250,13 @@ function viewMap(q) {
       places: S(() => KX.profile.get().places, []) || [],
       onSelect: (slug) => { selected = slug; if (st.mode === 'pins' && slug && !isDesk() && !slides.has(slug)) updateCarousel(true); paintSelected(); if (st.mode === 'budget') paintBudgetList(); },
       onHover: (slug) => syncHover(slug),
-      onBoundsChange: (b) => { areaCommitted = b; if (b.polygon) toastSafe(`Nacrtana zona · ${oglasa(b.count)}`); else toastSafe(`U ovom području: ${oglasa(map.getVisible().length)}`); updateLists(true); },
+      onBoundsChange: (b) => { areaCommitted = b; if (zonaBoot) { updateLists(true); return; } if (b.polygon) toastSafe(`Nacrtana zona · ${oglasa(b.count)}`); else toastSafe(`U ovom području: ${oglasa(map.getVisible().length)}`); updateLists(true); },
       onViewChange: () => { clearTimeout(viewT); viewT = setTimeout(onSettle, 80); },
-      onDraw: (s) => { const t = s === 'drawing' ? 'Crtam…' : s === 'zone' ? 'Obriši zonu' : 'Nacrtaj zonu'; drawBtn.setAttribute('aria-pressed', s === 'drawing' || s === 'zone' ? 'true' : 'false'); drawBtn.lastChild.textContent = t; drawBtn.setAttribute('aria-label', t); drawBtn.title = t; },
+      onDraw: (s) => { paintDraw(s); if (s === 'zone' || s === 'cancel') writeHash(); },
       onArea: (row) => { budgetSel = row.key; paintBudgetList(); },
     });
     mapBox.addEventListener('pointerdown', () => closeAc());
+    if (zonaIn && map.setPolygon) { zonaBoot = true; S(() => map.setPolygon(zonaIn)); zonaBoot = false; if (S(() => map.getPolygon(), null)) paintDraw('zone'); }
     paintAfford(); paintNote();
     if (st.mode === 'budget') enterBudget();
     else { updateLists(true); requestAnimationFrame(() => { if (map && st.mode === 'pins') { map.fit(); updateLists(true); } }); } /* drugi fit kad je karusel izmeren */
@@ -287,7 +295,7 @@ function viewMap(q) {
     visible = map.getVisible();
     const total = map.getFiltered().length;
     const polyN = map.getPolygon() ? ` · zona` : '';
-    drawerHd.append(E('div', {}, E('h2', {}, visible.length ? `${oglasa(visible.length)} u prikazu` : 'Ništa u prikazu'), E('p', {}, `${oglasa(total)} za filtere${polyN} · pomeri mapu za druge`)));
+    drawerHd.append(E('div', {}, E('h2', {}, visible.length ? `${oglasa(visible.length)} u prikazu` : 'Ništa u prikazu'), E('p', {}, `${oglasa(total)} odgovara ${polyN ? 'filterima i zoni' : 'filterima'} · pomeri mapu da vidiš ostale`)));
     const frag = document.createDocumentFragment();
     visible.slice(0, 60).forEach((l) => {
       const r = S(() => UI.card(l, 'list'), null) || E('article', { class: 'row', 'data-slug': l.s }, E('div', { class: 'body' }, E('h3', {}, E('a', { href: '#/oglas?s=' + l.s }, l.ti))));
@@ -421,6 +429,7 @@ function viewMap(q) {
     if (!map) return;
     if (budgetBar) { budgetBar.remove(); budgetBar = null; }
     top.hidden = false; budgetSel = null; selected = null; carousel.innerHTML = ''; slides.clear(); carKey = '';
+    carScrolling = true; clearTimeout(carEnd); carousel.scrollTo({ left: 0, behavior: 'auto' }); clearTimeout(carT); carT = setTimeout(() => { carScrolling = false; }, 200);
     map.setMode('pins'); map.fit(); updateLists(true);
   }
   let bInput = null, bRange = null, bNet = null, bCity = null, bSuffix = null, bSub = null, bNote = null, bCost = null, bRo = null;
@@ -430,7 +439,7 @@ function viewMap(q) {
     if (document.activeElement !== bInput) bInput.value = nf0.format(st.b);
     bSuffix.textContent = isRent() ? '€/mes' : '€';
     bInput.setAttribute('aria-label', isRent() ? 'Budžet za kiriju u evrima mesečno' : 'Budžet u evrima');
-    bSub.textContent = isRent() ? ' Vidi koliko kvadrata dobijaš.' : ' Vidi šta kupuje.';
+    bSub.textContent = isRent() ? ' Vidi koliko kvadrata dobijaš.' : ' Pogledaj šta možeš da kupiš.';
     bNote.textContent = isRent() ? 'Krug = opština, broj = m² koje dobijaš za tu kiriju po medijani €/m² u toj opštini. Procena iz oglasa na Kvadratu.' : 'Krug = opština, broj = m² koje tvoj budžet kupuje po medijani €/m² u toj opštini. Procena iz oglasa na Kvadratu, ne iz katastra.';
     bCost.hidden = isRent();
     if (bCost.set) bCost.set([st.owner ? 'o' : null, st.credit ? 'k' : null].filter(Boolean));
@@ -448,7 +457,7 @@ function viewMap(q) {
     bCity = S(() => UI.select(cityOpts, st.f.c, pickCity, { label: 'Grad' }), null) || E('select', { class: 'input select', 'aria-label': 'Grad', onchange: (e) => pickCity(e.target.value) }, cityOpts.map((o) => E('option', { value: o.v, selected: o.v === st.f.c }, o.l)));
     bNet = E('p', { class: 'net' });
     bSuffix = E('span', { class: 'suffix' }, isRent() ? '€/mes' : '€');
-    const seg = S(() => UI.segmented([{ v: 'prodaja', l: 'Kupujem' }, { v: 'izdavanje', l: 'Iznajmljujem' }], st.f.t, (v) => { st.f.t = v; st.bUser = false; st.b = 0; refresh(true); syncBudgetInputs(); }), null);
+    const seg = S(() => UI.segmented([{ v: 'prodaja', l: 'Kupujem' }, { v: 'izdavanje', l: 'Tražim kiriju' }], st.f.t, (v) => { st.f.t = v; st.bUser = false; st.b = 0; refresh(true); syncBudgetInputs(); }), null);
     const back = () => { modeSeg && modeSeg.set && modeSeg.set('pins'); switchMode('pins'); };
     /* troškovi: Od vlasnika (bez provizije) · Kredit (procena, obrada, osiguranje) — samo kupovina */
     bCost = S(() => UI.pills([{ v: 'o', l: 'Od vlasnika' }, { v: 'k', l: 'Kredit' }], [st.owner ? 'o' : null, st.credit ? 'k' : null].filter(Boolean), (v, on, all) => { st.owner = all.includes('o'); st.credit = all.includes('k'); onBudget(); }), null) || E('div', {});
@@ -458,10 +467,10 @@ function viewMap(q) {
     const pickRo = (v) => { if (v === 'vise') return; st.f.ro = v ? [v === '3+' ? '3+' : +v] : []; paintFilterBtn(); paintChips(); onBudget(true); };
     const roCur = st.f.ro.length === 1 ? String(st.f.ro[0]) : st.f.ro.length ? 'vise' : '';
     bRo = S(() => UI.select(roOpts, roCur, pickRo, { label: 'Struktura' }), null) || E('select', { class: 'input select', 'aria-label': 'Struktura', onchange: (e) => pickRo(e.target.value) }, roOpts.map((o) => E('option', { value: o.v, selected: o.v === roCur }, o.l)));
-    bSub = E('span', { class: 'sub' }, isRent() ? ' Vidi koliko kvadrata dobijaš.' : ' Vidi šta kupuje.');
+    bSub = E('span', { class: 'sub' }, isRent() ? ' Vidi koliko kvadrata dobijaš.' : ' Pogledaj šta možeš da kupiš.');
     bNote = E('p', { class: 'note' });
     const bar = E('div', { class: 'mp-budget', role: 'region', 'aria-label': 'Budžet' });
-    /* telefon: sklopljeno = naslov + [iznos €][grad][Podesi]; klizač, neto red i Kupujem/Iznajmljujem su u proširenju */
+    /* telefon: sklopljeno = naslov + [iznos €][grad][Podesi]; klizač, neto red i Kupujem/Tražim kiriju su u proširenju */
     const tog = E('button', { class: 'btn btn-secondary btn-sm tog', type: 'button', 'aria-expanded': 'false', 'aria-controls': 'mp-bmore', onclick: () => { const open = !bar.classList.contains('open'); bar.classList.toggle('open', open); tog.setAttribute('aria-expanded', open ? 'true' : 'false'); } }, icon('filter', 16), E('span', {}, 'Podesi'));
     bar.append(
       E('div', { class: 'hd' }, E('h1', {}, 'Imaš ', E('em', {}, u(st.b, '€')), '?', bSub),
@@ -491,7 +500,7 @@ function viewMap(q) {
     else {
       const parts = ['porez' + NB + '2,5' + NB + '%', st.owner ? null : 'proviziju', st.credit ? 'troškove kredita' : null, 'overu'].filter(Boolean);
       const list = parts.length > 1 ? parts.slice(0, -1).join(', ') + ' i ' + parts[parts.length - 1] : parts[0];
-      bNet.append(E('b', {}, u(netInfo.B, '€')), ' = ', E('b', {}, '~' + u(netInfo.net, '€')), ' za stan ', E('span', {}, `(oko ${u(netInfo.costs, '€')} ode na ${list}${st.owner ? '; od vlasnika — bez provizije' : ''})`));
+      bNet.append(E('b', {}, u(netInfo.B, '€')), ' = ', E('b', {}, '~' + u(netInfo.net, '€')), ' za stan ', E('span', {}, `(oko ${u(netInfo.costs, '€')} odlazi na ${list}${st.owner ? '; od vlasnika — bez provizije' : ''})`));
     }
     /* zum kontrole na telefonu idu ispod sklopljene trake */
     requestAnimationFrame(() => { if (!budgetBar) return; const r2 = budgetBar.querySelector('.row2'); if (r2) root.style.setProperty('--mp-btop', Math.round(r2.getBoundingClientRect().bottom - root.getBoundingClientRect().top + 22) + 'px'); });
@@ -540,7 +549,10 @@ function viewMap(q) {
         s.addEventListener('click', (e) => { if (e.target.closest('a,button')) return; budgetSel = r.key; map.setSelected(r.key); paintBudgetList(); });
         slides.set(r.key, s); carousel.appendChild(s);
       });
-      const sl = slides.get(budgetSel); if (sl) { carScrolling = true; carousel.scrollTo({ left: sl.offsetLeft - (carousel.clientWidth - sl.offsetWidth) / 2, behavior: reduced() ? 'auto' : 'smooth' }); clearTimeout(carT); carT = setTimeout(() => { carScrolling = false; }, 500); }
+      /* bez izbora karusel kreće od prve opštine (ne nasleđuje pomeraj karusela oglasa), bez automatskog izbora */
+      const sl = budgetSel && slides.get(budgetSel); carScrolling = true; clearTimeout(carEnd);
+      if (sl) { carousel.scrollTo({ left: sl.offsetLeft - (carousel.clientWidth - sl.offsetWidth) / 2, behavior: reduced() ? 'auto' : 'smooth' }); clearTimeout(carT); carT = setTimeout(() => { carScrolling = false; }, 500); }
+      else { carousel.scrollTo({ left: 0, behavior: 'auto' }); clearTimeout(carT); carT = setTimeout(() => { carScrolling = false; }, 200); }
     }
     root.dataset.empty = rowsB.length ? '0' : '1';
     measureCar();

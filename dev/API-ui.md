@@ -185,7 +185,8 @@ Dugmad su čiste klase: `.btn` + `.btn-primary | .btn-ink | .btn-secondary | .bt
 
 | Funkcija | Vraća |
 |---|---|
-| `segmented(opts, cur, onPick(v))` | `<div class="seg">` pilula (Prodaja / Izdavanje); `root.set(v)`. |
+| `segmented(opts, cur, onPick(v), o?)` | `<div class="seg">`; pilula samo kad su opcije Prodaja/Izdavanje (`prodaja`/`izdavanje`), sve ostale preklopke dobijaju `.seg.sq` (kvadrat, §9.3). `o.shape:'pill'\|'sq'` nadjačava. `root.set(v)`. |
+| `titleText(l)` | naslov oglasa za prikaz: „59m²“ → „59 m²“ (kartice, redovi, tabele, pin, galerija). Stranice koje same ispisuju `l.ti` treba da koriste ovo. |
 | `pills(opts, cur[] , onToggle(v, on, all[]), { single })` | `<div class="pr">` sa `button.chip[.on]` (opc. `.n` brojač, ikona); `root.set(arr)`. **Jedine pilule na sajtu.** |
 | `filterChip(label, { on, n, icon, filters, chevron=true, expands, onClick })` | jedan `button.chip` (npr. „Stanovi ▾“); `filters:true` → `.chip-filters` („Filteri 4“). |
 | `activeFilters([{ label, onRemove }], onClear)` | `<div class="active-filters">` „Aktivno:“ + `.tag` + „Obriši sve“; `null` za prazan niz. |
@@ -220,10 +221,10 @@ const bar = el('div', { class: 'filterbar' },
 
 ## Izmene integracije (2026-10-29)
 - `card(l, variant, {price, extras})` — `price`: čvor ili tekst umesto `.price`; `extras`: čvorovi na kraju `.body`.
-- `saleInfo(l)` čita `KX.history(l).changes` (isto što prikazuju oglas, poređenje i filter „Snižena cena”); bez engine-a stari mock.
-- `badgeKinds(l)`: „Uknjiženo” samo kad je `KX.trust(l).legal === 'uknjizeno'` (prodaja).
-- `placeLine` / `streetLine(l, {exactOnly})`: ime se ne ponavlja (naselje = opština ili = grad piše se jednom); `exactOnly` bez izmišljene ulice → „Naselje, Opština · približna lokacija”.
-- Δ čip i Merilo bez padeža: „12,3 % ispod proseka · Čukarica (2.555 €/m²)”. Bez uzorka (`stats.delta(l).reason === 'malo'`) `.ppm.nodelta` dobija tooltip „Malo podataka…”.
+- `saleInfo(l)` čita `KX.history(l).changes` (isto što prikazuju oglas, poređenje i filter „Snižena cena“); bez engine-a stari mock.
+- `badgeKinds(l)`: „Uknjiženo“ samo kad je `KX.trust(l).legal === 'uknjizeno'` (prodaja).
+- `placeLine` / `streetLine(l, {exactOnly})`: ime se ne ponavlja (naselje = opština ili = grad piše se jednom); `exactOnly` bez izmišljene ulice → „Naselje, Opština · približna lokacija“.
+- Δ čip i Merilo bez padeža: „12,3 % ispod proseka · Čukarica (2.555 €/m²)“. Bez uzorka (`stats.delta(l).reason === 'malo'`) `.ppm.nodelta` dobija tooltip „Malo podataka…“.
 - `header()` sadrži dugme brze pretrage (`.kv-search`, ⌘K/Ctrl+K → `KVG.palette.open()`, bez ljuske vodi na pretragu); sopstveni `.skip` samo kad stranica nema stalni `body > .kv-skip`.
 - `sheet/modal`: Esc i Tab reaguju samo za najgornji dijalog i poštuju `e.defaultPrevented`. `lightbox`: Tab kruži unutar galerije.
 - `tabs()`: traka dobija `is-start`/`is-end` pa maska-fade stoji samo na strani gde ima još tabova.

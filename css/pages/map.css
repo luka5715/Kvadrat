@@ -171,6 +171,11 @@
 .mp-drawer .row .facts{flex-wrap:wrap;line-height:20px;height:20px;overflow:hidden;row-gap:0}
 .mp-drawer .row .foot .ag{display:block;min-width:0;flex:1 1 auto}
 .mp-drawer .row .foot .ag .ico{display:inline-block;vertical-align:-2px;margin-left:4px}
+/* fioka 400px: jedna značka na sličici od 128px (kao .row-c), €/m² + Δ u svom redu poravnat levo, bez datuma da agencija ima mesta */
+.mp-drawer .row .badges .badge:nth-child(n+2){display:none}
+.mp-drawer .row .pricerow{flex-wrap:wrap;row-gap:2px}
+.mp-drawer .row .pricerow .ctx{margin-left:0;flex-basis:100%}
+.mp-drawer .row .foot time{display:none}
 .mp-drawer .row.hl{margin:0 -16px;padding-left:16px;padding-right:16px}
 .mp-drawer .row.on{box-shadow:inset 3px 0 0 var(--accent);margin:0 -16px;padding-left:16px;padding-right:16px}
 .mp-drawer .more{padding:16px 0;font-size:13px;color:var(--muted);text-align:left}
@@ -316,3 +321,6 @@
 }
 /* isti stan, više oglašivača: ×N uz cenu na pinu */
 .mv-pins .pin .mv-x{margin-left:5px;padding-left:5px;border-left:1px solid currentColor;font-size:12px;font-weight:700;opacity:.85}
+
+/* filteri (donji list): kratke pilule sobe („1”, „2”) ne smeju ispod 40px širine */
+.mp-fsheet .chip{min-width:40px;justify-content:center}

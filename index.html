@@ -9,10 +9,12 @@
 <script>
 /* tema pre prvog crtanja (bez bljeska): kv.theme = 'light' | 'dark'; bez vrednosti važi sistemska */
 (function () { try { var t = localStorage.getItem('kv.theme'); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) { /* localStorage nedostupan */ } })();
+/* pismo pre prvog crtanja: kv.script = 'cyr' → lang="sr-Cyrl" (fontovi sa ćirilicom, vidi shell.css) */
+(function () { try { if (localStorage.getItem('kv.script') === 'cyr') document.documentElement.setAttribute('lang', 'sr-Cyrl'); } catch (e) { /* localStorage nedostupan */ } })();
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,50;1,9..144,300..700,50&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,50;1,9..144,300..700,50&family=Hanken+Grotesk:wght@400;500;600;700&family=Literata:opsz,wght@7..72,300..700&family=Manrope:wght@400..700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/tokens.css">
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/components.css">

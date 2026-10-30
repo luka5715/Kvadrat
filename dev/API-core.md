@@ -71,13 +71,13 @@ Sve vraćaju `''` za `null`/`undefined`. Elementi koji prikazuju brojeve treba d
 ```js
 stats.refPpm(l)   // → { ppm, label, n, scope: 'nbhd'|'mun'|'sub'|'city'|'region', key }  |  { ppm:null, n:0, scope:null, reason:'malo'|'tip' }
 ```
-Medijana €/m² oglasa **istog `t` i `pt`**, prvi obim sa dovoljno oglasa: naselje (≥ 5) → opština (≥ 5) → **prigradske opštine Beograda** (`sub`, ≥ 5: Surčin, Grocka, Obrenovac, Lazarevac, Mladenovac, Sopot, Barajevo — porede se međusobno, nikad sa gradskim jezgrom) → grad (≥ 5; Beograd bez prigradskih) → **manji gradovi istog regiona** (`region`, ≥ 6; po `city.reg`, samo gradovi bez sopstvenog uzorka; Zlatibor, Kopaonik i Vrnjačka Banja čine zaseban skup „turistička mesta”) → **null**. Nikad cela Srbija (Beograd bi dominirao: Leskovac je ranije pokazivao −46 %). Plac i soba nemaju Δ (`reason:'tip'`). Sintetički ponovljeni oglasi (`l.syn`) ne ulaze u medijane.
-`label` je ime naselja / opštine / grada, `'prigradske opštine Beograda'` ili `'manji gradovi — <region>'`. Uvek vraća objekat; kad je `scope === null` (`reason:'malo'`) **nema Δ čipa** — €/m² stoji sam, uz tooltip „malo podataka” (`ui` to radi u `.ctx`). `stats.MIN_N === 5`. Napomena: u trenutnom data.js nijedno naselje nema ≥ 5 oglasa istog t+pt (najviše 4), pa se `scope:'nbhd'` u praksi ne javlja — UI mora da radi sa bilo kojim opsegom i da prikazuje `label`.
+Medijana €/m² oglasa **istog `t` i `pt`**, prvi obim sa dovoljno oglasa: naselje (≥ 5) → opština (≥ 5) → **prigradske opštine Beograda** (`sub`, ≥ 5: Surčin, Grocka, Obrenovac, Lazarevac, Mladenovac, Sopot, Barajevo — porede se međusobno, nikad sa gradskim jezgrom) → grad (≥ 5; Beograd bez prigradskih) → **manji gradovi istog regiona** (`region`, ≥ 6; po `city.reg`, samo gradovi bez sopstvenog uzorka; Zlatibor, Kopaonik i Vrnjačka Banja čine zaseban skup „turistička mesta“) → **null**. Nikad cela Srbija (Beograd bi dominirao: Leskovac je ranije pokazivao −46 %). Plac i soba nemaju Δ (`reason:'tip'`). Sintetički ponovljeni oglasi (`l.syn`) ne ulaze u medijane.
+`label` je ime naselja / opštine / grada, `'prigradske opštine Beograda'` ili `'manji gradovi — <region>'`. Uvek vraća objekat; kad je `scope === null` (`reason:'malo'`) **nema Δ čipa** — €/m² stoji sam, uz tooltip „malo podataka“ (`ui` to radi u `.ctx`). `stats.MIN_N === 5`. Napomena: u trenutnom data.js nijedno naselje nema ≥ 5 oglasa istog t+pt (najviše 4), pa se `scope:'nbhd'` u praksi ne javlja — UI mora da radi sa bilo kojim opsegom i da prikazuje `label`.
 U ovom skupu podataka nijedno naselje nema ≥ 5 oglasa istog t+pt, pa je opseg u praksi `mun`/`city`/`all`.
 
 ```js
 stats.delta(l)    // → { pct, ppm, label, n, scope, reason }   pct = (l.ppm / ref.ppm − 1) × 100, jedna decimala; pct:null (scope:null) bez uzorka
-stats.inScope(x, l, ref) // da li oglas x pripada obimu reference ref izračunate za l (grafici „oblast Merila”)
+stats.inScope(x, l, ref) // da li oglas x pripada obimu reference ref izračunate za l (grafici „oblast Merila“)
 stats.reset()     // briše keš medijana i Δ (posle dodavanja oglasa u D.listings — KX.enrich to radi)
 stats.isSuburban(l) // Beograd + prigradska opština
 stats.deltaPct(l) // → number | null   (brzo, za sortiranje)
@@ -85,7 +85,8 @@ stats.deltaPct(l) // → number | null   (brzo, za sortiranje)
 `ppm` ovde je **referentna** medijana (za tooltip „9,7 % iznad proseka za Vračar (5.519 €/m²)“). Klasa čipa: `|pct| ≤ 1,5` → `flat`, `> 0` → `up`, `< 0` → `down` (radi `ui.deltaChip`).
 
 ```js
-stats.cityIndex()               // → [{ c, cs, loc, ppm, n, change, change12 }]   prodaja+stan, gradovi sa maj=true ili ≥10 oglasa; sortirano po n
+stats.cityIndex()               // → [{ c, cs, loc, ppm, n, change, change12 }]   prodaja+stan, gradovi sa maj=true ili ≥10 oglasa; sortirano po n; ppm = listPpm celog grada (sa prigradskim opštinama, bez l.syn)
+stats.listPpm(list)             // → { ppm, n }   medijana €/m² liste bez l.syn i placeva — jedini broj „medijana €/m²” za zaglavlje pretrage, početnu i Tržište
 stats.munIndex(cs, t='prodaja', pt='stan') // → [{ m, ms, ppm, n }] opštine grada sa medijanom, sortirano po ppm opadajuće (bar-chart sa n=)
 stats.histogram(list, key='p', bins=24)    // → [{ from, to, n }] „lepe“ ivice (1/2/2,5/5 × 10^k), gornja ivica = 98. percentil, poslednja korpa skuplja ostatak; key može biti i fn(l)
 stats.medians(list)             // → { p, ppm, a, n }

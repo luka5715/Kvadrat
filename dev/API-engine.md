@@ -57,7 +57,7 @@ seller), `prvi-stan` (negative, starogradnja exemption 40 m² + 15 m² per extra
 0 for owner listings), `notar` (band 120–650 €), `upis` (45 €), then only with a loan: `procena` 120 €, `obrada` 0,5 %, `nkosk`
 (`optional:true` unless `profile.nkosk`, 1,5/2,5/3,5 % by LTV), `osiguranje` 40 €; `selidba` (useljenje), `adaptacija`
 (optional, only `co==='potrebno-renoviranje'`); monthly: `rata`, `grejanje`, `struja`, `komunalije`, `odrzavanje`
-(stambena zajednica), `porez-imovina` (label „gruba procena”, formula in `note`), `osiguranje-mes`.
+(stambena zajednica; not for `pt` `kuca`/`vikendica`), `porez-imovina` (label „gruba procena“, formula in `note`), `osiguranje-mes`.
 Loan = `ltv × price`, or, when `profile.cash > 0`, sized so that cash covers **everything** on the day of purchase including
 the bank lines: `loan = (preLoan + procena + osiguranje − cash) / (1 − 0,005 [− NKOSK % if profile.nkosk])`, clamped to
 `ltv × price` (so `onPurchase − loan = cash` whenever the LTV allows it); `financing:'kes'` → no loan lines.
@@ -87,7 +87,7 @@ Helpers: `KX.annuity(loan, ratePct, years)`, `KX.notar(price)`, `KX.utilities(l)
 ```
 Rules: no income and no cash → `nepoznato`; `cash ≥ cashAllIn` → `odmah`; legal `nije`/`ozakonjenje` or `pt zemljiste` →
 `samo-kes`; otherwise the loan comes from `KX.cost(l, {...profile, financing:'kredit'})` (credit-mode fees incl. procena,
-obrada 0,5 %, osiguranje — the same numbers as the „Koliko me košta” panel); if `onPurchase − loan > cash` (LTV cap or cash
+obrada 0,5 %, osiguranje — the same numbers as the „Koliko me košta“ panel); if `onPurchase − loan > cash` (LTV cap or cash
 below the fees) → `van-budzeta` with `missing` = the exact gap; the loan must be ≤ LTV × price and ≤ `maxLoan` (DTI × income − obligations through the
 annuity) → `kredit` with `label 'Rata 512 €'`; `u-procesu`/`poseban-zakon`/`u-izgradnji` keep `kredit` but `financeable:'zavisi'`
 and the reason says so. `KX.creditCapacity(profile?)` → `{income, maxRata, maxLoan, maxPrice, years, ltv, dti, creditPossible}` for
@@ -111,7 +111,7 @@ core's `stats.delta(l)` is the same idea with naselje→opština→grad fallback
   published, p0, dropPct, context:{median, scope:'mun'|'city'|'all', label, percentile, n} }
 ```
 12 monthly points ending at the current price; ~⅓ of listings older than 14 days get exactly one drop (2–9 %, rounded to the
-price step); ~20 % are „obnavljani”: `daysOnMarket = dz + 30…120` (the honest number), `shownDays = dz`.
+price step); ~20 % are „obnavljani“: `daysOnMarket = dz + 30…120` (the honest number), `shownDays = dz`.
 
 ## `KX.dupes`
 ```js
@@ -125,7 +125,7 @@ KX.dupes.build(list)        // pure: groups for any array of listing objects (us
 ```
 Key: same t, pt, grad, opština, struktura, |Δm²| ≤ 2, same floor (null = wildcard; ±1 only with the same year), |Δyear| ≤ 2,
 ≤ 3 km, **different advertiser**. `sigurno` = same naselje, |Δm²| ≤ 1, same floor. data.js itself contains no natural
-duplicates; engine.js adds demo re-postings at load (see „Integration changes” below) so the demo has **14 groups**. The UI must
+duplicates; engine.js adds demo re-postings at load (see „Integration changes“ below) so the demo has **14 groups**. The UI must
 still handle `groupOf() === null` for every other listing.
 
 ## `KX.trust(l)` (memoised)
@@ -137,13 +137,16 @@ KX.trustCheck(slug, index, done)   // user action: persists the checklist tick i
 KX.legalLabel[legal]
 ```
 Rental price reasons: rent vs the **same reference as the Merilo** (`stats.refPpm`, fallback engine median n ≥ 4), €/m² below
-100 with one decimal: ≤ −30 % / ≤ −15 % → flags; −15…−6 % → „malo ispod proseka … nije znak mamac-oglasa”; |Δ| < 6 % → „u skladu sa
-prosekom”; ≥ +6 % → „Kirija je 27 % iznad proseka (opština Čukarica, 10,4 €/m²) — nije znak mamac-oglasa.”
+100 with one decimal: ≤ −30 % / ≤ −15 % → flags; −15…−6 % → „malo ispod proseka … nije znak mamac-oglasa“; |Δ| < 6 % → „u skladu sa
+prosekom“; ≥ +6 % → „Kirija je 27 % iznad proseka (opština Čukarica, 10,4 €/m²) — nije znak mamac-oglasa.“
 prodaja: legal state from `reg` + deterministic rng (≈ 68 % uknjiženo, 13 % u procesu, 9 % Zakon 2025, 5 % ozakonjenje,
 4 % nije on the 404 demo sale listings); colour = legal + demo flags + unverified agency + price far from the fair estimate.
-izdavanje: scam score from price ≪ area median, ≤ 3 photos (`im` 0/missing → „Oglas bez fotografija”), unverifiable advertiser,
+izdavanje: scam score from price ≪ area median, ≤ 3 photos (`im` 0/missing → „Oglas bez fotografija“), unverifiable advertiser,
 deposit > 2 months, description patterns counted separately (uplata unapred 25, vlasnik u inostranstvu 25, Western Union /
 MoneyGram 45, ključevi poštom/kurirom 45, kontakt samo porukama 15; sum capped at 60), fresh+cheap; `< 20` zeleno, `20–44` žuto, `≥ 45` crveno; `checks` = the tenant's to-do before paying anything.
+**Demo seeding:** the data's descriptions contain no scam phrases, so at load `seedScams()` appends one fixed scam sentence to 7 rental
+descriptions (stan/soba/kuća, owner or unverified agency — max one per agency —, €/m² below the opština median, ordered by
+`hash(s+':scam')`; `l.scamSeeded = true`, idempotent; `KX.scams.count()` → 7). They are the only red rentals; declared in `KX.ledger`.
 
 ## `KX.budgetMap(budget, {t, pt, owner?, credit?, cs?})` → rows (array with `.net`, `.costs`, `.budget`)
 `[{ key, label:'Vračar', city:'Beograd', cs, scope:'mun'|'city', lat, lng, m2, n, ppm, net, count, typical, cheapest }]`
@@ -163,10 +166,12 @@ KX.placeSuggest('vracar')    // [{name, lat, lng, cs, kind:'poi'|'mun'|'nbhd'}] 
 ## `KX.parseQuery(text)`
 ```js
 KX.parseQuery('dvosoban vracar do 150k uknjizen')
-// → { filters:{ ro:[2], c:'beograd', m:['vracar'], pmax:150000, reg:true }, chips:[{label:'Dvosoban',key:'ro',value:2},
+// → { filters:{ pt:['stan'], ro:[2], c:'beograd', m:['vracar'], pmax:150000, reg:true }, chips:[{label:'Stan',key:'pt',value:'stan'}, {label:'Dvosoban',key:'ro',value:2},
 //     {label:'Vračar',key:'m',value:'vracar'}, {label:'do 150.000 €',key:'pmax',value:150000}, {label:'Uknjiženo',key:'reg',value:true}],
 //     unparsed:[], count:0 /* honest: no such flat in the demo data; 'do 300k' → 4 */, route:null }
 ```
+A room word (`garsonjera`, `dvosoban`, `trosobna` …) without an explicit type word (kuća, plac, lokal, garaža, soba, vikendica) implies
+`pt:['stan']` and prepends a `Stan` chip (key `pt`).
 `filters` uses the **core.js `FILTER_DEFAULTS` contract** (partial): `t`, `pt:[…]`, `c`, `m:[…]`, `n:[…]`, `ro:[…]`, `pmin/pmax`,
 `amin/amax`, `flmin/flmax` (`sprat 3` → both 3, `prizemlje` → 0), `notLast`, `co:[…]`, `he:[…]`, `fu:[…]`, `reg`, `am:[…]`,
 `advertiser:'vlasnik'`, `q` (unparsed words joined — core matches them against title/place/ref/agency). A naselje sets `n` and
@@ -179,42 +184,51 @@ ranges `120-150k` / `od 50 do 80 m2`; `m2|m²|kvadrata`; bare `60 m2` → ±10 %
 (`lift terasa balkon parking garaza klima ljubimci pas …`), `vlasnik|od vlasnika|bez provizije` → `advertiser:'vlasnik'`,
 `ne poslednji sprat` → `notLast`, `sprat 3`/`prizemlje` → `flmin/flmax`, `izdavanje|kirija|prodaja`, types (`stan kuca plac
 lokal soba vikendica`; `garaza` is a type only as the first token); `nije uknjižen` → info chip only (no negative filter).
-Commands: `kalkulator`, `mapa`, `uporedi`, `sacuvani`, `agencije`, `budzet`, `moja mesta`, `KV-1112899` → `route`.
+Commands: `kalkulator`, `mapa`, `uporedi`, `sacuvani`, `agencije`, `budzet`, `moja mesta`, `KV-1112899` → `route`. `mapa`/`mapi`/`mapu`/`budzet` are a route at any query length (the shell merges the recognised filters into the map URL: `mapa novi sad dvosoban`); the other command words are a route only in queries of ≤ 2 tokens and are otherwise skipped (never become `q`).
 
 ## `KX.count(filters)` / `KX.filter(filters)`
 `filter` = `applyFilters({...FILTER_DEFAULTS, ...filters})` (a built-in fallback with the same contract runs when core.js is
 absent) plus the engine-only predicates `legal:true` (only green semafor), `risk:true` (hide red rentals), `fit:true` (only
 `odmah`/`kredit`), `dup:true` (hide secondary duplicates), `hidden:true` (hide `profile.hidden` slugs). `count` memoises by
 the filter JSON (`≈ 0,2 ms` per distinct filter) and the memo is cleared on every `profile.set` (so `fit`/`hidden` counts stay
-live) — use it for the live counts beside every rail option. `null`/`undefined` filters mean „no filter”.
+live) — use it for the live counts beside every rail option. `null`/`undefined` filters mean „no filter“.
 
 ## `KX.relax(filters)` → `[{label, filters, count}]`, count desc, max 5
 Input is a FILTER_DEFAULTS-shaped filter; scalar values for array fields (`{ro:'2', m:'vracar'}`) are normalised to arrays. Tries removing each active filter (`Ukloni filter Lift`), widening price/area by
 20 % (`Cena do 180.000 € (+20 %)`), ±0,5 rooms, naselje → opština, opština → `Proširi na ceo grad (Beograd)`, floor +2, year −10. While an opština/naselje is active, the city is never dropped silently: the `c` candidate is skipped when widening to the city already has results, else it reads `Ukloni lokaciju (Beograd, Vračar)`; if no single change yields results it
-tries pairs (`Ukloni filtere Opština i Cena do`), then „Zadrži samo lokaciju”, then „Ukloni sve filtere”. Each row's `filters`
+tries pairs (`Ukloni filtere Opština i Cena do`), then „Zadrži samo lokaciju“, then „Ukloni sve filtere“. Each row's `filters`
 is ready for `setHash`.
 
 ## `KX.ledger` → `[{feature, real:boolean, how}]` (32 entries, Serbian)
-Source for the „Kako računamo” page: what is computed from data (`real:true`) vs. deterministic demo (`real:false`), each with
+Source for the „Kako računamo“ page: what is computed from data (`real:true`) vs. deterministic demo (`real:false`), each with
 the formula in one line.
 
 ## Misc
 `KX.median`, `KX.haversine`, `KX.deacc`, `KX.roomWord(ro)`, `KX.medianPpm(l, min, scopes)`, `KX.medianDz(l)`, `KX.EKATASTAR`.
 
+## Integration changes (2026-10-30)
+- Load-time name fix: `Bulevar 12. februar` → `Bulevar 12. februara` in `l.n`, `l.ad`, `l.ti`, `l.d` (data.js stays frozen).
+- `KX.cost`: district heating is labelled by city (Infostan only in Beograd, „Novosadska toplana“, otherwise „toplana“; houses: no company);
+  transfer-tax assumption worded per type (zemljište / garaža, poslovni prostor / starogradnja); monthly insurance label per type;
+  loan assumption „Kredit: 80 % cene (učešće 20 %), kamata 5 %, 25 god.“; rental notary note for commercial units/garages.
+- Ledger: new rows „Komšiluk, minuti hoda i „Kakav je kraj““, „Prikaz u dinarima“, „Pregledi i čuvanja oglasa“; scam row documents
+  the 7 seeded descriptions; „medijana“ (feminine) everywhere; product copy uses „ti“.
+- Quotes: Serbian „…“ (U+201E … U+201C) in all engine strings.
+
 ## Integration changes (2026-10-29)
-- **Repostings (demo):** at load time engine.js synthesises re-postings so „Isti stan, više agencija” is visible: 14 stan listings
+- **Repostings (demo):** at load time engine.js synthesises re-postings so „Isti stan, više agencija“ is visible: 14 stan listings
   (Beograd 7, Novi Sad 4, Niš 3; prodaja + izdavanje; chosen by `hash(slug+':rep')`, distinct municipalities, no novogradnja) get
-  1–3 offers by other advertisers of the same city (or „Vlasnik” once when the original is an agency): same m², rooms, floor, year,
+  1–3 offers by other advertisers of the same city (or „Vlasnik“ once when the original is an agency): same m², rooms, floor, year,
   address, coordinates and photos (`l.ps` = original slug), price ±1,5–7 %, different `dz`, slug `<orig>-p<n>`, ref `<orig ref>-<n>`,
-  a slightly rewritten title, `l.syn = true`, `l.synOf`. 30 clones → **14 groups** (all „sigurno”). Clones are excluded from every
+  a slightly rewritten title, `l.syn = true`, `l.synOf`. 30 clones → **14 groups** (all „sigurno“). Clones are excluded from every
   median (core `stats`, KX indexes, budget map) and never used as fair-price comps; agency `lc` is incremented. `KX.synth.count()`.
-  Declared in `KX.ledger` („Ponovljeni oglasi: demo …”).
+  Declared in `KX.ledger` („Ponovljeni oglasi: demo …“).
 - `KX.fair`: comps from the same opština first; if fewer than 5, add listings ≤ 3 km; distance weight 1,0 per km (was 0,5); acceptance
   threshold d ≤ 10; never syn listings or other offers of the same flat. `verdict:null` when < 5 comps pass.
-- `KX.cost(l)`: land, „nije uknjiženo” and „ozakonjenje” default to a cash purchase (`res.cashOnly = true`, first assumption explains why);
+- `KX.cost(l)`: land, „nije uknjiženo“ and „ozakonjenje“ default to a cash purchase (`res.cashOnly = true`, first assumption explains why);
   an explicit `{financing}` override still wins.
 - `KX.history(l).changes[]` gains `d` (ISO day within the month) and `daysAgo`.
-- `KX.travelRadiusKm(mode, min)` — radius of an „N minutes” ring in the same model as `travel()` (used by map.js rings).
+- `KX.travelRadiusKm(mode, min)` — radius of an „N minutes“ ring in the same model as `travel()` (used by map.js rings).
 - Legal status and demo flags are keyed by the physical flat (`l.ps || l.s`), so all offers of one flat share them.
-- Copy without case errors: „proseka opštine X”, „medijan za opštinu X”, „proseka (opština X)”.
+- Copy without case errors: „proseka opštine X“, „medijan za opštinu X“, „proseka (opština X)“.
 - `parseQuery('budzet').route` → `#/mapa?m=budzet`.

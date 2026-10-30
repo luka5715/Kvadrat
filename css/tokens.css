@@ -123,9 +123,9 @@
   color-scheme:dark;
 }
 
-/* dark: photos are left light but dimmed slightly so they sit in the page */
-:root[data-theme="dark"] .ph>img, :root[data-theme="dark"] .ph>svg{filter:brightness(.9)}
-@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .ph>img, :root:not([data-theme="light"]) .ph>svg{filter:brightness(.9)} }
+/* dark: photos (kartice, galerija, lightbox) are left light but dimmed slightly so they sit in the page */
+:root[data-theme="dark"] .ph>img, :root[data-theme="dark"] .ph>svg, :root[data-theme="dark"] .g>img, :root[data-theme="dark"] .g>svg, :root[data-theme="dark"] .lightbox .stage :is(img,svg):not(.ico), :root[data-theme="dark"] .lightbox .thumbs :is(img,svg){filter:brightness(.9)}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .ph>img, :root:not([data-theme="light"]) .ph>svg, :root:not([data-theme="light"]) .g>img, :root:not([data-theme="light"]) .g>svg, :root:not([data-theme="light"]) .lightbox .stage :is(img,svg):not(.ico), :root:not([data-theme="light"]) .lightbox .thumbs :is(img,svg){filter:brightness(.9)} }
 
 @media (prefers-reduced-motion:reduce){
   :root{--dur-fast:0ms;--dur:0ms;--dur-slow:0ms;--dur-photo:0ms}

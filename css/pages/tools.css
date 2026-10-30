@@ -18,6 +18,13 @@
 .tl-nav a[aria-current="page"]{color:var(--ink);border-bottom-color:var(--accent)}
 .tl .tabs{margin-top:var(--s-6)}
 .tl .tabs .tabs-p{padding-top:var(--s-7)}
+/* pod-nivo (vrste kalkulatora) = kvadratna segmentirana kontrola (.seg.sq); akcentna linija ostaje samo na .tl-nav */
+.tl .tabs>.tabs-ul[role="tablist"]{display:inline-flex;gap:2px;width:auto;max-width:100%;padding:3px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r);overflow-x:auto;mask-image:none;-webkit-mask-image:none;vertical-align:top}
+.tl .tabs>.tabs-ul[role="tablist"] button{min-height:40px;padding:0 16px;font-size:14px;border-radius:2px;color:var(--muted);transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
+.tl .tabs>.tabs-ul[role="tablist"] button:hover{color:var(--ink)}
+.tl .tabs>.tabs-ul[role="tablist"] button[aria-selected="true"]{background:var(--bg);color:var(--ink);box-shadow:var(--shadow-sm)}
+.tl .tabs>.tabs-ul[role="tablist"] button[aria-selected="true"]::after{display:none}
+.tl .tabs>.tabs-ul[role="tablist"] button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 
 /* ───────── polja ───────── */
 .tl-form{display:flex;flex-direction:column;gap:var(--s-5);min-width:0}
@@ -35,6 +42,9 @@
 .tl-sub-opt{margin-top:calc(-1 * var(--s-3))}
 .tl-sub-opt .help{margin-top:0}
 .tl-tp .help{margin-top:2px}
+.tl-kr .help{margin-top:2px}
+.tl-kr.off .toggle-row>span{color:var(--muted);cursor:not-allowed}
+.tl-kr .toggle:disabled{opacity:.5;cursor:not-allowed}
 .tl-ltv{font-size:var(--fs-xs);margin-top:calc(-1 * var(--s-2))}
 .tl-ltv b{color:var(--text);font-weight:600}
 .tl-form .check{align-self:flex-start}
@@ -150,6 +160,8 @@ form.tl-step{max-width:640px}
 /* ───────── tržište ───────── */
 .tl-mbar{display:flex;align-items:center;gap:var(--s-3) var(--s-4);flex-wrap:wrap;margin-top:var(--s-6);padding:var(--s-3) 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
 .tl-crail{flex:1 1 420px;min-width:0;flex-wrap:nowrap}
+.tl-cpills{display:flex;gap:8px;flex:none;flex-wrap:nowrap}
+.tl-crail .select:not(.select-inline){flex:none;width:auto;height:40px;font-size:var(--fs-sm)}
 .tl-mbar-r{display:flex;align-items:center;gap:var(--s-2);flex-wrap:wrap}
 .tl-mbar-r .select:not(.select-inline){width:auto;height:40px;font-size:var(--fs-sm)}
 .tl-tiles{margin-top:var(--s-8)}
@@ -257,10 +269,11 @@ form.tl-step{max-width:640px}
 /* tabele koje staju bez skrolovanja: bez maske; n ispod €/m² samo na telefonu */
 .tl-fit{mask-image:none;-webkit-mask-image:none}
 .tl-n{display:none}
-/* istaknut red: pozadina samo na dugmetu grada (ostaje unutar margine), bez trake do ivice ekrana */
-.tl-cities tr.on td{background:none}
-.tl-cities tr.on td:first-child{box-shadow:none}
-.tl-cities tr.on .tl-cbtn{background:var(--surface);box-shadow:inset 2px 0 0 var(--accent)}
+/* izabrani grad: ceo red istaknut (kao „Ovaj oglas“ u uporedivim), akcentna linija na prvoj ćeliji */
+.tl-cities tr.on td{background:var(--surface)}
+.tl-cities tr.on td:first-child{box-shadow:inset 2px 0 0 var(--accent)}
+.tl-cities tr.on .tl-cbtn{background:none;box-shadow:none}
+.tl-cities th:first-child,.tl-cities td:first-child,.tl-rtab tr>:first-child{padding-left:12px}
 @media (max-width:600px){
   .tl-minic,.tl-hm{display:none}
   .tl-n{display:block;font-size:12px;font-weight:400;color:var(--muted);line-height:1.3}
@@ -280,3 +293,51 @@ form.tl-step{max-width:640px}
 .tl-recent-a .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tl-recent-a b{color:var(--ink);font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
 .tl-recent-a:hover .nm{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+.tl-cityonly p{margin:0 0 var(--s-3)}
+.tl-cityonly .btn{min-height:40px}
+
+/* ───────── tražene vs ostvarene (RGZ, demo) ───────── */
+.tl-sec-h{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:var(--s-2) var(--s-4)}
+.tl-rv button{height:36px;padding:0 12px;font-size:13px}
+.tl-real>.meta{margin-top:6px;max-width:72ch}
+.tl-real>.table-wrap{margin-top:var(--s-5);max-width:880px}
+.tl-real>.tl-ext{margin-top:var(--s-3)}
+.tl-rtab th[scope="row"]{font-size:14px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--text);padding:4px 12px;white-space:nowrap}
+.tl-rtab th[scope="row"] .tl-tlink{min-height:36px}
+.tl-rtab th.num button{margin-left:auto}
+.tl-rtab .tl-thu{text-transform:none;letter-spacing:0;font-weight:400}
+.tl-rtab .tl-n-all{display:inline;margin-left:6px;font-size:12px;font-weight:400;color:var(--muted)}
+.tl-rtab tr.tl-tot th,.tl-rtab tr.tl-tot td{background:var(--surface);font-weight:600;color:var(--ink)}
+.tl-rtab tr.tl-tot th{box-shadow:inset 2px 0 0 var(--accent)}
+.tl-rtab .tl-diff{font-weight:600;color:var(--ink)}
+.tl-rtab .tl-regc{width:1%;white-space:nowrap;text-align:right;padding-right:0}
+.tl-reg{display:inline-flex;align-items:center;justify-content:flex-end;gap:6px;min-height:40px;min-width:40px;font-size:13px;font-weight:600;color:var(--accent)}
+.tl-reg:hover .tl-reg-t{text-decoration:underline;text-underline-offset:3px}
+.tl-reg .ico{flex:none}
+.tl-rtab .tl-sm{display:none}
+
+@media (max-width:600px){
+  /* pod-nivo kalkulatora: 2 × 2 segmenti, bez skrolovanja */
+  .tl .tabs>.tabs-ul[role="tablist"]{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);width:100%}
+  .tl .tabs>.tabs-ul[role="tablist"] button{padding:0 8px;white-space:normal;line-height:1.2;text-align:center}
+  /* tržište: tri reda — traka gradova (sa „Ostali gradovi…“), tip + vrsta, period */
+  .tl-mbar{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+  .tl-crail{grid-column:1/-1;margin-right:calc(-1 * var(--gutter-r))}
+  .tl-mbar-r{display:contents}
+  .tl-mbar-r .seg{width:100%;min-width:0}
+  .tl-mbar-r .seg button{flex:1 1 0;min-width:0;padding:0 8px}
+  .tl-mbar-r .select-inline{grid-column:1/-1;justify-self:start}
+  .tl-crail .select:not(.select-inline){flex:none;width:auto;max-width:200px}
+  .tl-sec-h .tl-rv{width:100%}
+  .tl-sec-h .tl-rv button{flex:1 1 0}
+  .tl-rtab th,.tl-rtab td{padding-right:8px}
+  .tl-rtab .tl-thu{display:block}
+  .tl-rtab .tl-n-all{display:block;margin:-6px 0 0;line-height:1.2}
+  .tl-rtab tr.tl-tot .tl-n-all{margin-top:2px}
+  /* isti URL je i ispod tabele — kolona linkova se sakriva da tabela stane u 358 px */
+  .tl-rtab .tl-regc{display:none}
+  .tl-rtab .tl-lg{display:none}
+  .tl-rtab .tl-sm{display:inline}
+  .tl-rtab tr>:first-child{padding-left:8px}
+  .tl-rtab tr>:nth-last-child(2){padding-right:0}
+}

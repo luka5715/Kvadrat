@@ -301,6 +301,13 @@ const KX = (() => {
 
   const line = (key, label, amount, when, payer, extra = {}) => ({ key, label, amount: Math.round(amount), when, payer, optional: false, note: '', estimate: false, ...extra });
 
+  /* daljinsko grejanje: Infostan naplaćuje samo u Beogradu; drugde gradska toplana; kuća/vikendica bez naziva preduzeća */
+  function cgLabel(l) {
+    if (l.pt === 'kuca' || l.pt === 'vikendica') return 'Grejanje — centralno (12 meseci)';
+    if (l.cs === 'beograd') return 'Grejanje — centralno (Infostan, 12 meseci)';
+    if (l.cs === 'novi-sad') return 'Grejanje — centralno (Novosadska toplana, 12 meseci)';
+    return 'Grejanje — centralno (toplana, 12 meseci)';
+  }
   /* mesečni računi (procena) — zajedničko za kupovinu i zakup */
   function utilities(l) {
     const out = [];
@@ -308,7 +315,7 @@ const KX = (() => {
     if (!a) return out;
     if (isHome(l)) {
       let heat;
-      if (l.he === 'centralno') heat = line('grejanje', 'Grejanje — centralno (Infostan, 12 meseci)', TARIFF.cgPerM2 * a, 'mesecno', 'kupac', { estimate: true, note: 'Procena: 1,15 €/m² mesečno, naplaćuje se cele godine.' });
+      if (l.he === 'centralno') heat = line('grejanje', cgLabel(l), TARIFF.cgPerM2 * a, 'mesecno', 'kupac', { estimate: true, note: 'Procena: 1,15 €/m² mesečno, naplaćuje se cele godine.' });
       else {
         let m = (TARIFF.heatPerM2[l.he] ?? TARIFF.heatPerM2.null) * (TARIFF.enMul[l.en] ?? 1);
         if (l.fl != null && l.tf && l.fl === l.tf) m *= 1.1;
@@ -320,7 +327,8 @@ const KX = (() => {
       out.push(heat);
       out.push(line('struja', 'Struja (bez grejanja)', TARIFF.powerBase + TARIFF.powerPerM2 * a, 'mesecno', 'kupac', { estimate: true, note: 'Procena: 20 € + 0,30 €/m².' }));
       out.push(line('komunalije', 'Voda, smeće, ekologija', TARIFF.waterBase + TARIFF.waterPerM2 * a, 'mesecno', 'kupac', { estimate: true, note: 'Procena: 8 € + 0,20 €/m².' }));
-      out.push(line('odrzavanje', 'Stambena zajednica (održavanje, lift)', (has(l, 'hasElevator') ? TARIFF.hoaLift : TARIFF.hoaNoLift) * a + TARIFF.hoaBase, 'mesecno', 'kupac', { estimate: true, note: 'Procena po Zakonu o stanovanju: 0,12 €/m² (0,25 sa liftom) + 5 €.' }));
+      /* stambena zajednica postoji samo u zgradi (Zakon o stanovanju) — kuća i vikendica je nemaju */
+      if (l.pt !== 'kuca' && l.pt !== 'vikendica') out.push(line('odrzavanje', 'Stambena zajednica (održavanje, lift)', (has(l, 'hasElevator') ? TARIFF.hoaLift : TARIFF.hoaNoLift) * a + TARIFF.hoaBase, 'mesecno', 'kupac', { estimate: true, note: 'Procena: 0,12 €/m² (0,25 sa liftom) + 5 €. Najniži iznos propisuje opština, a stambena zajednica može odlučiti i više (Zakon o stanovanju i održavanju zgrada).' }));
     } else if (l.pt === 'poslovni-prostor') {
       out.push(line('struja', 'Struja', TARIFF.powerBase + 0.6 * a, 'mesecno', 'kupac', { estimate: true, note: 'Procena: 20 € + 0,60 €/m² (poslovna tarifa).' }));
       out.push(line('komunalije', 'Voda, smeće, ekologija', TARIFF.waterBase + 0.25 * a, 'mesecno', 'kupac', { estimate: true }));
@@ -399,7 +407,7 @@ const KX = (() => {
       const vat = grossPrice - netPrice;
       lines.push(line('pdv', `PDV ${vatPct} % (prva prodaja novogradnje)`, vatIn ? 0 : vat, 'kupovina', 'kupac', { included: vatIn, inPrice: vatIn ? Math.round(vat) : 0, vatPct, note: vatIn ? 'Investitori oglašavaju cene sa PDV-om; PDV je već u ceni iz oglasa.' : 'Cena je označena kao cena bez PDV-a, pa se PDV dodaje.' }));
       if (reliefOk) {
-        /* od zaokruženog PDV-a (isti broj kao „u ceni”), pa zaokruženo: puno oslobođenje vraća tačno ceo PDV */
+        /* od zaokruženog PDV-a (isti broj kao „u ceni“), pa zaokruženo: puno oslobođenje vraća tačno ceo PDV */
         const refund = Math.round(Math.round(netPrice * vatPct / 100) * share);
         firstHome = { ...firstHome, saving: Math.round(refund), when: 'kasnije' };
         lines.push(line('pdv-povracaj', `Povraćaj PDV-a za prvi stan (${fmtN(eligibleM2)} od ${fmtN(a)} m²)`, -refund, 'kasnije', 'kupac', { note: 'Samo za prvu kupovinu od investitora, državljanin bez stana od 1. 7. 2006, obrazac RFN; stiže ≈ 45 dana posle isplate — ne smanjuje novac potreban na dan kupovine.' }));
@@ -414,7 +422,9 @@ const KX = (() => {
         firstHome = { ...firstHome, saving: Math.round(relief), when: 'kupovina' };
         lines.push(line('prvi-stan', `Oslobođenje za prvi stan (${fmtN(eligibleM2)} od ${fmtN(a)} m²)`, -relief, 'kupovina', P.taxPayer || 'kupac', { note: '40 m² za kupca + 15 m² po članu domaćinstva; smanjuje porez na dan kupovine.' }));
       }
-      assumptions.push('Starogradnja: porez na prenos 2,5 % od ugovorene cene.');
+      assumptions.push(l.pt === 'zemljiste' ? 'Zemljište: porez na prenos apsolutnih prava 2,5 % od ugovorene cene (ako je prodavac obveznik PDV-a, umesto toga se plaća PDV).'
+        : l.pt === 'garaza' || l.pt === 'poslovni-prostor' ? 'Porez na prenos apsolutnih prava 2,5 % od ugovorene cene.'
+        : 'Starogradnja: porez na prenos 2,5 % od ugovorene cene.');
     }
     /* provizija */
     if (l.ags) {
@@ -438,7 +448,7 @@ const KX = (() => {
       const actualLtv = loan / p;
       lines.push(line('nkosk', `Premija NKOSK ${String(nkoskPct(actualLtv)).replace('.', ',')} % (ako banka traži)`, loan * nkoskPct(actualLtv) / 100, 'kupovina', 'kupac', { optional: !P.nkosk, estimate: true, note: 'Osiguranje kredita kod NKOSK traže samo neke banke; premija raste sa LTV (1,5–3,5 %).' }));
       lines.push(line('osiguranje', 'Osiguranje nekretnine (prva godina)', TARIFF.homeInsurance, 'kupovina', 'kupac', { estimate: true }));
-      assumptions.push(`Kredit: LTV ${Math.round(ltv * 100)} % (${P.firstHome ? 'prvi stan — NBS dozvoljava 90 %' : 'uobičajeno 80 %'}), ${String(P.ratePct).replace('.', ',')} % NKS, ${P.years} god.`);
+      assumptions.push(`Kredit: ${Math.round(ltv * 100)} % cene (učešće ${100 - Math.round(ltv * 100)} %${P.firstHome ? ', prvi stan — NBS dozvoljava učešće od 10 %' : ''}), kamata ${String(P.ratePct).replace('.', ',')} %, ${P.years} god.`);
     } else assumptions.push('Kupovina za keš — bez bankarskih troškova.');
     /* useljenje */
     if (isHome(l) && a) {
@@ -450,7 +460,7 @@ const KX = (() => {
     if (loan > 0) lines.push(line('rata', 'Rata kredita', annuity(loan, ratePct, years), 'mesecno', 'kupac', { note: `Anuitet za ${fmtEur(loan)}, ${String(ratePct).replace('.', ',')} %, ${years} god.` }));
     utilities(l).forEach((x) => lines.push(x));
     const pt = propertyTax(l); if (pt) lines.push(pt);
-    if (loan > 0) lines.push(line('osiguranje-mes', 'Osiguranje stana (mesečno)', TARIFF.homeInsurance / 12, 'mesecno', 'kupac', { estimate: true }));
+    if (loan > 0) lines.push(line('osiguranje-mes', (l.pt === 'kuca' || l.pt === 'vikendica' ? 'Osiguranje kuće (mesečno)' : l.pt === 'stan' ? 'Osiguranje stana (mesečno)' : l.pt === 'garaza' ? 'Osiguranje garaže (mesečno)' : l.pt === 'poslovni-prostor' ? 'Osiguranje poslovnog prostora (mesečno)' : 'Osiguranje nekretnine (mesečno)'), TARIFF.homeInsurance / 12, 'mesecno', 'kupac', { estimate: true }));
     if (!isHome(l) && l.pt !== 'poslovni-prostor') assumptions.push('Mesečni računi se ne procenjuju za ovaj tip nekretnine.');
     const t = totals(lines);
     const utilLines = lines.filter((x) => x.when === 'mesecno' && x.key !== 'rata');
@@ -473,7 +483,7 @@ const KX = (() => {
     if (!l.ags) lines.push(line('provizija', 'Bez provizije (oglas vlasnika)', 0, 'useljenje', 'zakupac', { payerLabel: 'nema agencije' }));
     else if (ag && ag.pm === false) lines.push(line('provizija', 'Provizija agencije 50 % kirije — plaća vlasnik', p * 0.5, 'useljenje', 'vlasnik', { note: 'Agencija naplaćuje proviziju vlasniku, zakupac ne plaća.' }));
     else lines.push(line('provizija', 'Provizija agencije 50 % kirije', p * 0.5, 'useljenje', 'zakupac', { note: 'Praksa: 40–50 % prve kirije; ko plaća zavisi od ugovora sa agencijom.' }));
-    lines.push(line('overa', 'Overa ugovora o zakupu', TARIFF.rentalNotary, 'useljenje', 'zakupac', { estimate: true, note: 'Nije obavezna, ali je preporučena (i uslov za prijavu boravka).' }));
+    lines.push(line('overa', 'Overa ugovora o zakupu', TARIFF.rentalNotary, 'useljenje', 'zakupac', { estimate: true, note: l.pt === 'poslovni-prostor' || l.pt === 'garaza' ? 'Nije obavezna, ali je preporučena (dokaz o zakupu za registraciju delatnosti).' : 'Nije obavezna, ali je preporučena (i uslov za prijavu boravka).' }));
     lines.push(line('kirija-mes', 'Kirija', p, 'mesecno', 'zakupac'));
     const util = utilities(l).map((x) => ({ ...x, payer: 'zakupac' }));
     util.forEach((x) => lines.push(x));
@@ -631,12 +641,12 @@ const KX = (() => {
     const h = history(l), md = medianDz(l);
     if (h.daysOnMarket >= 14) {
       const ratio = md.median ? h.daysOnMarket / md.median : 0;
-      if (ratio >= 2) add(3, `Na oglasu je ${h.daysOnMarket} dana, medijan ${md.scope === 'mun' ? 'za opštinu ' + md.label : md.scope === 'city' ? 'za grad ' + md.label : 'za celu Srbiju'} je ${Math.round(md.median)}`);
-      else if (ratio >= 1.5) add(2, `Na oglasu je ${h.daysOnMarket} dana, duže od medijana (${Math.round(md.median)})`);
-      else if (ratio > 1) add(1, `Na oglasu je ${h.daysOnMarket} dana, nešto duže od medijana (${Math.round(md.median)})`);
+      if (ratio >= 2) add(3, `Na oglasu je ${h.daysOnMarket} dana; medijana ${md.scope === 'mun' ? 'za opštinu ' + md.label : md.scope === 'city' ? 'za grad ' + md.label : 'za celu Srbiju'} je ${Math.round(md.median)} dana`);
+      else if (ratio >= 1.5) add(2, `Na oglasu je ${h.daysOnMarket} dana, duže od medijane (${Math.round(md.median)} dana)`);
+      else if (ratio > 1) add(1, `Na oglasu je ${h.daysOnMarket} dana, nešto duže od medijane (${Math.round(md.median)} dana)`);
     }
     if (h.changes.length) { const c = h.changes[0]; add(Math.min(2, h.changes.length), `Cena je već snižena (${fmtEur(c.from)} → ${fmtEur(c.to)}, ${fmtPct((c.to / c.from - 1) * 100)})`); }
-    if (l.neg) add(2, 'Oglašivač je naveo da je cena po dogovoru');
+    if (l.neg) add(2, 'Oglašivač je naveo da je cena podložna dogovoru');
     const g = idx.dupes.get(l.s);
     if (g) add(2, `Isti ${l.pt === 'kuca' ? 'kuću' : 'stan'} nudi još ${g.offers.length - 1} ${g.offers.length - 1 === 1 ? 'oglašivač' : 'oglašivača'} — prodavac nema ekskluzivu`);
     if (l.co === 'potrebno-renoviranje') add(1, 'Nekretnina zahteva renoviranje (procena 150 €/m²)');
@@ -680,7 +690,7 @@ const KX = (() => {
       const k = lo + Math.floor(r() * (12 - lo));
       const dropPct = 2 + r() * 7;
       const p0 = Math.max(Math.ceil(lp / 0.98 / step) * step, roundTo(lp / (1 - dropPct / 100), step));
-      /* dan promene u mesecu k (posle prve objave, nikad posle danas) — za filtere „sniženo u poslednjih N dana” */
+      /* dan promene u mesecu k (posle prve objave, nikad posle danas) — za filtere „sniženo u poslednjih N dana“ */
       const rd = R(H(seed + ':hd'));
       const [yy, mm] = months[k].split('-').map(Number);
       const dLo = months[k] === firstMonth ? firstSeen.getDate() + 1 : 1;
@@ -740,15 +750,15 @@ const KX = (() => {
     const noUd = l.co === 'u-izgradnji' || (l.co === 'novogradnja' && H(flatKey(l) + ':ud') % 5 === 0);
     let color = 'zeleno';
     if (legal === 'nije' || legal === 'ozakonjenje') { color = 'crveno'; reasons.push(legal === 'nije' ? 'Nije uknjiženo — banka ne daje kredit, a preprodaja je rizična.' : 'U postupku ozakonjenja — do rešenja nema upisa ni kredita.'); }
-    else if (legal === 'u-procesu') { color = 'zuto'; reasons.push('Uknjižba je u toku — tražite dokaz o podnetom zahtevu.'); }
-    else if (legal === 'poseban-zakon') { color = 'zuto'; reasons.push('Upisano po Zakonu iz 2025. („Svoj na svome”) — upis bez garancije bezbednosti objekta; finansiranje zavisi od banke.'); }
-    else reasons.push('Uknjiženo — proverite list nepokretnosti u eKatastru pre kapare.');
-    if (hip) { flags.push('hipoteka'); if (color === 'zeleno') color = 'zuto'; reasons.push('Hipoteka na nekretnini (demo prikaz) — briše se isplatom na dan overe, tražite potvrdu banke.'); }
+    else if (legal === 'u-procesu') { color = 'zuto'; reasons.push('Uknjižba je u toku — traži dokaz o podnetom zahtevu.'); }
+    else if (legal === 'poseban-zakon') { color = 'zuto'; reasons.push('Upisano po Zakonu iz 2025. („Svoj na svome“) — upis bez garancije bezbednosti objekta; finansiranje zavisi od banke.'); }
+    else reasons.push('Uknjiženo — proveri list nepokretnosti u eKatastru pre kapare.');
+    if (hip) { flags.push('hipoteka'); if (color === 'zeleno') color = 'zuto'; reasons.push('Hipoteka na nekretnini (demo prikaz) — briše se isplatom na dan overe, traži potvrdu banke.'); }
     if (suv) { flags.push('suvlasnistvo'); if (color === 'zeleno') color = 'zuto'; reasons.push('Suvlasništvo (demo prikaz) — svi suvlasnici potpisuju ugovor.'); }
     if (noUd) { flags.push('bez-upotrebne-dozvole'); if (color === 'zeleno') color = 'zuto'; reasons.push('Nema upotrebnu dozvolu — rok za pribavljanje mora u ugovor.'); }
     const f = fair(l);
     if (f.verdict === 'iznad' && f.diffPct >= 15) { if (color === 'zeleno') color = 'zuto'; reasons.push(`Cena je ${fmtPct(f.diffPct)} iznad procene sličnih oglasa.`); }
-    if (f.verdict === 'ispod' && f.diffPct <= -25) { if (color === 'zeleno') color = 'zuto'; reasons.push(`Cena je ${fmtPct(-f.diffPct)} ispod procene — proverite terete i razlog prodaje.`); }
+    if (f.verdict === 'ispod' && f.diffPct <= -25) { if (color === 'zeleno') color = 'zuto'; reasons.push(`Cena je ${fmtPct(-f.diffPct)} ispod procene — proveri terete i razlog prodaje.`); }
     if (l.ags && !l.agv) { if (color === 'zeleno' && legal !== 'uknjizeno') color = 'zuto'; reasons.push('Agencija nije verifikovana na Kvadratu.'); }
     else if (l.ags && l.agv) reasons.push('Verifikovana agencija.');
     else reasons.push('Oglas vlasnika — lična karta vlasnika mora da se poklapa sa listom nepokretnosti.');
@@ -767,7 +777,7 @@ const KX = (() => {
     const title = color === 'zeleno' ? 'Pravno čisto (po oglasu)' : color === 'zuto' ? 'Proveri pre kapare' : 'Visok pravni rizik';
     return { color, title, reasons, checks, legal, legalLabel: LEGAL_LABEL[legal], flags, ekatastarUrl: EKATASTAR, rental: null, face: 'pravni' };
   }
-  /* naziv obima bez padeža: „opština Čukarica”, „naselje Cerak”, „grad Niš” */
+  /* naziv obima bez padeža: „opština Čukarica“, „naselje Cerak“, „grad Niš“ */
   const scopeName = (m) => (m.scope === 'nbhd' ? 'naselje ' : m.scope === 'mun' ? 'opština ' : m.scope === 'city' ? 'grad ' : '') + m.label;
   /* €/m² kao na Merilu: ispod 100 jedna decimala („10,4 €/m²“), inače ceo broj */
   const fmtPpmT = (v) => (v < 100 ? (Math.round(v * 10) / 10).toFixed(1).replace('.', ',') : fmtN(v)) + '\u00a0€/m²';   /* NBSP: broj i jedinica ne lome red */
@@ -801,10 +811,10 @@ const KX = (() => {
     else if (!l.agv) { score += 5; flags.push('Agencija nije verifikovana'); }
     else reasons.push('Verifikovana agencija.');
     const g = idx.dupes.get(l.s);
-    if (!l.ags && g && g.offers.some((o) => o.ags)) { score += 20; flags.push('Isti stan nudi i agencija — „vlasnik” je možda agencija'); }
+    if (!l.ags && g && g.offers.some((o) => o.ags)) { score += 20; flags.push('Isti stan nudi i agencija — „vlasnik“ je možda agencija'); }
     if (l.dep != null && num(l.p) > 0 && +l.dep > 2 * num(l.p)) { score += 15; flags.push('Depozit veći od dve kirije'); }
     const hits = scamHits(l.d);
-    if (hits.length) { score += Math.min(60, hits.reduce((t, x) => t + x.pts, 0)); flags.push('Opis: ' + hits.map((x) => x.label).join(', ') + ' — klasični obrasci prevare'); }
+    if (hits.length) { score += Math.min(60, hits.reduce((t, x) => t + x.pts, 0)); /* najteži signal ide prvi (tooltip semafora na kartici) */ flags.unshift('Opis: ' + hits.map((x) => x.label).join(', ') + ' — klasični obrasci prevare'); }
     if (l.dz <= 2 && priceSignal) { score += 5; flags.push('Nov oglas sa sumnjivo niskom kirijom'); }
     const risk = score < 20 ? 'nizak' : score < 45 ? 'srednji' : 'visok';
     const color = risk === 'nizak' ? 'zeleno' : risk === 'srednji' ? 'zuto' : 'crveno';
@@ -894,7 +904,7 @@ const KX = (() => {
     const min = clamp(Math.round(km * CIRCUITY / speed * 60 + fixed), 1, 180);
     return { min, mode, km: Math.round(km * 10) / 10, far: km > 60 };
   }
-  /* poluprečnik kruga „N minuta” u istom modelu kao travel(): (min − fiksno) × brzina ÷ 60 ÷ 1,3 (za mape) */
+  /* poluprečnik kruga „N minuta“ u istom modelu kao travel(): (min − fiksno) × brzina ÷ 60 ÷ 1,3 (za mape) */
   function travelRadiusKm(mode, min) {
     const [speed, fixed] = SPEED[mode] || SPEED.auto;
     return Math.max(0, num(min) - fixed) * speed / 60 / CIRCUITY;
@@ -930,7 +940,7 @@ const KX = (() => {
     { n: 'Trg kralja Milana', cs: 'nis', lat: 43.3209, lng: 21.8958 }, { n: 'Medicinski fakultet', cs: 'nis', lat: 43.314, lng: 21.915 },
     { n: 'Čair', cs: 'nis', lat: 43.315, lng: 21.9 },
   ];
-  /* pretraga mesta za „Moja mesta”: POI + opštine + naselja (centroidi oglasa), bez dijakritika */
+  /* pretraga mesta za „Moja mesta“: POI + opštine + naselja (centroidi oglasa), bez dijakritika */
   function placeSuggest(text, limit = 8) {
     const q = deacc(text).trim();
     if (!q) return [];
@@ -993,10 +1003,12 @@ const KX = (() => {
   const AREA_WORDS = new Set(['m2', 'm²', 'kvadrata', 'kvadrat', 'kvadratna', 'kvm', 'kv']);
   const EUR_WORDS = new Set(['€', 'e', 'eur', 'evra', 'eura']);
   const K_WORDS = new Set(['k', 'hiljada', 'hilj', 'hiljade']);
+  const NAV_FILTERED = new Set(['mapa', 'mapi', 'mapu', 'budzet']);
+  const NAV_LABEL = { mapi: 'Mapa', mapu: 'Mapa', budzet: 'Budžet' };
   function parseQuery(text) {
     if (!dict) dict = buildDict();
     const filters = {}, chips = [], unparsed = [];
-    let route = null;
+    let route = null, roomWordSeen = false;
     const push = (k, v) => { if (!filters[k]) filters[k] = []; if (!filters[k].includes(v)) filters[k].push(v); };
     const chip = (label, key, value) => chips.push({ label, key, value });
     const setPt = (v, label) => { filters.pt = [v]; chip(label, 'pt', v); };
@@ -1030,8 +1042,13 @@ const KX = (() => {
       const t = toks[i], nx = toks[i + 1] || '';
       /* navigacija */
       if (/^kv-?\d{5,}$/.test(t)) { const ref = 'KV-' + t.replace(/\D/g, ''); const l = all().find((x) => x.r === ref); if (l) { route = '#/oglas?s=' + l.s; chip('Oglas ' + ref, 'route', route); i++; continue; } }
-      const NAV = { uporedi: '#/uporedi', sacuvani: '#/sacuvani', sacuvano: '#/sacuvani', omiljeni: '#/sacuvani', kalkulator: '#/kalkulator', mapa: '#/mapa', agencije: '#/agencije', budzet: '#/mapa?m=budzet', saveti: '#/saveti', procena: '#/procena', trziste: '#/trziste' };
-      if (NAV[t] && toks.length <= 2) { route = NAV[t]; chip(cap(t), 'route', route); i++; continue; }
+      const NAV = { uporedi: '#/uporedi', sacuvani: '#/sacuvani', sacuvano: '#/sacuvani', omiljeni: '#/sacuvani', kalkulator: '#/kalkulator', mapa: '#/mapa', mapi: '#/mapa', mapu: '#/mapa', agencije: '#/agencije', budzet: '#/mapa?m=budzet', saveti: '#/saveti', procena: '#/procena', trziste: '#/trziste' };
+      /* mapa/budžet primaju filtere (grad, tip, cena…) pa su prečica bez obzira na dužinu upita; ostale prečice samo u kratkom upitu,
+         a u dužem se reč preskače (ne postaje tekstualni filter koji bi oborio broj na 0) */
+      if (NAV[t]) {
+        if (NAV_FILTERED.has(t) || toks.length <= 2) { if (!route) { route = NAV[t]; chip(NAV_LABEL[t] || cap(t), 'route', route); } }
+        i++; continue;
+      }
       if (t === 'moja' && nx === 'mesta') { route = '#/moja-mesta'; chip('Moja mesta', 'route', route); i += 2; continue; }
       /* negacije */
       if ((t === 'nije' || t === 'ne') && /^uknjiz/.test(nx)) { chip('nije uknjižen (bez filtera)', 'info', null); i += 2; continue; }
@@ -1087,7 +1104,7 @@ const KX = (() => {
       if (t === 'prizemlje') { setFloor(0, 'Prizemlje'); i++; continue; }
       if (t === 'poslednji' && nx === 'sprat') { i += 2; continue; }
       /* struktura */
-      if (ROOM_LOOKUP.has(t)) { const v = ROOM_LOOKUP.get(t); push('ro', v); chip(cap(roomWord(v)), 'ro', v); i++; continue; }
+      if (ROOM_LOOKUP.has(t)) { const v = ROOM_LOOKUP.get(t); push('ro', v); chip(cap(roomWord(v)), 'ro', v); roomWordSeen = true; i++; continue; }
       /* tip transakcije */
       if (['izdavanje', 'kirija', 'iznajmljivanje', 'zakup', 'iznajmiti', 'najam', 'izdaje', 'rent'].includes(t)) { filters.t = 'izdavanje'; chip('Izdavanje', 't', 'izdavanje'); i++; continue; }
       if (['prodaja', 'kupovina', 'kupiti', 'prodaje'].includes(t)) { filters.t = 'prodaja'; chip('Prodaja', 't', 'prodaja'); i++; continue; }
@@ -1142,6 +1159,8 @@ const KX = (() => {
       }
       unparsed.push(toks[i]); i++;
     }
+    /* „dvosoban“, „trosobna“, „garsonjera“ … su reči za stan: bez izričitog tipa (kuća, plac, lokal, garaža, soba, vikendica) tip je stan */
+    if (roomWordSeen && !filters.pt) { filters.pt = ['stan']; chips.unshift({ label: 'Stan', key: 'pt', value: 'stan' }); }
     if (unparsed.length) filters.q = unparsed.join(' ');
     const count = kxCount(filters);
     return { filters, chips, unparsed, count, route };
@@ -1232,7 +1251,7 @@ const KX = (() => {
       if (k === 'c') { removed.m = []; removed.n = []; }
       if (k === 'm') removed.n = [];
       if (k === 'c' && locSub) {
-        /* opština/naselje je aktivno: širenje na ceo grad je prvi korak; „cela Srbija” samo kad ni grad ne daje ništa */
+        /* opština/naselje je aktivno: širenje na ceo grad je prvi korak; „cela Srbija“ samo kad ni grad ne daje ništa */
         if (kxCount({ ...f, m: [], n: [] }) > 0) continue;
         add(`Ukloni lokaciju (${[cityName(), ...munNames()].join(', ')})`, removed);
         continue;
@@ -1250,7 +1269,7 @@ const KX = (() => {
     }
     const amLabel = (a) => (typeof AMEN !== 'undefined' && AMEN[a]) || a;
     if (Array.isArray(f.am)) for (const a of f.am) add(`Ukloni filter ${amLabel(a)}`, { ...f, am: f.am.filter((x) => x !== a) });
-    /* nijedan pojedinačni filter ne pomaže → probaj parove, pa „samo lokacija”, pa „bez filtera” */
+    /* nijedan pojedinačni filter ne pomaže → probaj parove, pa „samo lokacija“, pa „bez filtera“ */
     if (!cands.length) {
       const units = [];
       for (const k of Object.keys(FILTER_LABEL)) if (active(k) && k !== 'q') units.push({ label: k === 'c' && locSub ? 'Lokacija' : FILTER_LABEL[k], patch: k === 'c' ? { c: '', m: [], n: [] } : k === 'm' ? { m: [], n: [] } : { [k]: off(k) } });
@@ -1268,44 +1287,47 @@ const KX = (() => {
     return cands.filter((c) => { if (seen.has(c.label)) return false; seen.add(c.label); return true; }).slice(0, 5);
   }
 
-  /* ─────────── ledger („Kako računamo”) ─────────── */
+  /* ─────────── ledger („Kako računamo“) ─────────── */
   const ledger = [
     { feature: 'Cena, €/m², kvadratura, struktura, sprat, grejanje, uknjiženost', real: true, how: 'Polja iz oglasa; ništa se ne menja.' },
-    { feature: 'Porez na prenos 2,5 % / PDV 10 % ili 20 %', real: true, how: 'Starogradnja: 2,5 % × cena (zakonski obveznik prodavac, ugovorom kupac). Novogradnja (stan, kuća): PDV 10 % je već u oglašenoj ceni (cena ÷ 1,10 = neto); prekidač „cena je bez PDV-a” dodaje 10 %. Novi poslovni prostor: opšta stopa PDV-a 20 % (cena ÷ 1,20 = neto).' },
+    { feature: 'Porez na prenos 2,5 % / PDV 10 % ili 20 %', real: true, how: 'Starogradnja: 2,5 % × cena (zakonski obveznik prodavac, ugovorom kupac). Novogradnja (stan, kuća): PDV 10 % je već u oglašenoj ceni (cena ÷ 1,10 = neto); prekidač „cena je bez PDV-a“ dodaje 10 %. Novi poslovni prostor: opšta stopa PDV-a 20 % (cena ÷ 1,20 = neto).' },
     { feature: 'Olakšice za prvi stan', real: true, how: 'Oslobođeno 40 m² + 15 m² po članu domaćinstva. Starogradnja: porez × (oslobođeni m² ÷ m²) odbija se na dan kupovine. Novogradnja: povraćaj PDV-a = neto cena × 10 % × udeo, stiže ≈ 45 dana kasnije (RFN), samo za prvu kupovinu od investitora. Olakšica važi samo za stan ili porodičnu kuću.' },
     { feature: 'Provizija agencije', real: true, how: 'Oglas agencije: procenat iz profila (2 %) × cena + PDV 20 %; oglas vlasnika: 0. Ko plaća (kupac/prodavac) bira se u profilu. Zakup: 50 % kirije; plaća zakupac, osim kad agencija naplaćuje vlasniku.' },
     { feature: 'Overa, upis, bankarski troškovi', real: false, how: 'Demo tarife: beležnik po razredima 120–650 €, upis 45 €, procena 120 €, obrada 0,5 % kredita, NKOSK 1,5–3,5 % (raste sa LTV, opciono), osiguranje 40 €/god.' },
     { feature: 'Rata kredita', real: true, how: 'Anuitet: kredit × i ÷ (1 − (1+i)^−n), i = NKS ÷ 12, n = godine × 12. Kredit = LTV × cena (80 %, 90 % za prvi stan) ili cena + troškovi − keš.' },
     { feature: 'Keš ili kredit', real: true, how: 'Maks. rata = DTI (50 %, konzervativno; NBS dozvoljava 60 %) × neto prihod − postojeće rate; maks. kredit iz anuiteta; kapija uknjiženosti: neuknjiženo/ozakonjenje → samo keš, u procesu/Zakon 2025 → zavisi od banke.' },
-    { feature: 'Mesečni računi (grejanje, struja, voda, održavanje)', real: false, how: 'Procena po m²: CG 1,15 €/m²; ostala grejanja 0,45–1,05 €/m² × faktor energetskog razreda; struja 20 € + 0,30 €/m²; voda i smeće 8 € + 0,20 €/m²; stambena zajednica 0,12 €/m² (0,25 sa liftom) + 5 €.' },
-    { feature: 'Porez na imovinu', real: false, how: 'Gruba procena: m² × medijan €/m² opštine × 0,85 × (1 − amortizacija 1 %/god, maks. 40 %) × 0,4 %, −50 % za stanovanje (maks. 20.000 RSD). Prava osnovica je prosečna cena zone koju utvrđuje opština.' },
-    { feature: 'Fer cena', real: true, how: 'Do 8 najsličnijih oglasa istog tipa: prvo ista opština, a ako ih je manje od 5, i oglasi do 3 km (udaljenost 1,0 po km + razlika m², soba, naselja; ponovljeni oglasi istog stana se ne računaju); medijan €/m² ponderisan blizinom, korigovan za sprat, stanje, grejanje, terasu, energetski razred; opseg ±6 %. Bez presude kada je manje od 5 uporedivih.' },
-    { feature: 'Pregovarač', real: true, how: 'Bodovi za odstupanje od procene, dane na oglasu naspram medijana opštine, sniženja, „po dogovoru”, više oglašivača, renoviranje, oglas vlasnika; zbir (maks. 15 %) = prostor za pregovor; prva ponuda = cena × (1 − (bodovi + 3) %).' },
+    { feature: 'Mesečni računi (grejanje, struja, voda, održavanje)', real: false, how: 'Procena po m²: CG 1,15 €/m²; ostala grejanja 0,45–1,05 €/m² × faktor energetskog razreda; struja 20 € + 0,30 €/m²; voda i smeće 8 € + 0,20 €/m²; stambena zajednica 0,12 €/m² (0,25 sa liftom) + 5 € (najniži iznos propisuje opština) — samo za stanove u zgradi, kuće i vikendice je nemaju. Daljinsko grejanje: Infostan u Beogradu, gradska toplana drugde.' },
+    { feature: 'Porez na imovinu', real: false, how: 'Gruba procena: m² × medijana €/m² opštine × 0,85 × (1 − amortizacija 1 %/god, maks. 40 %) × 0,4 %, −50 % za stanovanje (maks. 20.000 RSD). Prava osnovica je prosečna cena zone koju utvrđuje opština.' },
+    { feature: 'Fer cena', real: true, how: 'Do 8 najsličnijih oglasa istog tipa: prvo ista opština, a ako ih je manje od 5, i oglasi do 3 km (udaljenost 1,0 po km + razlika m², soba, naselja; ponovljeni oglasi istog stana se ne računaju); medijana €/m² ponderisana blizinom, korigovana za sprat, stanje, grejanje, terasu, energetski razred; opseg ±6 %. Bez presude kada je manje od 5 uporedivih.' },
+    { feature: 'Pregovarač', real: true, how: 'Bodovi za odstupanje od procene, dane na oglasu naspram medijane opštine, sniženja, „moguć dogovor“, više oglašivača, renoviranje, oglas vlasnika; zbir (maks. 15 %) = prostor za pregovor; prva ponuda = cena × (1 − (bodovi + 3) %).' },
     { feature: 'Istorija cene', real: false, how: 'Demo prikaz: oko trećine oglasa starijih od dve nedelje dobija tačno jedno sniženje 2–9 % u mesecu određenom iz šifre oglasa; trenutna cena je uvek prava. 12 mesečnih tačaka.' },
-    { feature: 'Dani na oglasu', real: false, how: 'Objavljeno = danas − broj dana od objave (pravi podatak iz oglasa). ~20 % oglasa je „obnavljano” (demo): pravi broj dana = dani od objave + 30–120 i taj pošten broj prikazujemo. Percentil i medijan dana računaju se iz pravog broja dana na oglasu u opštini.' },
-    { feature: 'Isti stan, više agencija', real: true, how: `Ključ: isti tip, grad, opština, struktura, |Δm²| ≤ 2, isti sprat (ili nepoznat), ista godina ±2, različit oglašivač, ≤ 3 km. „Sigurno” = isto naselje, |Δm²| ≤ 1, isti sprat; ostalo „moguće”. Glavni oglas grupe je najjeftiniji; ostali se u rezultatima skrivaju dok ih ne uključite.` },
-    { feature: 'Ponovljeni oglasi', real: false, how: 'Ponovljeni oglasi: demo — da bi se prikazalo spajanje istog stana, za 14 stanova generisani su oglasi drugih agencija. Svaki ima istu kvadraturu, strukturu, sprat, adresu i fotografije kao izvorni oglas, cenu ±1,5–7 %, drugi datum objave, šifru „KV-…-2/3/4” i oznaku ponovljenog oglasa; ne ulaze u medijane €/m² ni u procene.' },
-    { feature: 'Pravni status (semafor)', real: false, how: 'Iz podatka o uknjiženosti + demo raspodela (određena iz šifre oglasa): uknjiženo ≈ 68 %, u procesu ≈ 13 %, upisano po Zakonu 2025 ≈ 9 %, ozakonjenje ≈ 5 %, nije ≈ 4 %. Hipoteka, suvlasništvo i upotrebna dozvola su demo zastavice. Proverite u eKatastru.' },
-    { feature: 'Rizik prevare (zakup)', real: true, how: 'Bodovi: kirija ≥ 30 % ispod medijana naselja/opštine (35), ≥ 15 % (15), ≤ 3 fotografije (10), vlasnik bez verifikacije (8), neverifikovana agencija (5), depozit > 2 kirije (15), obrasci u opisu — uplata unapred (25), vlasnik u inostranstvu (25), Western Union / MoneyGram (45), ključevi poštom ili kurirom (45), kontakt samo preko poruka (15), zbir maks. 60 — nov oglas sa niskom kirijom (5). < 20 zeleno, 20–44 žuto, ≥ 45 crveno. Demo opisi ne sadrže takve fraze.' },
-    { feature: 'Šta dobijaš za svoj budžet', real: true, how: 'Po opštini (≥ 5 oglasa): medijan €/m²; neto = budžet − porez 2,5 % − provizija 2 % + PDV − beležnik − upis; m² = neto ÷ medijan €/m².' },
+    { feature: 'Dani na oglasu', real: false, how: 'Objavljeno = danas − broj dana od objave (pravi podatak iz oglasa). ~20 % oglasa je „obnavljano“ (demo): pravi broj dana = dani od objave + 30–120 i taj pošten broj prikazujemo. Percentil i medijana dana računaju se iz pravog broja dana na oglasu u opštini.' },
+    { feature: 'Isti stan, više agencija', real: true, how: `Ključ: isti tip, grad, opština, struktura, |Δm²| ≤ 2, isti sprat (ili nepoznat), ista godina ±2, različit oglašivač, ≤ 3 km. „Sigurno“ = isto naselje, |Δm²| ≤ 1, isti sprat; ostalo „moguće“. Glavni oglas grupe je najjeftiniji; ostali se u rezultatima skrivaju dok ih ne uključiš.` },
+    { feature: 'Ponovljeni oglasi', real: false, how: 'Ponovljeni oglasi: demo — da bi se prikazalo spajanje istog stana, za 14 stanova generisani su oglasi drugih agencija. Svaki ima istu kvadraturu, strukturu, sprat, adresu i fotografije kao izvorni oglas, cenu ±1,5–7 %, drugi datum objave, šifru „KV-…-2/3/4“ i oznaku ponovljenog oglasa; ne ulaze u medijane €/m² ni u procene.' },
+    { feature: 'Pravni status (semafor)', real: false, how: 'Iz podatka o uknjiženosti + demo raspodela (određena iz šifre oglasa): uknjiženo ≈ 68 %, u procesu ≈ 13 %, upisano po Zakonu 2025 ≈ 9 %, ozakonjenje ≈ 5 %, nije ≈ 4 %. Hipoteka, suvlasništvo i upotrebna dozvola su demo zastavice. Proveri u eKatastru.' },
+    { feature: 'Rizik prevare (zakup)', real: true, how: 'Bodovi: kirija ≥ 30 % ispod medijane naselja/opštine (35), ≥ 15 % (15), ≤ 3 fotografije (10), vlasnik bez verifikacije (8), neverifikovana agencija (5), depozit > 2 kirije (15), obrasci u opisu — uplata unapred (25), vlasnik u inostranstvu (25), Western Union / MoneyGram (45), ključevi poštom ili kurirom (45), kontakt samo preko poruka (15), zbir maks. 60 — nov oglas sa niskom kirijom (5). < 20 zeleno, 20–44 žuto, ≥ 45 crveno. Demo: opisi iz podataka ne sadrže takve fraze, pa je u 7 opisa oglasa za izdavanje (vlasnik ili neverifikovana agencija, kirija ispod medijane opštine) dodata po jedna rečenica prevare — da se vidi kako izgleda crveni semafor.' },
+    { feature: 'Šta dobijaš za svoj budžet', real: true, how: 'Po opštini (≥ 5 oglasa): medijana €/m²; neto = budžet − porez 2,5 % − provizija 2 % + PDV − beležnik − upis; m² = neto ÷ medijana €/m².' },
+    { feature: 'Komšiluk, minuti hoda i „Kakav je kraj“', real: false, how: 'Nazivi škola, vrtića, pijaca, prodavnica i linija gradskog prevoza, opis kraja i rečenica „N min hoda do …“ na kartici su demo: biraju se iz spiska po gradu i opštini, a minuti (1–15) iz šifre oglasa. Nisu izmereni na mapi; ručno unete znamenitosti (KX.POI) imaju približne prave koordinate.' },
+    { feature: 'Prikaz u dinarima', real: false, how: 'Fiksni demo kurs 1 € = 117,2 RSD; ugovori se plaćaju po srednjem kursu NBS na dan uplate.' },
+    { feature: 'Pregledi i čuvanja oglasa', real: false, how: 'Brojevi pregleda i čuvanja („190 pregleda · 0 sačuvalo“) su deo generisanih demo podataka; lokalno se ne menjaju.' },
     { feature: 'Vreme do mojih mesta', real: false, how: 'Vazdušna linija × 1,3; auto 22 km/h + 4 min, gradski prevoz 14 km/h + 6 min, peške 4,5 km/h, bicikl 14 km/h + 2 min; 1–180 min. Procena, bez saobraćaja i linija.' },
     { feature: 'Brza pretraga i živi brojači', real: true, how: 'Rečnik gradova, opština i naselja (bez dijakritika), gramatika cena/kvadratura/struktura/osobina; brojači = isti filteri kao u rezultatima, nad svim oglasima.' },
-    { feature: 'Δ naspram proseka (Merilo)', real: true, how: '€/m² oglasa ÷ medijan €/m² istog tipa i vrste posla − 1, u prvom obimu sa ≥ 5 oglasa: naselje → opština → prigradske opštine Beograda (Surčin, Grocka, Obrenovac, Lazarevac, Mladenovac, Sopot, Barajevo — porede se međusobno) → grad (Beograd bez prigradskih opština) → manji gradovi istog regiona (≥ 6 oglasa; Zlatibor, Kopaonik i Vrnjačka Banja su zaseban skup turističkih mesta). Nikad prosek cele Srbije. Bez uzorka nema čipa („malo podataka”). Plac (cena po aru) i soba nemaju Δ.' },
+    { feature: 'Δ naspram proseka (Merilo)', real: true, how: '€/m² oglasa ÷ medijana €/m² istog tipa i vrste posla − 1, u prvom obimu sa ≥ 5 oglasa: naselje → opština → prigradske opštine Beograda (Surčin, Grocka, Obrenovac, Lazarevac, Mladenovac, Sopot, Barajevo — porede se međusobno) → grad (Beograd bez prigradskih opština) → manji gradovi istog regiona (≥ 6 oglasa; Zlatibor, Kopaonik i Vrnjačka Banja su zaseban skup turističkih mesta). Nikad prosek cele Srbije. Bez uzorka nema čipa („malo podataka“). Plac (cena po aru) i soba nemaju Δ.' },
     { feature: 'Tržište ovog meseca (početna)', real: false, how: 'Medijana €/m² po gradu je stvarna (prodaja, stanovi); promena za 12 meseci na pločicama početne je demo vrednost (deterministička, −2 do +10 %), jer podaci nemaju istoriju tržišta.' },
-    { feature: 'Rok završetka novogradnje', real: false, how: 'Rok useljenja („rok Q4 2027”) je demo: određen iz šifre oglasa, 1–2 godine od danas.' },
+    { feature: 'Rok završetka novogradnje', real: false, how: 'Rok useljenja („rok Q4 2027“) je demo: određen iz šifre oglasa, 1–2 godine od danas.' },
     { feature: 'Mapa: tkivo grada i krugovi Moja mesta', real: false, how: 'Mapa je nacrtana iz podataka: blokovi, ulice i parkovi su generisani; reke i imenovani parkovi su približne ručne koordinate. Krugovi 10/20/30 min koriste isti model kao tabela minuta: (minuti − fiksno vreme) × brzina ÷ 1,3.' },
     { feature: 'Cena po m² oblasti · 12 meseci (oglas)', real: false, how: 'Današnja medijana oblasti Merila × indeks promena traženih cena istih oglasa (istorija cene, podrezana sredina 5 %); kad oblast ima manje od 25 oglasa, indeks se računa za ceo grad. Procena.' },
-    { feature: 'Procena vrednosti — rezervni put', real: true, how: 'Redosled: procena fer cene (≥ 5 uporedivih) → ±15 % oko medijane najbližih oglasa u istom gradu → medijana grada (≥ 3 oglasa) → medijana u krugu od 60 km ili regiona (≥ 5, bez Beograda i Novog Sada) → „Procena nije moguća”. Korekcije: prizemlje −5 %, poslednji sprat bez lifta −4 %, lux +8 %, renovirano +4 %, novogradnja +3 %, potrebno renoviranje −8 %, grejanje struja/TA/klima −3 %, centralno/podno/toplotna pumpa +2 %, terasa +2 %, gradnja pre 1965. −3 %.' },
+    { feature: 'Procena vrednosti — rezervni put', real: true, how: 'Redosled: procena fer cene (≥ 5 uporedivih) → ±15 % oko medijane najbližih oglasa u istom gradu → medijana grada (≥ 3 oglasa) → medijana u krugu od 60 km ili regiona (≥ 5, bez Beograda i Novog Sada) → „Procena nije moguća“. Korekcije: prizemlje −5 %, poslednji sprat bez lifta −4 %, lux +8 %, renovirano +4 %, novogradnja +3 %, potrebno renoviranje −8 %, grejanje struja/TA/klima −3 %, centralno/podno/toplotna pumpa +2 %, terasa +2 %, gradnja pre 1965. −3 %.' },
     { feature: 'Kalkulator: kreditna sposobnost i kupovina ili zakup', real: true, how: 'Životni minimum 250 € + 120 € po izdržavanom članu. Kupovina: troškovi kupovine + kamata + porez na imovinu + održavanje 0,5 % cene godišnje − rast vrednosti stana (3 %/god.). Zakup: kirija koja raste 4 %/god. − prinos 3 % na učešće i troškove kupovine. Predlog kirije = medijana zakupa stanova ±15 % (pa ±30 %) kvadrature. Kurs za prikaz u dinarima je demo: 1 € = 117,2 RSD.' },
     { feature: 'Sniženja traženih cena (tržište)', real: false, how: 'Lančani indeks istih oglasa iz demo istorije cena; beleži samo sniženja i nije indeks tržišta (za tržište vidi RGZ).' },
-    { feature: 'Sačuvane pretrage i kvalitet oglasa', real: false, how: 'Broj „novih od poslednje posete” računa se iz starosti oglasa u odnosu na vreme čuvanja pretrage. Ocena kvaliteta oglasa (0–100) je fiksna lista: naslov, opis ≥ 300 znakova, ≥ 5 fotografija, ulica, uknjiženo sa dokazom, realna cena, kontakt.' },
-    { feature: 'Agencije: tim, ocene, kancelarija', real: false, how: 'Demo: broj registra i licence, tročlani tim, telefoni i jezici agenata, radno vreme i vreme odgovora (određeni iz naziva agencije); pojedinačne ocene i podocene su izvedene tako da daju prosečnu ocenu agencije; kancelarija je centar grada uz mali pomak, fotografija je ilustracija. Vaše ocene se čuvaju samo u pregledaču i ne ulaze u prosek.' },
+    { feature: 'Sačuvane pretrage i kvalitet oglasa', real: false, how: 'Broj „novih od poslednje posete“ računa se iz starosti oglasa u odnosu na vreme čuvanja pretrage. Ocena kvaliteta oglasa (0–100) je fiksna lista: naslov, opis ≥ 300 znakova, ≥ 5 fotografija, ulica, uknjiženo sa dokazom, realna cena, kontakt.' },
+    { feature: 'Agencije: tim, ocene, kancelarija', real: false, how: 'Demo: broj registra i licence, tročlani tim, telefoni i jezici agenata, radno vreme i vreme odgovora (određeni iz naziva agencije); pojedinačne ocene i podocene su izvedene tako da daju prosečnu ocenu agencije; kancelarija je centar grada uz mali pomak, fotografija je ilustracija. Tvoje ocene se čuvaju samo u pregledaču i ne ulaze u prosek.' },
     { feature: 'Novogradnja — raspored zgrade (demo)', real: false, how: 'Projekat = oglasi iste agencije u istom naselju (stan, kuća, lokal u novogradnji). Stvarni oglasi su uvek dostupni; izmišljene jedinice prate tok gradnje (u izgradnji prodato 20–55 %, useljivo 70–85 %, rezervisano 3–10 %). Nazivi projekata, datumi toka gradnje, plan plaćanja, istorija isporuke, broj stanova i broj građevinske dozvole su demo.' },
     { feature: 'Oglas: tlocrt, uslovi zakupa, termini obilaska', real: false, how: 'Tlocrt je šematski crtež iz strukture i kvadrature (nije arhitektonski plan); minimalni period zakupa, datum useljenja, slobodni termini obilaska, ime agenta i vreme odgovora su demo vrednosti određene iz šifre oglasa. Poruke, obilasci i prijave čuvaju se samo u pregledaču.' },
   ];
 
   /* ─────────── ponovljeni oglasi (demo) ───────────
-     Podaci nemaju prirodnih duplikata, pa se „Isti stan, više agencija” ne bi video. Za 14 stanova (Beograd 7, Novi Sad 4, Niš 3;
+     Podaci nemaju prirodnih duplikata, pa se „Isti stan, više agencija“ ne bi video. Za 14 stanova (Beograd 7, Novi Sad 4, Niš 3;
      prodaja i izdavanje; izbor po hash-u, različite opštine) dodaje se 1–3 oglasa drugih agencija iz istog grada (ili vlasnika):
      isti fizički stan (m², struktura, sprat, godina, adresa, koordinate, fotografije: l.ps), cena ±1,5–7 %, drugi dz, slug '<orig>-p<n>',
      šifra '<orig>-<n>', blago izmenjen naslov, l.syn = true. Pokreće se jednom, pri učitavanju engine.js (pre bilo kakvog brojanja). */
@@ -1332,7 +1354,7 @@ const KX = (() => {
         const r = R(H(base.s + ':syn'));
         const pool = agencies.filter((a) => a.c === base.c && a.s !== base.ags).sort((a, b) => H(base.s + a.s) - H(base.s + b.s));
         const sellers = pool.map((a) => ({ ag: a.n, ags: a.s, agv: !!a.v }));
-        if (base.ags) sellers.splice(Math.min(1, sellers.length), 0, { ag: null, ags: null, agv: false });   /* jedan „vlasnik” kad izvorni oglas drži agencija */
+        if (base.ags) sellers.splice(Math.min(1, sellers.length), 0, { ag: null, ags: null, agv: false });   /* jedan „vlasnik“ kad izvorni oglas drži agencija */
         const n = Math.min(sellers.length, 1 + (H(base.s + ':nrep') % 3));
         const step = t === 'izdavanje' ? 10 : 500;
         const usedP = new Set([base.p]);
@@ -1371,12 +1393,65 @@ const KX = (() => {
     return made.length;
   }
 
+  /* ─────────── ispravke naziva iz podataka (data.js je zamrznut) ───────────
+     „Bulevar 12. februar“ → „Bulevar 12. februara“ (genitiv, kao naziv ulice) u naselju, adresi, naslovu i opisu. */
+  const NAME_FIX = [[/Bulevar 12\. februar(?!a)/g, 'Bulevar 12. februara']];
+  let namesFixed = false;
+  function fixNames() {
+    if (namesFixed) return 0;
+    namesFixed = true;
+    let n = 0;
+    for (const l of all()) for (const k of ['n', 'ad', 'ti', 'd']) {
+      const v = l[k]; if (typeof v !== 'string') continue;
+      let w = v; for (const [re, to] of NAME_FIX) w = w.replace(re, to);
+      if (w !== v) { l[k] = w; n++; }
+    }
+    return n;
+  }
+
+  /* ─────────── semafor zakupa: ubačene rečenice prevare (demo) ───────────
+     Demo opisi ne sadrže obrasce prevare, pa crveni semafor zakupa ne bi mogao da se vidi. Za 7 oglasa za izdavanje (vlasnik ili
+     neverifikovana agencija, kirija €/m² ispod medijane opštine; poredak po hash(s + ':scam')) na opis se dodaje po jedna rečenica
+     iz fiksnog spiska koja odgovara SCAM_PATTERNS (najviše jedan oglas po agenciji). l.scamSeeded = true; korak je idempotentan. */
+  const SCAM_SENTENCES = [
+    'Trenutno sam u inostranstvu, ključeve šaljem kurirom posle uplate depozita unapred.',
+    'Vlasnik je van zemlje; depozit unapred preko Western Union, a ključeve šaljem poštom.',
+    'Kontakt samo preko Vibera. Stan ne mogu da pokažem jer sam u inostranstvu — ključeve šaljem kurirom.',
+    'Zbog posla sam u inostranstvu, pa tražim uplatu unapred za prvi mesec; ključ šaljem poštom.',
+    'Novac unapred preko MoneyGram-a, posle uplate kurir će doneti ključeve.',
+    'Javljanje samo preko WhatsAppa; kapara unapred je obavezna, ključeve šaljem kurirom.',
+    'Stan je slobodan odmah, ali sam trenutno u Austriji — depozit unapred, a ključeve šaljem poštom.',
+  ];
+  const SCAM_N = 7;
+  let scamDone = false;
+  function seedScams() {
+    if (scamDone) return 0;
+    scamDone = true;
+    const list = all();
+    if (list.some((l) => l.scamSeeded)) return 0;
+    const bases = new Set(list.filter((l) => l.syn).map((l) => l.synOf || l.ps));
+    const rent = list.filter((l) => l.t === 'izdavanje' && (l.pt === 'stan' || l.pt === 'soba' || l.pt === 'kuca') && !l.syn && !bases.has(l.s) && l.ppm > 0 && l.d);
+    const groups = new Map();
+    for (const l of rent) { const k = l.cs + '/' + l.ms + '/' + l.pt; let a = groups.get(k); if (!a) { a = []; groups.set(k, a); } a.push(l.ppm); }
+    const med = (a) => { const b = a.slice().sort((x, y) => x - y); const m = b.length >> 1; return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2; };
+    const medOf = new Map([...groups].filter(([, a]) => a.length >= 3).map(([k, a]) => [k, med(a)]));
+    const cands = rent.filter((l) => (!l.ags || !l.agv) && medOf.has(l.cs + '/' + l.ms + '/' + l.pt) && l.ppm < medOf.get(l.cs + '/' + l.ms + '/' + l.pt));
+    cands.sort((a, b) => (H(a.s + ':scam') - H(b.s + ':scam')) || (a.s < b.s ? -1 : 1));
+    /* najviše jedan oglas po agenciji (da se jedna agencija ne prikaže kao prevarant); vlasnici bez ograničenja */
+    const picked = [], usedAg = new Set();
+    for (const l of cands) { if (picked.length >= SCAM_N) break; if (l.ags) { if (usedAg.has(l.ags)) continue; usedAg.add(l.ags); } picked.push(l); }
+    picked.forEach((l, i) => { l.d = String(l.d).replace(/\s+$/, '') + '\n\n' + SCAM_SENTENCES[i % SCAM_SENTENCES.length]; l.scamSeeded = true; });
+    return picked.length;
+  }
+
   /* ─────────── enrich ─────────── */
   let enriched = false;
   function enrich(force) {
     if (enriched && !force) return idx;
     const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    fixNames();
     synthRepostings();
+    seedScams();
     buildIndexes();
     buildDupes();
     for (const m of Object.values(memo)) m.clear();
@@ -1388,9 +1463,11 @@ const KX = (() => {
   const ensure = () => { if (!enriched) enrich(); };
   const guard = (fn) => (...args) => { ensure(); return fn(...args); };
 
+  fixNames();
   synthRepostings();
+  seedScams();
   return {
-    enrich, profile, ledger, titleOf, EKATASTAR, POI, TARIFF, synth: { count: () => all().filter((l) => l.syn).length },
+    enrich, profile, ledger, titleOf, EKATASTAR, POI, TARIFF, synth: { count: () => all().filter((l) => l.syn).length }, scams: { count: () => all().filter((l) => l.scamSeeded).length },
     cost: guard(cost), afford: guard(afford), creditCapacity, fair: guard(fair), history: guard(history),
     dupes: { groupOf: guard(dupes.groupOf), isSecondary: guard(dupes.isSecondary), groups: guard(dupes.groups), count: guard(dupes.count), hiddenCount: guard(dupes.hiddenCount), match: dupes.match, build: dupes.build },
     trust: guard(trust), trustCheck, budgetMap: guard(budgetMap), netForBudget,

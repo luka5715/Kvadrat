@@ -509,7 +509,6 @@ const mapView = (() => {
         const t = it.data ? clamp(it.r.m2 / max, 0, 1) : 0;
         const c = svg('circle', { cx: (it.x / kk).toFixed(2), cy: (it.y / kk).toFixed(2), r: (it.rp / kk).toFixed(3), class: 'mv-bc' + (it.data ? '' : ' hollow') + (selected === it.r.key ? ' on' : ''), 'data-key': it.r.key });
         c.style.fillOpacity = (0.14 + t * 0.42).toFixed(2); c.style.strokeWidth = (1.25 / kk).toFixed(3);
-        c.addEventListener('click', (e) => { e.stopPropagation(); selected = it.r.key; budgetDirty = true; if (o.onArea) o.onArea(it.r); if (o.onSelect) o.onSelect(it.r.key); needLabels = true; schedule(); });
         c.addEventListener('pointerenter', () => { if (o.onHover) o.onHover(it.r.key); });
         c.addEventListener('pointerleave', () => { if (o.onHover) o.onHover(null); });
         gBudget.appendChild(c); budgetNodes.push(c);
@@ -682,6 +681,9 @@ const mapView = (() => {
       /* klik bez pomeranja */
       const pinN = d.target.closest && d.target.closest('.mv-pin');
       if (pinN) { activatePin(pinN); return; }
+      /* krug opštine (budžet): bira se ovde, jer setPointerCapture šalje "click" kontejneru, ne krugu */
+      const bc = mode === 'budget' && d.target.closest && d.target.closest('.mv-bc');
+      if (bc) { const r = budgetRows.find((x) => x.key === bc.dataset.key); if (r) { selected = r.key; budgetDirty = true; needLabels = true; if (o.onArea) o.onArea(r); if (o.onSelect) o.onSelect(r.key); schedule(); } return; }
       if (selected && mode === 'pins' && !d.target.closest('.mv-pop')) api.setSelected(null);
     }
     function activatePin(n) {
@@ -748,7 +750,7 @@ const mapView = (() => {
       polygon = pts; applyPolygon(); if (o.onDraw) o.onDraw('zone');
     }
     function cancelDraw() { drawing = false; freehand = false; drawPts = []; container.classList.remove('mv-drawing'); drawBtn.setAttribute('aria-pressed', 'false'); drawBar.hidden = true; if (o.onDraw) o.onDraw(polygon ? 'zone' : 'cancel'); schedule(); }
-    function applyPolygon() {
+    function applyPolygon(silent) {
       visible = polygon ? all.filter((l) => { const [x, y] = lw(l); return inPoly(x, y, polygon); }) : all;
       clusterCache = null; needPins = true;
       zoneChip.innerHTML = '';
@@ -757,7 +759,7 @@ const mapView = (() => {
         zoneChip.append(icon('draw', 14), el('span', {}, `Nacrtana zona · ${oglasa(visible.length)}`), el('button', { type: 'button', 'aria-label': 'Obriši zonu', onclick: () => { polygon = null; applyPolygon(); if (o.onDraw) o.onDraw('cancel'); } }, icon('x', 14)));
         drawBtn.hidden = true;
       } else { zoneChip.hidden = true; drawBtn.hidden = false; }
-      if (o.onBoundsChange) o.onBoundsChange({ ...getBounds(), count: visible.length });
+      if (!silent && o.onBoundsChange) o.onBoundsChange({ ...getBounds(), count: visible.length });
       schedule();
     }
 
@@ -810,8 +812,11 @@ const mapView = (() => {
       el: container,
       setListings(list) {
         all = collapseDupes((list || []).filter((l) => l && typeof l.lat === 'number')); labelData = null; clusterCache = null;
-        const nc = cityOf(); if (nc.s !== city.s) { city = nc; proj = makeProj(city.lat, city.lng); gCities.innerHTML = ''; }
-        polygon = null; visible = all; zoneChip.hidden = true; drawBtn.hidden = false; needPins = true; schedule();
+        const nc = cityOf(); const cityChanged = nc.s !== city.s;
+        if (cityChanged) { city = nc; proj = makeProj(city.lat, city.lng); gCities.innerHTML = ''; }
+        /* nacrtana zona preživljava promenu filtera; briše se samo kad se promeni grad (i to se javlja stranici) */
+        if (polygon && cityChanged) { polygon = null; if (o.onDraw) o.onDraw('cancel'); }
+        applyPolygon(true); drawBtn.hidden = mode === 'budget' || !!polygon; needPins = true; schedule();
       },
       setSelected(slug) {
         const was = selected; selected = slug || null; refreshStates(); popPass();
@@ -830,7 +835,7 @@ const mapView = (() => {
         } else schedule();
       },
       highlight(slug) { hovered = slug || null; refreshStates(); },
-      fit(list, insets) { fitList(list || visible, 15, insets); },
+      fit(list, insets) { fitList(list || (polygon && !visible.length ? api.getPolygon() : visible), 15, insets); }, /* prazna zona: kadar na samu zonu */
       fitTo(list, zmax, insets) { fitList(list, zmax == null ? ZMAX : zmax, insets); },
       setInsets(ins) { defInsets = ins || null; },
       panTo, setZoom(z) { zoomAt(z, W / 2, Hh / 2); }, getZoom: () => view.z, getView: () => ({ ...latLngOfW(view.cx, view.cy), zoom: view.z }),

@@ -95,7 +95,7 @@ ok(lineOf(c2, 'pdv').amount === 0 && lineOf(c2, 'pdv').included && lineOf(c2, 'p
 ok(!lineOf(c2, 'porez'), 'nema poreza na prenos kod novogradnje');
 ok(c2.netPrice === 100000, 'neto cena = 110.000 ÷ 1,10');
 const c2b = KX.cost(nb, { vatIncluded: false });
-ok(lineOf(c2b, 'pdv').amount === 11000 && c2b.onPurchase - c2.onPurchase === 11000, 'prekidač „cena bez PDV-a” dodaje 10 %');
+ok(lineOf(c2b, 'pdv').amount === 11000 && c2b.onPurchase - c2.onPurchase === 11000, 'prekidač „cena bez PDV-a“ dodaje 10 %');
 
 section('cost — prvi stan (60 m², 2 člana domaćinstva)');
 const c3 = KX.cost(base, { firstHome: true, household: 2 });
@@ -105,7 +105,7 @@ ok(c3.onPurchase === c1.onPurchase - 2292 + (c3.loan - c1.loan === 0 ? 0 : 0) ||
 ok(c3.loan === 90000, 'prvi stan: LTV 90 %');
 const c4 = KX.cost(nb, { firstHome: true, household: 2 });
 const refund = lineOf(c4, 'pdv-povracaj');
-ok(refund && refund.when === 'kasnije' && near(refund.amount, -(100000 * 0.10 * 55 / 60), 1), 'novogradnja: povraćaj PDV-a na neto cenu kao „kasnije” priliv (−9.167 €)', refund);
+ok(refund && refund.when === 'kasnije' && near(refund.amount, -(100000 * 0.10 * 55 / 60), 1), 'novogradnja: povraćaj PDV-a na neto cenu kao „kasnije“ priliv (−9.167 €)', refund);
 ok(c4.onPurchase === KX.cost(nb, { household: 2, ltv: 0.9 }).onPurchase && c4.laterInflow === -refund.amount, 'povraćaj ne smanjuje novac na dan kupovine; laterInflow pozitivan');
 
 section('cost — izdavanje');
@@ -192,7 +192,7 @@ console.log('  broj grupa:', groups.length, '| confidence:', groups.map((g) => g
 groups.slice(0, 5).forEach((g) => console.log('   ', g.offers.map((o) => `${o.r} ${o.p}€ ${o.a}m² sp${o.fl} ${o.y} ${o.ags || 'vlasnik'}`).join(' | ')));
 /* U demo podacima (data.js) nema pravih duplikata: nijedan par oglasa različitih agencija nema isto naselje, strukturu,
    sprat i kvadraturu ±1 m² (ni ±5 m²). Oglasi se ne izmišljaju, pa se algoritam proverava na test-fiksturi:
-   10 „klonova” stvarnih oglasa (druga agencija, cena ±3 %, m² ±1) — fikstura postoji samo u ovom testu. */
+   10 „klonova“ stvarnih oglasa (druga agencija, cena ±3 %, m² ±1) — fikstura postoji samo u ovom testu. */
 const REAL = L.filter((l) => !l.syn);
 const fixtureBase = REAL.filter((l) => l.t === 'prodaja' && l.pt === 'stan' && l.ags && l.fl != null && l.ro != null && !KX.dupes.groupOf(l.s)).slice(0, 10);
 const agencies = D.agencies.map((a) => a.s);
@@ -202,9 +202,9 @@ console.log('  fikstura: grupa', fg.length, '| confidence:', fg.map((g) => g.con
 ok(fg.length >= 8 && fg.length <= 10, `fikstura od 10 klonova daje ≥ 8 grupa (${fg.length})`);
 ok(fg.every((g) => g.master === g.offers[0].s && g.offers.every((o) => o.p >= g.span.min) && g.offers[0].p === g.span.min), 'master je najjeftiniji');
 ok(fg.every((g) => new Set(g.offers.map((o) => o.ags)).size === g.offers.length), 'različiti oglašivači u grupi');
-ok(fg.every((g) => g.confidence === 'sigurno') && fg.every((g) => g.saving === g.span.max - g.span.min && g.daysMin <= g.daysMax), 'klonovi su „sigurno”; ušteda i dani');
+ok(fg.every((g) => g.confidence === 'sigurno') && fg.every((g) => g.saving === g.span.max - g.span.min && g.daysMin <= g.daysMax), 'klonovi su „sigurno“; ušteda i dani');
 ok(KX.dupes.match(fixtureBase[0], { ...fixtureBase[0], s: 'x', ags: 'other', fl: fixtureBase[0].fl + 2 }) === null, 'različit sprat (bez iste godine) nije duplikat');
-ok(KX.dupes.match(fixtureBase[0], { ...fixtureBase[0], s: 'x', a: fixtureBase[0].a + 2, fl: null, ags: 'other' }) === 'moguce', 'm² +2 i nepoznat sprat → „moguće”');
+ok(KX.dupes.match(fixtureBase[0], { ...fixtureBase[0], s: 'x', a: fixtureBase[0].a + 2, fl: null, ags: 'other' }) === 'moguce', 'm² +2 i nepoznat sprat → „moguće“');
 ok(KX.dupes.match(fixtureBase[0], { ...fixtureBase[0], s: 'x' }) === null, 'isti oglašivač nije duplikat');
 ok(groups.every((g) => g.offers.every((o) => KX.dupes.groupOf(o.s) === g) && g.offers.slice(1).every((o) => KX.dupes.isSecondary(o.s)) && !KX.dupes.isSecondary(g.master)), 'groupOf / isSecondary dosledni nad demo podacima');
 ok(KX.dupes.groupOf('ne-postoji') === null && KX.dupes.isSecondary('ne-postoji') === false, 'nepoznat slug → null/false');
@@ -232,8 +232,8 @@ ok(share('nije') > 0 && share('nije') < 0.12 && share('poseban-zakon') > 0.03 &&
 ok(colorDist.zeleno > sale.length * 0.4 && colorDist.crveno > 0 && colorDist.crveno < sale.length * 0.3 && colorDist.zuto > 0, 'boje: većina zeleno, crveno retko');
 const tr = KX.trust(flat);
 ok(tr.ekatastarUrl === 'https://katastar.rgz.gov.rs/eKatastarPublic/' && tr.checks.length >= 4 && tr.checks.every((c) => typeof c.done === 'boolean') && tr.reasons.length > 0, 'ekatastar URL, lista provera, razlozi');
-ok(tr.checks.some((c) => /kapara uobičajeno 10 %/.test(c.label)), 'kapara „uobičajeno 10 %”');
-ok(sale.every((l) => !l.reg ? KX.trust(l).legal !== 'uknjizeno' : true), 'reg=false nikad nije „uknjiženo”');
+ok(tr.checks.some((c) => /kapara uobičajeno 10 %/.test(c.label)), 'kapara „uobičajeno 10 %“');
+ok(sale.every((l) => !l.reg ? KX.trust(l).legal !== 'uknjizeno' : true), 'reg=false nikad nije „uknjiženo“');
 ok(sale.every((l) => ['nije', 'ozakonjenje'].includes(KX.trust(l).legal) ? KX.trust(l).color === 'crveno' : true), 'nije/ozakonjenje → crveno');
 const rentals = L.filter((l) => l.t === 'izdavanje');
 const risk = { nizak: 0, srednji: 0, visok: 0 };
@@ -264,7 +264,7 @@ ok(all2.length === 2 && all2[0].min <= all2[1].min, 'travelAll sortiran');
 const fm = KX.fairMiddle([flat, rent], [place, { ...place, id: 'p2', who: 'partner', lat: 44.82, lng: 20.41 }]);
 ok(fm.get(flat.s).max >= fm.get(flat.s).ja && fm.get(flat.s).sum === fm.get(flat.s).ja + fm.get(flat.s).partner, 'fairMiddle max/sum');
 ok(KX.placeSuggest('vracar').length > 0 && KX.placeSuggest('slav')[0].name === 'Slavija', 'placeSuggest bez dijakritika');
-/* krug „N minuta” na mapi (travelRadiusKm) i tabela minuta (travel) koriste isti model */
+/* krug „N minuta“ na mapi (travelRadiusKm) i tabela minuta (travel) koriste isti model */
 ok(['auto', 'gradski', 'pesice', 'bicikl'].every((mode) => [10, 20, 30].every((m) => { const km = KX.travelRadiusKm(mode, m); if (km <= 0) return true; const lat = place.lat + km / 111.2; const t = KX.travel({ lat, lng: place.lng }, { ...place, mode }); return Math.abs(t.min - m) <= 1; })), 'travelRadiusKm ⇄ travel (±1 min)');
 
 section('parseQuery');
@@ -278,11 +278,15 @@ ok(q.filters.m && q.filters.m.includes('vracar') && q.filters.c === 'beograd', '
 ok(q.filters.pmax === 150000, 'pmax 150000');
 ok(q.filters.reg === true, 'reg true');
 /* Na Vračaru u demo podacima nema dvosobnog stana ispod 150.000 € (najjeftiniji je 230.000 €), pa je pošten broj 0;
-   isti upit sa „do 300k” mora da ima rezultate. */
+   isti upit sa „do 300k“ mora da ima rezultate. */
 ok(typeof q.count === 'number' && q.count === KX.count({ t: 'prodaja', pt: ['stan'], ro: [2], m: ['vracar'], pmax: 150000, reg: true }), 'count = applyFilters (' + q.count + ' — u demo podacima nema dvosobnog na Vračaru ispod 150k)');
 const qWide = KX.parseQuery('dvosoban vracar do 300k uknjizen');
-ok(qWide.count > 0, 'count > 0 za „dvosoban vracar do 300k uknjizen” (' + qWide.count + ')');
-ok(q.unparsed.length === 0 && q.chips.length === 4 && q.chips.some((c) => c.label === 'Vračar'), 'čipovi sa ljudskim nazivima, bez neparsiranih');
+ok(qWide.count > 0, 'count > 0 za „dvosoban vracar do 300k uknjizen“ (' + qWide.count + ')');
+ok(q.unparsed.length === 0 && q.chips.length === 5 && q.chips[0].label === 'Stan' && q.chips.some((c) => c.label === 'Vračar'), 'čipovi sa ljudskim nazivima, bez neparsiranih');
+/* reč za strukturu bez izričitog tipa podrazumeva stan; izričit tip ima prednost */
+ok(JSON.stringify(KX.parseQuery('dvosoban vračar do 200k lift').filters.pt) === '["stan"]', 'dvosoban → pt stan');
+ok(JSON.stringify(KX.parseQuery('trosobna kuća zemun').filters.pt) === '["kuca"]', 'trosobna kuća → pt kuća');
+ok(JSON.stringify(KX.parseQuery('garsonjera novi sad').filters.pt) === '["stan"]', 'garsonjera → pt stan');
 const q2 = KX.parseQuery('trosoban stan novi sad od 50 do 80 m2 lift terasa izdavanje ispod 600 €');
 console.log('  ', JSON.stringify(q2.filters), q2.unparsed);
 ok(q2.filters.t === 'izdavanje' && q2.filters.c === 'novi-sad' && q2.filters.pt[0] === 'stan' && q2.filters.amin === 50 && q2.filters.amax === 80 && q2.filters.pmax === 600 && q2.filters.am.includes('hasElevator') && q2.filters.am.includes('hasTerrace') && q2.filters.ro.includes(3), 'složen upit (m², €, lift, terasa, izdavanje)');
@@ -370,8 +374,12 @@ section('regresije (review)');
   const rl = by((l) => l.t === 'izdavanje' && !l.ags);
   const scam = KX.trust({ ...rl, s: undefined, d: 'Vlasnik u inostranstvu, depozit unapred preko Western Union, ključeve šaljem poštom.' });
   ok(scam.rental.risk === 'visok' && scam.color === 'crveno', 'klasičan opis prevare → visok rizik', scam.rental);
-  ok(KX.trust({ ...rl, s: undefined, im: 0 }).rental.flags.includes('Oglas bez fotografija'), 'im 0 → „Oglas bez fotografija”');
-  ok(L.filter((l) => l.t === 'izdavanje').every((l) => !KX.trust(l).rental.flags.some((f) => /^Opis:/.test(f))), 'demo opisi nemaju obrasce prevare (kao u ledger-u)');
+  ok(KX.trust({ ...rl, s: undefined, im: 0 }).rental.flags.includes('Oglas bez fotografija'), 'im 0 → „Oglas bez fotografija“');
+  /* demo: tačno 7 opisa zakupa ima ubačenu rečenicu prevare (ledger), svi su crveni; ostali opisi nemaju obrasce */
+  const rentals = L.filter((l) => l.t === 'izdavanje');
+  ok(rentals.filter((l) => l.scamSeeded).length === 7 && rentals.every((l) => !!l.scamSeeded === KX.trust(l).rental.flags.some((f) => /^Opis:/.test(f))), 'samo 7 ubačenih opisa ima obrasce prevare (kao u ledger-u)');
+  ok(rentals.filter((l) => l.scamSeeded).every((l) => KX.trust(l).color === 'crveno' && (!l.ags || !l.agv)), 'ubačeni opisi → crveni semafor, vlasnik ili neverifikovana agencija');
+  ok(KX.enrich(true) && rentals.filter((l) => l.scamSeeded).every((l) => (l.d.match(/\n\n/g) || []).length >= 1) && KX.scams.count() === 7, 'ubacivanje je idempotentno');
   const plac = by((l) => l.pt === 'zemljiste');
   ok(KX.titleOf({ ...plac, la: null, a: null }).startsWith('Plac,') && KX.titleOf({ ...plac, la: 30, a: null }).startsWith('Plac 0,3 ari'), 'plac bez površine / ispod 1 ar');
   ok(KX.cost({ ...rl, s: undefined, dep: 0 }).lines.find((x) => x.key === 'depozit').label === 'Bez depozita', 'dep 0 → Bez depozita');
@@ -395,7 +403,7 @@ section('QA: zaokruživanje olakšice, oznake lokacije, relax bez gubitka opšti
   ok(g.length < 2 || new Set(g.map((x) => x.replace(/^ili: /, ''))).size === g.length, 'glavni i alternativni čip lokacije imaju različite oznake', g);
   const vr = KX.parseQuery('dvosoban vračar do 150k uknjižen');
   const rx = KX.relax(vr.filters);
-  ok(rx.every((r) => r.filters.c !== '' || /lokacij/i.test(r.label)), 'relax: „cela Srbija” samo uz oznaku koja kaže da se uklanja lokacija', rx.map((r) => r.label));
+  ok(rx.every((r) => r.filters.c !== '' || /lokacij/i.test(r.label)), 'relax: „cela Srbija“ samo uz oznaku koja kaže da se uklanja lokacija', rx.map((r) => r.label));
 }
 
 section('QA 5: đ→d, skraćenice, kirija iznad proseka, keš sa troškovima banke, PDV 20 % za poslovni prostor');

@@ -8,7 +8,9 @@
   const X = () => (typeof window !== 'undefined' && window.KX) || null;
   const lhref = (l) => S(() => UI_HREF.listing(l), '#/oglas?s=' + (typeof l === 'string' ? l : l.s));
   const findL = (s) => S(() => find.listing(s), null) || S(() => D.listings.find((x) => x.s === s), null);
-  const titleOf = (l) => S(() => X().titleOf(l), null) || l.ti || 'Oglas';
+  /* broj i jedinica ne smeju da se prelome u dva reda („60“ / „m²“) */
+  const nbsp = (t) => String(t).replace(/(\d) (?=m²|€|min\b|km\b)/g, '$1\u00a0');
+  const titleOf = (l) => nbsp(S(() => X().titleOf(l), null) || l.ti || 'Oglas');
   const lsGet = (k, fb) => { try { const v = localStorage.getItem(k); return v == null ? fb : JSON.parse(v); } catch (e) { return fb; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
   const say = (msg, o) => S(() => toast(msg, o), null);
@@ -39,6 +41,37 @@
     const check = () => { if (root.isConnected) root.__seen = true; else if (!root.__seen) requestAnimationFrame(check); };
     requestAnimationFrame(check);
     return off;
+  }
+  /* fokus preživljava ponovno iscrtavanje: zapamti kontrolu (id → radio name+value → aria-label, unutar [data-slug] ako postoji),
+     a ako je nestala (obrisana stavka) — ista vrsta kontrole na istom mestu u spisku, pa fallback */
+  const cssq = (v) => '"' + S(() => CSS.escape(String(v)), String(v).replace(/["\\]/g, '\\$&')) + '"';
+  function focusSel(a) {
+    const tag = a.tagName.toLowerCase();
+    if (a.id) return '#' + S(() => CSS.escape(a.id), a.id);
+    if (tag === 'input' && a.type === 'radio' && a.name) return `input[name=${cssq(a.name)}][value=${cssq(a.value)}]`;
+    const al = a.getAttribute('aria-label');
+    return al ? `${tag}[aria-label=${cssq(al)}]` : null;
+  }
+  function focusMemo(scope) {
+    const a = document.activeElement;
+    if (!a || a === document.body || !a.tagName || !scope || !scope.contains(a)) return () => false;
+    const sel = focusSel(a);
+    const host = a.closest('[data-slug]');
+    const slug = host && scope.contains(host) ? host.dataset.slug : null;
+    const stem = (n) => ((n.getAttribute('aria-label') || n.textContent || '').trim().split(/\s+/)[0] || '');
+    const peersOf = () => [...scope.querySelectorAll(a.tagName)].filter((n) => n.className === a.className && stem(n) === stem(a));
+    const idx = stem(a) ? peersOf().indexOf(a) : -1;   /* bez natpisa nema pouzdanog „istog“ elementa */
+    return (fallback) => {
+      const cur = document.activeElement;
+      if (cur && cur !== document.body && cur !== a && cur.isConnected) return true;   /* neko drugi je već postavio fokus */
+      let n = null;
+      if (sel && slug) { const h = [...scope.querySelectorAll('[data-slug]')].find((x) => x.dataset.slug === slug); n = h ? S(() => h.querySelector(sel), null) : null; }
+      else if (sel) n = S(() => scope.querySelector(sel), null);
+      if (!n && idx >= 0) { const p = peersOf(); if (p.length) n = p[Math.min(idx, p.length - 1)]; }
+      if (!n && fallback) n = S(() => scope.querySelector(fallback), null);
+      if (n && n.focus) { n.focus({ preventScroll: true }); return true; }
+      return false;
+    };
   }
   /* izvrši kad je čvor u dokumentu i ima dimenzije (za mapu) */
   function whenMounted(node, fn, tries = 120) {
@@ -97,8 +130,24 @@
   const RANK_TRUST = { zeleno: 3, zuto: 2, crveno: 1 };
   const TRUST_TXT = { zeleno: 'Zeleno', zuto: 'Žuto', crveno: 'Crveno' };
 
-  function costOf(l) { return S(() => X().cost(l), null); }
-  function rataOf(l) { const c = costOf(l); const r = c && c.lines ? c.lines.find((x) => x.key === 'rata') : null; return r ? r.amount : null; }
+  /* o.fin: finansiranje samo za ovu stranicu (deljeni link sa fin=kes), inače profil */
+  function costOf(l, o) { return S(() => (o && o.fin ? X().cost(l, { financing: o.fin }) : X().cost(l)), null); }
+  function rataOf(l, o) { const c = costOf(l, o); const r = c && c.lines ? c.lines.find((x) => x.key === 'rata') : null; return r ? r.amount : null; }
+  /* mesečni red: reči samo za stavke koje zaista postoje (lokal/garaža nemaju grejanje ni zgradu); sezona menja grejanje */
+  const MON_WORD = { grejanje: 'grejanje', struja: 'struja', odrzavanje: 'zgrada', 'porez-imovina': 'porez' };
+  function monthlyOf(c, season) {
+    if (season === 'zima' && c.monthlyWinter != null) return c.monthlyWinter;
+    if (season === 'leto' && c.monthlySummer != null) return c.monthlySummer;
+    return c.monthly;
+  }
+  function monCaption(c, season) {
+    const ls = (c.lines || []).filter((x) => x.when === 'mesecno' && !x.optional && x.payer !== 'prodavac' && x.payer !== 'vlasnik' && x.amount > 0 && MON_WORD[x.key]);
+    const heat = ls.find((x) => x.key === 'grejanje');
+    const words = ls.filter((x) => !(x === heat && season === 'leto' && heat.summer === 0)).map((x) => MON_WORD[x.key]);
+    let tail = '';
+    if (heat && season !== 'prosek') tail = heat.winter == null ? ' · grejanje isto cele godine' : season === 'leto' ? ' · leti bez grejanja' : ' · grejanje zimi';
+    return (words.join(', ') || 'osnovni računi') + tail;
+  }
   function floorScore(l) {
     if (l.fl == null) return null;
     if (l.fl <= 0) return 1;
@@ -127,7 +176,10 @@
   }
 
   /* definicije redova: get(l) → { v (za poređenje) | null, node, raw (tekst za „isto“) } */
-  function compareRows(cols, places) {
+  function compareRows(cols, places, opt) {
+    opt = opt || {};
+    const season = opt.season || 'prosek';
+    const cash = opt.finNow === 'kes';
     const A = S(() => AMEN, {});
     const diffs = amenDiff(cols);
     const mixedT = new Set(cols.map((l) => l.t)).size > 1;
@@ -157,7 +209,7 @@
       if (!ng || ng.roomEur == null || !isFinite(ng.roomEur)) return dash;
       const r = Math.round(ng.roomEur);
       if (!r) return { v: 0, raw: '0', node: el('span', { class: 'ax-muted' }, 'nema prostora') };
-      return { v: r, raw: String(r), node: el('span', {}, `oko ${eur(r)}`, el('small', {}, `${S(() => fmt.pct(ng.roomPct), ng.roomPct + ' %')} od cene${ng.leverage ? ` · pozicija: ${ng.leverage}` : ''}`)) };
+      return { v: r, raw: String(r), node: el('span', {}, `oko ${eur(r)}`, el('small', {}, `${S(() => fmt.pct(ng.roomPct), ng.roomPct + ' %')} od cene${ng.leverage ? ` · pozicija: ${({ slab: 'slaba', umeren: 'umerena', jak: 'jaka' })[ng.leverage] || ng.leverage}` : ''}`)) };
     }, why: () => 'najviše prostora za pregovor' });
     addRow({ key: 'hist', label: 'Istorija cene', best: 'min', get: (l) => {
       const h = S(() => X().history(l), null);
@@ -217,20 +269,21 @@
     }, why: () => 'najmanje pravnog rizika' });
 
     addRow({ group: 'Troškovi' });
-    addRow({ key: 'rata', label: 'Rata kredita', best: 'min', delta: dEurMes, hint: S(() => { const p = X().profile.get(); return `${Math.round((1 - p.ltv) * 100)} % učešće, ${p.years} god., ${num(p.ratePct, 1)} %`; }, ''),
-      get: (l) => { if (!sale(l)) return dash; const r = rataOf(l); return r ? { v: r, node: eurMes(r), raw: String(r) } : dash; },
+    addRow({ key: 'rata', label: 'Rata kredita', best: 'min', delta: dEurMes, hint: cash ? 'kupovina za keš — bez kredita' : S(() => { const p = X().profile.get(); return `${Math.round((1 - p.ltv) * 100)} % učešća, ${p.years} god., kamata ${num(p.ratePct, p.ratePct % 1 ? 1 : 0)} %`; }, ''),
+      get: (l) => { if (!sale(l)) return dash; const r = rataOf(l, opt); return r ? { v: r, node: eurMes(r), raw: String(r) } : dash; },
       why: (w, s) => s != null ? `${eurMes(s - w)} manja rata` : 'najmanja rata' });
     addRow({ key: 'day', label: 'Na dan kupovine / useljenja', best: mixedT ? null : 'min', delta: mixedT ? null : dEur, get: (l) => {
-      const c = costOf(l); if (!c) return dash;
+      const c = costOf(l, opt); if (!c) return dash;
       const v = c.kind === 'prodaja' ? c.onPurchase : c.moveIn;
       return { v, raw: String(v), node: el('span', {}, eur(v), el('small', {}, dayCaption(c))) };
     }, why: (w, s) => s != null ? `${eur(s - w)} manje novca odjednom` : 'najmanje novca odjednom' });
     /* kupovina i zakup u istom poređenju: nema pobednika (rata gradi imovinu, kirija ne) — obe ćelije pokazuju ukupan mesečni odliv */
-    addRow({ key: 'mon', label: mixedT ? 'Mesečno (rata ili kirija + računi)' : 'Mesečno (bez rate)', best: mixedT ? null : 'min', delta: mixedT ? null : dEurMes, get: (l) => {
-      const c = costOf(l); if (!c) return dash;
-      const rata = c.kind === 'prodaja' ? (rataOf(l) || 0) : 0;
-      const v = Math.round(c.monthly - (mixedT ? 0 : rata));
-      const cap = c.kind !== 'prodaja' ? 'kirija + računi' : mixedT ? (rata ? `rata ${eurMes(rata)} + računi` : 'računi, bez kredita') : 'grejanje, struja, zgrada, porez';
+    const SEASON_SUB = { zima: 'zimski mesec', leto: 'letnji mesec' };
+    addRow({ key: 'mon', label: mixedT ? 'Mesečno (rata ili kirija + računi)' : cash || cols.every((l) => !sale(l)) ? 'Mesečno' : 'Mesečno (bez rate)', sub: SEASON_SUB[season] || null, best: mixedT ? null : 'min', delta: mixedT ? null : dEurMes, get: (l) => {
+      const c = costOf(l, opt); if (!c) return dash;
+      const rata = c.kind === 'prodaja' ? (rataOf(l, opt) || 0) : 0;
+      const v = Math.round(monthlyOf(c, season) - (mixedT ? 0 : rata));
+      const cap = c.kind !== 'prodaja' ? 'kirija + ' + monCaption(c, season).replace(/^osnovni računi/, 'računi') : mixedT ? (rata ? `rata ${eurMes(rata)} + računi` : 'računi, bez kredita') : monCaption(c, season);
       return { v, raw: String(v), node: el('span', {}, eurMes(v), el('small', {}, cap)) };
     }, why: (w, s) => s != null ? `${eurMes(s - w)} manje svakog meseca` : 'najmanji mesečni troškovi' });
 
@@ -298,8 +351,13 @@
     ids = ids.filter((s) => findL(s)).slice(0, 4);
     let hideSame = q.get('isto') === '0' ? true : false;
     let refSlug = q.get('ref') || null;
+    /* Zima / Leto za mesečni red; Keš / Kredit ide u profil (deljeni link sa fin=kes važi samo na ovoj stranici dok ga ne promeniš) */
+    let season = ['zima', 'leto'].includes(q.get('sez')) ? q.get('sez') : 'prosek';
+    const profFin = () => (S(() => X().profile.get().financing, 'kredit') === 'kes' ? 'kes' : 'kredit');
+    let finOvr = q.get('fin') === 'kes' && profFin() !== 'kes' ? 'kes' : null;
+    const finNow = () => finOvr || profFin();
     const refOf = () => (refSlug && ids.includes(refSlug) ? refSlug : ids[0] || null);
-    const urlParams = () => (ids.length ? { ids, isto: hideSame ? '0' : null, ref: refOf() && refOf() !== ids[0] ? refOf() : null } : {});
+    const urlParams = () => (ids.length ? { ids, isto: hideSame ? '0' : null, ref: refOf() && refOf() !== ids[0] ? refOf() : null, sez: season !== 'prosek' ? season : null, fin: finNow() === 'kes' ? 'kes' : null } : {});
     const root = el('div', { class: 'wrap ax-page cmp-page' });
     if (missing.length) {
       const k = missing.length;
@@ -319,6 +377,15 @@
     const remove = (s) => { ids = ids.filter((x) => x !== s); syncStore(); draw(); say('Uklonjeno iz poređenja'); };
 
     function openPicker() {
+      /* posle izbora draw() zameni dugme koje je otvorilo list — pri zatvaranju fokus vraćamo na isto mesto u novoj stranici */
+      const from = document.activeElement;
+      const fromAdd = !!(from && from.closest && from.closest('.cmp-add'));
+      const backFocus = () => {
+        const a = document.activeElement;
+        if (a && a !== document.body && root.contains(a)) return;
+        const t = (fromAdd && root.querySelector('.cmp-addbtn')) || root.querySelector('.cmp-bar .cmp-more:not([disabled])') || root.querySelector('.cmp-bar .btn-secondary:not([disabled])') || root.querySelector('.cmp-ttl') || root.querySelector('.empty .btn');
+        if (t) t.focus({ preventScroll: true });
+      };
       const pool = [...S(() => [...store.favs].reverse(), []), ...S(() => store.recent, [])].filter((s, i, a) => a.indexOf(s) === i && findL(s));
       const body = el('div', { class: 'cmp-pickwrap' });
       const paint = () => {
@@ -326,10 +393,12 @@
         if (!pool.length) { add(body, emptyBox('Nema sačuvanih ni gledanih oglasa', 'Sačuvaj oglas srcem ili otvori nekoliko oglasa, pa ih dodaj ovde.', 'Pretraži oglase', '#/pretraga')); return; }
         const grp = (title, list) => list.length ? el('div', { class: 'grp' }, el('p', { class: 't' }, title), el('div', { class: 'cmp-picks' }, list.map((s) => {
           const l = findL(s); const on = ids.includes(s);
-          return el('button', { type: 'button', class: 'cmp-pick', 'aria-pressed': on ? 'true' : 'false', onclick: () => {
+          return el('button', { type: 'button', class: 'cmp-pick', 'data-slug': s, 'aria-pressed': on ? 'true' : 'false', onclick: () => {
             if (ids.includes(s)) ids = ids.filter((x) => x !== s);
             else if (ids.length >= 4) { say('Maksimum 4 — ukloni jedan'); return; } else ids.push(s);
             syncStore(); paint(); draw();
+            const again = [...body.querySelectorAll('.cmp-pick')].find((b) => b.dataset.slug === s);
+            if (again) again.focus({ preventScroll: true });
           } }, thumb(l), el('span', { class: 'cmp-pick-t' }, el('b', {}, titleOf(l)), el('span', { class: 'meta' }, S(() => fmt.price(l.p, l.t), ''), ' · ', placeLine(l))),
           el('span', { class: 'cmp-pick-m', 'aria-hidden': 'true' }, ic(on ? 'check' : 'plus', 16)));
         }))) : null;
@@ -339,7 +408,7 @@
       };
       paint();
       let sh = null;
-      sh = S(() => sheet('Dodaj u poređenje', body, { footer: [el('button', { class: 'btn btn-ink', type: 'button', onclick: () => sh && sh.close() }, 'Prikaži poređenje')] }), null);
+      sh = S(() => sheet('Dodaj u poređenje', body, { footer: [el('button', { class: 'btn btn-ink', type: 'button', onclick: () => sh && sh.close() }, 'Prikaži poređenje')], onClose: () => { backFocus(); requestAnimationFrame(backFocus); } }), null);
     }
 
     function shareBox() {
@@ -353,10 +422,15 @@
       if (!p) return 'podrazumevani profil';
       const def = S(() => X().profile.defaults, null) || { ltv: 0.8, years: 25, ratePct: 5 };
       const own = ['ltv', 'years', 'ratePct'].some((k) => Math.abs((+p[k] || 0) - (+def[k] || 0)) > 1e-9);
-      return el('span', {}, `${own ? 'tvoj profil' : 'podrazumevani profil'}: ${Math.round((1 - p.ltv) * 100)} % učešće, ${p.years} god., ${num(p.ratePct, 1)} % kamata · `,
+      return el('span', {}, `${own ? 'tvoj profil' : 'podrazumevani profil'}: ${Math.round((1 - p.ltv) * 100)} % učešća, ${p.years} god., kamata ${num(p.ratePct, p.ratePct % 1 ? 1 : 0)} % · `,
         el('a', { class: 'link', href: '#/kalkulator' }, 'promeni'));
     }
     function draw() {
+      const restore = focusMemo(root);
+      drawInner();
+      restore('.cmp-bar .btn-secondary:not([disabled]), .empty .btn');
+    }
+    function drawInner() {
       fill(root, );
       const cols = ids.map(findL).filter(Boolean);
       add(root, pageHead({
@@ -370,7 +444,7 @@
         return;
       }
       const places = S(() => X().profile.get().places, []) || [];
-      const rows = compareRows(cols, places);
+      const rows = compareRows(cols, places, { season, fin: finOvr, finNow: finNow() });
       const scored = rows.map((r) => (r.group ? r : { ...r, ...scoreRow(r, cols) }));
       const wins = cols.map(() => 0); let contested = 0;
       scored.forEach((r) => { if (!r.group && r.winners && r.winners.length) { contested++; r.winners.forEach((i) => { wins[i]++; }); } });
@@ -382,18 +456,39 @@
       let sentence;
       if (cols.length < 2) sentence = 'Dodaj još bar jedan oglas da vidiš ko pobeđuje u kom redu.';
       else if (!top) sentence = 'Oglasi su izjednačeni u svemu što možemo da izmerimo.';
-      else if (leaders.length === 1) sentence = `Oglas ${LETTERS[leaders[0]]} pobeđuje u ${top} od ${contested} redova u kojima postoji razlika.`;
-      else sentence = `Oglasi ${leaders.map((i) => LETTERS[i]).join(' i ')} dele vođstvo sa po ${top} pobeda od ${contested} redova.`;
+      else if (leaders.length === 1) sentence = `Oglas ${LETTERS[leaders[0]]} pobeđuje u ${top} od ${contested} ${plural(contested, 'reda', 'reda', 'redova')} u kojima postoji razlika.`;
+      else sentence = `Oglasi ${leaders.map((i) => LETTERS[i]).join(' i ')} dele vođstvo sa po ${top} pobeda od ${contested} ${plural(contested, 'reda', 'reda', 'redova')}.`;
       const lede = el('p', { class: 'lede ax-lede cmp-sum' }, sentence, cols.length > 1 ? el('span', { class: 'meta' }, ' Označena ćelija je najbolja u redu, uz razlog. Sitni broj ispod vrednosti je razlika u odnosu na referentni oglas.') : null);
       add(root, lede);
 
       /* traka sa alatima */
       const sameToggle = S(() => toggle(hideSame, (on) => { hideSame = on; wrap.classList.toggle('show-same', !on); replaceUrl('/uporedi', urlParams()); }, { label: `Sakrij isto${sameCount ? ` (${sameCount})` : ''}` }), null);
       const shareSlot = el('div', { class: 'cmp-share-slot' });
+      const anySale = cols.some((l) => l.t === 'prodaja');
+      const seg = (label, opts, curV, onPick) => {
+        const g = S(() => segmented(opts, curV, onPick), null);
+        if (!g) return null;
+        g.setAttribute('aria-label', label);
+        return el('div', { class: 'cmp-opt' }, el('span', { class: 'cmp-opt-l', 'aria-hidden': 'true' }, label), g);
+      };
+      const seasonSeg = seg('Računi', [{ v: 'prosek', l: 'Prosek' }, { v: 'zima', l: 'Zima' }, { v: 'leto', l: 'Leto' }], season, (v) => {
+        if (v === season) return;
+        season = v; replaceUrl('/uporedi', urlParams()); draw();
+      });
+      const finSeg = anySale ? seg('Kupovina', [{ v: 'kredit', l: 'Kredit' }, { v: 'kes', l: 'Keš' }], finNow(), (v) => {
+        if (v === finNow()) return;
+        const changed = profFin() !== v;
+        finOvr = null;
+        if (changed && X()) S(() => X().profile.set({ financing: v }));   /* profile.on → draw() */
+        if (!changed || !X()) draw();
+        replaceUrl('/uporedi', urlParams());
+        say(v === 'kes' ? 'Računamo kupovinu za keš — bez rate i troškova kredita' : 'Računamo kupovinu na kredit iz tvog profila');
+      }) : null;
       add(root, el('div', { class: 'cmp-bar' },
         sameToggle,
+        el('div', { class: 'cmp-opts' }, seasonSeg, finSeg),
         el('span', { class: 'sp' }),
-        el('button', { class: 'btn btn-secondary btn-sm', type: 'button', disabled: ids.length >= 4, onclick: openPicker, title: ids.length >= 4 ? 'Maksimum 4 oglasa' : null }, ic('plus', 16), 'Dodaj još'),
+        el('button', { class: 'btn btn-secondary btn-sm cmp-more', type: 'button', disabled: ids.length >= 4, onclick: openPicker, title: ids.length >= 4 ? 'Maksimum 4 oglasa' : null }, ic('plus', 16), 'Dodaj još'),
         el('button', { class: 'btn btn-secondary btn-sm', type: 'button', onclick: async () => {
           const url = shareUrl();
           fill(shareSlot, shareBox());
@@ -434,7 +529,7 @@
           n < 4 ? el('td', { class: 'cmp-add' }) : null));
       }
       const table = el('table', { class: 'cmp' + (n < 4 ? ' has-add' : ''), style: `--n:${n}` }, el('caption', { class: 'sr' }, 'Uporedna tabela oglasa'), el('thead', {}, head), el('tbody', {}, body));
-      const wrap = el('div', { class: 'cmp-wrap' + (hideSame ? '' : ' show-same'), tabindex: '0', role: 'region', 'aria-label': 'Tabela poređenja, skroluje se vodoravno' }, table);
+      const wrap = el('div', { class: 'cmp-wrap' + (hideSame ? '' : ' show-same'), tabindex: '0', role: 'region', 'aria-label': 'Tabela poređenja, pomera se vodoravno' }, table);
       const fade = el('div', { class: 'cmp-scroll' }, wrap);
       const paintFade = () => { const end = wrap.scrollLeft + wrap.clientWidth >= wrap.scrollWidth - 4; fade.classList.toggle('at-end', end); fade.classList.toggle('scrolled', wrap.scrollLeft > 4); };
       wrap.addEventListener('scroll', paintFade, { passive: true });
@@ -466,8 +561,15 @@
         if (!lsSet(RATINGS_KEY, all)) say('Ocena nije sačuvana — pregledač ne dozvoljava čuvanje');
         paint(); if (onChange) onChange();
       }, onkeydown: (e) => {
-        if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-        e.preventDefault(); const j = Math.min(4, Math.max(0, i - 1 + (e.key === 'ArrowRight' ? 1 : -1))); root.children[j].focus(); root.children[j].click();
+        const K = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 };
+        if (!(e.key in K) && e.key !== 'Home' && e.key !== 'End') return;
+        e.preventDefault();
+        const j = e.key === 'Home' ? 0 : e.key === 'End' ? 4 : Math.min(4, Math.max(0, i - 1 + K[e.key]));
+        root.children[j].focus();
+        if (get() === j + 1) return;                       /* na kraju niza: strelica ne briše ocenu */
+        const all = lsGet(RATINGS_KEY, {}) || {}; all[slug] = j + 1;
+        if (!lsSet(RATINGS_KEY, all)) say('Ocena nije sačuvana — pregledač ne dozvoljava čuvanje');
+        paint(); if (onChange) onChange();
       } }, ic('star', 18)));
     }
     paint();
@@ -499,7 +601,7 @@
     if (f.c) out.push(S(() => find.city(f.c).n, f.c));
     (f.m || []).forEach((v) => out.push(S(() => find.mun(v).n, v)));
     (f.n || []).forEach((v) => out.push(S(() => (D.listings.find((l) => l.ns === v) || {}).n, v) || v));
-    if (f.pmin !== '' || f.pmax !== '') out.push(f.pmin !== '' && f.pmax !== '' ? `${num(f.pmin)}–${eur(f.pmax)}` : f.pmax !== '' ? `do ${S(() => fmt.price(f.pmax, f.t), eur(f.pmax))}` : `od ${S(() => fmt.price(f.pmin, f.t), eur(f.pmin))}`);
+    if (f.pmin !== '' || f.pmax !== '') out.push(f.pmin !== '' && f.pmax !== '' ? `${num(f.pmin)}–${S(() => fmt.price(f.pmax, f.t), eur(f.pmax))}` : f.pmax !== '' ? `do ${S(() => fmt.price(f.pmax, f.t), eur(f.pmax))}` : `od ${S(() => fmt.price(f.pmin, f.t), eur(f.pmin))}`);
     if (f.amin !== '' || f.amax !== '') out.push(f.amin !== '' && f.amax !== '' ? `${f.amin}–${f.amax} m²` : f.amax !== '' ? `do ${f.amax} m²` : `od ${f.amin} m²`);
     (f.ro || []).forEach((v) => out.push(typeof v === 'string' ? `${v.replace('+', '')}+ sobe` : S(() => fmt.roomsText(v), v + ' sobe')));
     (f.co || []).forEach((v) => out.push(S(() => COND[v], v)));
@@ -613,7 +715,7 @@
       const age = Math.max(0, Math.floor((now - created) / 864e5));
       const openHref = S(() => buildHash('/pretraga', s.params), '#/pretraga');
       const freq = el('label', { class: 'sv-freq' }, el('span', { class: 'lbl' }, 'Obaveštenja'),
-        S(() => select(FREQ, m.freq || 'dnevno', (v) => { const all = lsGet(SEARCH_META_KEY, {}) || {}; all[s.id] = { ...(all[s.id] || {}), freq: v }; lsSet(SEARCH_META_KEY, all); say(v === 'nikad' ? 'Obaveštenja isključena (demo)' : `Obaveštenja: ${FREQ.find((x) => x.v === v).l.toLowerCase()} (demo)`); }, { label: `Učestalost obaveštenja za ${s.name}` }), null),
+        S(() => select(FREQ, m.freq || s.freq || 'dnevno', (v) => { s.freq = v; const all = lsGet(SEARCH_META_KEY, {}) || {}; all[s.id] = { ...(all[s.id] || {}), freq: v }; lsSet(SEARCH_META_KEY, all); say(v === 'nikad' ? 'Obaveštenja isključena (demo)' : `Obaveštenja: ${FREQ.find((x) => x.v === v).l.toLowerCase()} (demo)`); }, { label: `Učestalost obaveštenja za ${s.name}` }), null),
         el('small', {}, 'obaveštenja su demo'));
       return el('li', { class: 'sv-search' },
         el('div', { class: 'sv-s-main' },
@@ -633,9 +735,9 @@
 
   function recentPanel() {
     const list = S(() => store.recent, []).map(findL).filter(Boolean);
-    if (!list.length) return emptyBox('Još nisi gledao oglase', 'Oglasi koje otvoriš pojaviće se ovde, da lako nađeš onaj od juče.', 'Pretraži oglase', '#/pretraga', { icon: 'eye' });
-    return el('div', { class: 'sv-panel' }, el('p', { class: 'meta sv-lead' }, list.length === 1 ? 'Poslednji oglas koji si otvorio. Čuva se samo na ovom uređaju.'
-      : `${plural(list.length, 'Poslednji', 'Poslednja', 'Poslednjih')} ${oglasa(list.length)} ${plural(list.length, 'koji', 'koja', 'koje')} si otvorio, najnoviji prvi. Čuva se samo na ovom uređaju.`),
+    if (!list.length) return emptyBox('Još nema pregledanih oglasa', 'Oglasi koje otvoriš pojaviće se ovde, da lako nađeš onaj od juče.', 'Pretraži oglase', '#/pretraga', { icon: 'eye' });
+    return el('div', { class: 'sv-panel' }, el('p', { class: 'meta sv-lead' }, list.length === 1 ? 'Poslednji otvoren oglas. Čuva se samo na ovom uređaju.'
+      : `${plural(list.length, 'Poslednji', 'Poslednja', 'Poslednjih')} ${num(list.length)} ${plural(list.length, 'otvoren oglas', 'otvorena oglasa', 'otvorenih oglasa')}, najnoviji prvi. Čuva se samo na ovom uređaju.`),
       el('div', { class: 'sv-compact' }, list.map((l) => savedCard(l, 'compact'))));
   }
 
@@ -651,9 +753,133 @@
         } }, ic('refresh', 16), 'Vrati')))));
   }
 
+  /* ── Poruke i obilasci: kv.messages / kv.viewings (upisuje stranica oglasa). Statusi su demo — izvedeni iz vremena slanja i hash(slug), bez nasumičnosti ── */
+  const MSG_KEY = 'kv.messages', VIS_KEY = 'kv.viewings';
+  const IB_WAIT = 15e3, IB_REPLY = 10e3;
+  const IB_SLOTS = ['09:30', '11:00', '12:30', '15:00', '16:30', '18:00', '19:30'];
+  const IB_WD = ['nedelja', 'ponedeljak', 'utorak', 'sreda', 'četvrtak', 'petak', 'subota'];
+  const IB_MG = ['januara', 'februara', 'marta', 'aprila', 'maja', 'juna', 'jula', 'avgusta', 'septembra', 'oktobra', 'novembra', 'decembra'];
+  const ibCap = (t) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
+  const ibHash = (t) => S(() => hash(String(t)), [...String(t)].reduce((h, c) => (Math.imul(h, 31) + c.charCodeAt(0)) >>> 0, 7));
+  const ibDay = (iso) => { const d = new Date(String(iso).slice(0, 10) + 'T12:00:00'); return isNaN(d) ? null : d; };
+  const ibDate = (d) => `${IB_WD[d.getDay()]}, ${d.getDate()}. ${IB_MG[d.getMonth()]}`;
+  const ibList = (k) => { const v = lsGet(k, []); return Array.isArray(v) ? v.filter((x) => x && typeof x.s === 'string' && x.at) : []; };
+  const ibId = (x) => x.s + '|' + x.at;
+  const ibCount = () => ibList(MSG_KEY).length + ibList(VIS_KEY).length;
+  function ibSent(at, now) {
+    const t = Date.parse(at);
+    if (!isFinite(t)) return '';
+    const d = new Date(t), mins = Math.floor((now - t) / 6e4);
+    if (mins < 1) return 'upravo';
+    if (mins < 60) return `pre ${mins} min`;
+    const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const today = new Date(now); today.setHours(0, 0, 0, 0);
+    const days = Math.round((today - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5);
+    return days <= 0 ? `danas u ${hm}` : days === 1 ? `juče u ${hm}` : `${d.getDate()}. ${IB_MG[d.getMonth()]} u ${hm}`;
+  }
+  /* status obilaska: prvih 15 s čeka, zatim hash(slug) bira potvrdu ili predlog drugog termina (sutradan, drugi sat) */
+  function visitStatus(v, now) {
+    if (v.cancelled) return { k: 'off', l: 'Otkazano' };
+    const day = ibDay(v.day);
+    const today = new Date(now); today.setHours(12, 0, 0, 0);
+    if (now - Date.parse(v.at) < IB_WAIT) return { k: 'wait', l: 'Čeka potvrdu' };
+    const h = ibHash(v.s);
+    if (h % 3 === 0 && !v.accepted) {
+      const alt = day ? new Date(day.getTime() + 864e5) : null;
+      const slot = IB_SLOTS.filter((t) => t !== v.slot)[h % (IB_SLOTS.length - 1)];
+      return { k: 'alt', l: 'Predložen drugi termin', alt: alt ? { day: alt.toISOString().slice(0, 10), txt: `${ibDate(alt)} u ${slot}`, slot } : null };
+    }
+    if (day && day < today) return { k: 'past', l: 'Termin je prošao' };
+    return { k: 'ok', l: 'Potvrđeno' };
+  }
+  const REPLIES = {
+    prodaja: ['Hvala na poruci! Nekretnina je i dalje u prodaji. Možemo da se čujemo telefonom ili da zakažemo obilazak — javite koji dan vam odgovara.',
+      'Poštovani, oglas je aktuelan. Šaljem vam detalje o dokumentaciji, a za obilazak su nam slobodni radni dani posle 16 h i subota pre podne.',
+      'Hvala na interesovanju. Cena je okvirno fiksna, ali za ozbiljnog kupca ima prostora za razgovor. Kada biste mogli da pogledate?'],
+    izdavanje: ['Hvala na poruci! Stan je još slobodan, useljiv odmah. Depozit je jedna kirija, a račune plaća stanar. Kada biste mogli da pogledate?',
+      'Poštovani, stan je dostupan. Za obilazak su nam slobodni radni dani posle 17 h. Javite da li imate ljubimce i koliko vas bi živelo.',
+      'Hvala na interesovanju. Kirija je fiksna, ugovor na godinu dana sa mogućnošću produženja. Možemo da zakažemo obilazak ove nedelje.'],
+  };
+  function inboxPanel(rerender) {
+    const box = el('div', { class: 'sv-panel sv-ib' });
+    let timer = 0;
+    const update = (k, fn) => { lsSet(k, ibList(k).map(fn).filter(Boolean)); };
+    const remove = (k, x, msg) => { update(k, (y) => (ibId(y) === ibId(x) ? null : y)); say(msg); rerender(); };
+    const lcard = (l, x) => (l ? savedCard(l, 'compact') : null) || el('p', { class: 'meta sv-ib-gone' }, `Oglas ${x.r || ''} više nije objavljen.`);
+    const status = (st) => el('span', { class: 'sv-st sv-st-' + st.k }, el('i', { 'aria-hidden': 'true' }), st.l);
+    function visitRow(v, now) {
+      const l = findL(v.s);
+      const st = visitStatus(v, now);
+      const day = ibDay(v.day);
+      const when = `${day ? ibCap(ibDate(day)) : v.day} u ${v.slot} · ${v.mode === 'video' ? 'video poziv' : 'uživo'}`;
+      const ag = l ? (l.ag || 'Vlasnik') : 'Oglašivač';
+      const acts = [];
+      if (st.k === 'alt' && st.alt) acts.push(el('button', { class: 'btn btn-secondary btn-sm', type: 'button', onclick: () => {
+        update(VIS_KEY, (y) => (ibId(y) === ibId(v) ? { ...y, day: st.alt.day, slot: st.alt.slot, accepted: true } : y)); say(`Termin je prihvaćen: ${st.alt.txt}`); paint(); } }, ic('check', 16), 'Prihvati novi termin'));
+      if (st.k === 'wait' || st.k === 'ok' || st.k === 'alt') acts.push(el('button', { class: 'btn btn-ghost btn-sm', type: 'button', 'aria-label': `Otkaži obilazak — ${when}`, onclick: () => {
+        update(VIS_KEY, (y) => (ibId(y) === ibId(v) ? { ...y, cancelled: true } : y)); say('Obilazak je otkazan — oglašivaču javljamo (demo)'); paint(); } }, ic('x', 16), 'Otkaži'));
+      acts.push(el('button', { class: 'btn btn-ghost btn-sm', type: 'button', 'aria-label': `Obriši obilazak — ${when}`, onclick: () => remove(VIS_KEY, v, 'Obilazak je obrisan sa spiska') }, ic('trash', 16), 'Obriši'));
+      return el('li', { class: 'sv-ib-item' + (st.k === 'off' || st.k === 'past' ? ' is-off' : ''), 'data-slug': v.s },
+        lcard(l, v),
+        el('div', { class: 'sv-ib-body' },
+          el('div', { class: 'sv-ib-hd' }, el('span', { class: 'sv-ib-kind' }, ic('calendar', 14), 'Obilazak'), status(st)),
+          el('p', { class: 'sv-ib-when num' }, st.k === 'off' ? el('s', {}, when) : when),
+          st.k === 'alt' && st.alt ? el('p', { class: 'sv-ib-alt' }, `${ag} predlaže: `, el('b', {}, `${ibCap(st.alt.txt)}`), '. Prvobitni termin je zauzet.') : null,
+          st.k === 'wait' ? el('p', { class: 'meta' }, `${ag} obično potvrđuje u roku od nekoliko sati — ovde odmah vidiš odgovor.`) : null,
+          el('p', { class: 'meta num' }, `Zahtev poslat ${ibSent(v.at, now)}${l ? ` · ${l.r}` : ''}`),
+          el('div', { class: 'btn-row sv-ib-act' }, acts)));
+    }
+    function msgRow(m, now) {
+      const l = findL(m.s);
+      const age = now - Date.parse(m.at);
+      const to = m.to || (l && l.ag) || 'Oglašivač';
+      const replied = age >= IB_REPLY;
+      const pool = REPLIES[l && l.t === 'izdavanje' ? 'izdavanje' : 'prodaja'];
+      const reply = pool[ibHash(m.s) % pool.length];
+      const replyAt = new Date(Date.parse(m.at) + IB_REPLY).toISOString();
+      return el('li', { class: 'sv-ib-item', 'data-slug': m.s },
+        lcard(l, m),
+        el('div', { class: 'sv-ib-body' },
+          el('div', { class: 'sv-ib-hd' }, el('span', { class: 'sv-ib-kind' }, ic('mail', 14), `Poruka za: ${to}`), status(replied ? { k: 'ok', l: 'Odgovoreno' } : { k: 'wait', l: 'Poslato' })),
+          el('blockquote', { class: 'sv-ib-msg' }, m.text || '(prazna poruka)'),
+          el('p', { class: 'meta num' }, `Poslato ${ibSent(m.at, now)}${m.r ? ` · ${m.r}` : ''}`),
+          replied ? el('div', { class: 'sv-ib-reply' },
+            el('p', { class: 'sv-ib-from' }, el('b', {}, to), el('span', { class: 'meta' }, ` · ${ibSent(replyAt, now)} · automatski odgovor (demo)`)),
+            el('p', {}, reply))
+            : el('p', { class: 'meta sv-ib-typing' }, `${to} je primio poruku. Odgovor stiže ovde.`),
+          el('div', { class: 'btn-row sv-ib-act' },
+            l ? el('a', { class: 'btn btn-secondary btn-sm', href: lhref(l) }, 'Otvori oglas') : null,
+            el('button', { class: 'btn btn-ghost btn-sm', type: 'button', 'aria-label': `Obriši poruku za ${to}`, onclick: () => remove(MSG_KEY, m, 'Poruka je obrisana') }, ic('trash', 16), 'Obriši'))));
+    }
+    function paint() {
+      clearTimeout(timer);
+      const now = Date.now();
+      const by = (a, b) => Date.parse(b.at) - Date.parse(a.at);
+      const vis = ibList(VIS_KEY).sort(by), msgs = ibList(MSG_KEY).sort(by);
+      if (!vis.length && !msgs.length) {
+        fill(box, emptyBox('Još nema poruka ni obilazaka', 'Na stranici oglasa klikni „Pošalji poruku“ ili „Zakaži obilazak“ — ovde pratiš odgovore i potvrde termina.', 'Pretraži oglase', '#/pretraga', { icon: 'mail' }));
+        return;
+      }
+      const restore = focusMemo(box);
+      const sec = (title, n, rows, none) => el('section', { class: 'sv-ib-sec' },
+        el('h2', { class: 'sv-ib-h' }, title, el('span', { class: 'meta num' }, ` · ${n}`)),
+        rows.length ? el('ul', { class: 'sv-ib-list' }, rows) : el('p', { class: 'meta sv-ib-none' }, none));
+      fill(box,
+        el('p', { class: 'meta sv-lead' }, 'Odgovori oglašivača i potvrde termina su demo: stižu automatski posle nekoliko sekundi. Sve ostaje samo na ovom uređaju.'),
+        sec('Obilasci', vis.length, vis.map((v) => visitRow(v, now)), 'Nema zakazanih obilazaka — na oglasu klikni „Zakaži obilazak“.'),
+        sec('Poruke', msgs.length, msgs.map((m) => msgRow(m, now)), 'Nema poslatih poruka — na oglasu klikni „Pošalji poruku“.'));
+      restore();
+      /* sledeća promena statusa (10 s odgovor, 15 s potvrda) — osveži samo ovaj panel dok je na strani */
+      const due = [...vis.filter((v) => !v.cancelled).map((v) => Date.parse(v.at) + IB_WAIT), ...msgs.map((m) => Date.parse(m.at) + IB_REPLY)].filter((t) => t > now);
+      if (due.length) timer = setTimeout(() => { if (box.isConnected) paint(); }, Math.min(...due) - now + 60);
+    }
+    paint();
+    return box;
+  }
+
   function viewSaved(q) {
     q = q instanceof URLSearchParams ? q : new URLSearchParams(String(q || ''));
-    const TABS = ['oglasi', 'pretrage', 'nedavno', 'sakriveni'];
+    const TABS = ['oglasi', 'pretrage', 'poruke', 'nedavno', 'sakriveni'];
     const state = { tab: TABS.includes(q.get('tab')) ? q.get('tab') : 'oglasi', sort: 'saved', pick: new Set(S(() => store.compare.slice(), [])) };
     const root = el('div', { class: 'wrap ax-page sv-page' });
     const draw = () => {
@@ -661,22 +887,37 @@
       const nS = S(() => store.searches.length, 0);
       const nR = S(() => store.recent.filter((s) => findL(s)).length, 0);
       const nH = S(() => X().profile.get().hidden.size, 0);
+      const nMine = mineGet().length;
+      const nIb = ibCount();
       const keepScroll = window.scrollY;
+      const restore = focusMemo(root);
       fill(root, 
         pageHead({ crumbs: [{ label: 'Početna', href: '#/' }, { label: 'Sačuvano' }], eyebrow: 'TVOJ SPISAK', title: 'Sačuvano',
           lede: nF ? `${oglasa(nF)} sa tvojim beleškama i ocenama${nS ? `, ${nS} ${plural(nS, 'sačuvana pretraga', 'sačuvane pretrage', 'sačuvanih pretraga')}` : ''}. Sve ostaje na ovom uređaju, bez naloga.` : 'Sve što sačuvaš ostaje na ovom uređaju, bez naloga.' }),
+        nMine ? el('p', { class: 'sv-mine meta' }, ic('building', 14), 'Oglašavaš i ti? ', el('a', { class: 'link', href: '#/moji-oglasi' }, `Moji oglasi · ${nMine}`)) : null,
         S(() => tabs([
           { id: 'oglasi', label: `Sačuvani oglasi · ${nF}`, panel: savedListings(state, draw) },
           { id: 'pretrage', label: `Sačuvane pretrage · ${nS}`, panel: savedSearches() },
+          { id: 'poruke', label: `Poruke i obilasci · ${nIb}`, panel: inboxPanel(draw) },
           { id: 'nedavno', label: `Nedavno gledano · ${nR}`, panel: recentPanel() },
           { id: 'sakriveni', label: `Sakriveni oglasi · ${nH}`, panel: hiddenPanel() },
         ], { active: state.tab, onChange: (id) => { state.tab = id; replaceUrl('/sacuvani', id === 'oglasi' ? {} : { tab: id }); } }), el('p', {}, 'Tabovi nisu dostupni.')));
       if (keepScroll) window.scrollTo(0, keepScroll);
+      restore('[role=tab][aria-selected="true"]');
       const strip = root.querySelector('.tabs-ul');
       if (strip) {
         const paint = () => { strip.classList.toggle('ax-end', strip.scrollLeft + strip.clientWidth >= strip.scrollWidth - 4); strip.classList.toggle('ax-start', strip.scrollLeft <= 4); };
         strip.addEventListener('scroll', paint, { passive: true });
-        requestAnimationFrame(paint);
+        /* na telefonu traka skroluje vodoravno: izabrani tab (duboki link, posle Vrati/Obriši) mora da bude vidljiv — pomeramo samo traku, ne stranu */
+        whenMounted(strip, () => {
+          const act = strip.querySelector('[aria-selected="true"]');
+          if (act && strip.scrollWidth > strip.clientWidth + 2) {
+            const sr = strip.getBoundingClientRect(), ar = act.getBoundingClientRect();
+            const left = strip.scrollLeft + (ar.left - sr.left);
+            if (ar.left < sr.left || ar.right > sr.right) strip.scrollLeft = Math.max(0, left - (strip.clientWidth - act.offsetWidth) / 2);
+          }
+          paint();
+        });
       }
     };
     draw();
@@ -843,7 +1084,7 @@
           el('th', { scope: 'row', class: 'lab' }, el('a', { class: 'mm-og', href: lhref(l) }, thumb(l, 0, '4:3'), el('span', {}, el('b', {}, titleOf(l)), el('span', { class: 'meta' }, S(() => fmt.price(l.p, l.t), ''))))),
           pl.map((p, j) => { const t = mins[i][j]; if (!t) return el('td', { class: 'num' }, '—'); if (t.far) return el('td', { class: 'num ax-muted' }, 'drugi grad'); const w = t.min === best[j]; return el('td', { class: 'num' + (w ? ' win' : '') }, w ? el('i', { class: 'mk', 'aria-hidden': 'true' }) : null, el('b', {}, `${t.min} min`), el('small', {}, `${num(t.km, 1)} km`)); }),
           two ? (() => { const v = bothVals[i]; return el('td', { class: 'num' + (v != null && v === bothBest ? ' win' : '') }, v != null && v === bothBest ? el('i', { class: 'mk', 'aria-hidden': 'true' }) : null, v != null ? el('b', {}, `${v} min`) : '—'); })() : null))));
-      const inner = el('div', { class: 'mm-wrap', tabindex: '0', role: 'region', 'aria-label': 'Tabela minuta, skroluje se vodoravno' }, table);
+      const inner = el('div', { class: 'mm-wrap', tabindex: '0', role: 'region', 'aria-label': 'Tabela minuta, pomera se vodoravno' }, table);
       const wrap = el('div', { class: 'mm-scroll' }, inner);
       const paintFade = () => { wrap.classList.toggle('at-end', inner.scrollLeft + inner.clientWidth >= inner.scrollWidth - 4); wrap.classList.toggle('scrolled', inner.scrollLeft > 4); };
       inner.addEventListener('scroll', paintFade, { passive: true });
@@ -853,7 +1094,7 @@
 
     const howTo = el('aside', { class: 'mm-how' },
       el('p', { class: 'eyebrow' }, 'Kako procenjujemo minute'),
-      el('p', {}, 'Nemamo red vožnje ni podatke o gužvi, pa minute računamo pošteno-grubo: vazdušna linija između stana i tvog mesta × 1,3 (ulice nisu prave), podeljeno prosečnom brzinom, plus fiksno vreme.'),
+      el('p', {}, 'Nemamo red vožnje ni podatke o gužvi, pa minute računamo grubo, ali pošteno: vazdušna linija između stana i tvog mesta × 1,3 (ulice nisu prave), podeljeno prosečnom brzinom, plus fiksno vreme.'),
       el('ul', { class: 'mm-speeds' },
         el('li', {}, el('b', {}, 'Gradski prevoz'), ' 14 km/h + 6 min čekanja'),
         el('li', {}, el('b', {}, 'Auto'), ' 22 km/h + 4 min parkiranja'),
@@ -866,14 +1107,19 @@
     const paintAll = () => { fill(listBox, el('h2', { class: 't-h2s' }, 'Tvoja mesta', el('span', { class: 'meta' }, ` · ${(prof().places || []).length} od 5`)), placesList()); fill(prevBox, preview()); };
     paintForm(); paintAll();
     add(root, 
-      pageHead({ crumbs: [{ label: 'Početna', href: '#/' }, { label: 'Moja mesta' }], eyebrow: 'MOJA MESTA', title: 'Koliko je stan daleko od tvog života',
+      pageHead({ crumbs: [{ label: 'Početna', href: '#/' }, { label: 'Moja mesta' }], eyebrow: 'MOJA MESTA', title: 'Koliko je stan daleko od mesta gde svakodnevno ideš',
         lede: 'Dodaj posao, fakultet i roditelje — za sebe i za partnera. Svaki oglas onda kaže koliko minuta ti treba, a poređenje pokaže gde oboje stižete na vreme.' }),
       el('div', { class: 'mm-top' },
         el('div', { class: 'mm-left' }, listBox, formBox),
         el('div', { class: 'mm-right' }, mapBox, el('p', { class: 'meta mm-maphint' }, ic('locate', 14), 'Klikni na mapu da postaviš tačku. Krugovi pokazuju 10, 20 i 30 minuta — isti proračun kao tabela ispod.'), howTo)),
       prevBox);
     buildMap();
-    bind(root, (fn) => X() && X().profile.on(fn), (p, patch) => { if (!patch || 'places' in patch) { paintAll(); paintForm(); refreshMap(); } });
+    bind(root, (fn) => X() && X().profile.on(fn), (p, patch) => {
+      if (patch && !('places' in patch)) return;
+      const restore = focusMemo(root);
+      paintAll(); paintForm(); refreshMap();
+      restore('.mm-item button[aria-label^="Ukloni"], #mm-name');
+    });
     bind(root, (fn) => store.on(fn), (what) => { if (what === 'favs') fill(prevBox, preview()); });
     return root;
   }
@@ -888,9 +1134,10 @@
     { v: 'ozakonjenje', l: 'U postupku ozakonjenja' },
     { v: 'nije', l: 'Nije uknjiženo' },
   ];
+  const FINANCEABLE = { uknjizeno: 'da', 'u-procesu': 'zavisi', 'poseban-zakon': 'zavisi', ozakonjenje: 'ne', nije: 'ne' };
   const DRAFT0 = { v: 1, step: 0, t: 'prodaja', pt: 'stan', adv: 'vlasnik', cs: 'beograd', ms: '', n: '', ad: '', lat: null, lng: null,
     a: '', ro: 2, fl: '', tf: '', y: '', he: '', co: '', fu: '', legal: 'uknjizeno', proof: false, am: [],
-    title: '', d: '', photos: [], plan: false, video: '', p: '', dep: '', neg: true, name: '', phone: '', agree: false, published: null, saved: null, fee: '', feePayer: 'kupac' };
+    title: '', d: '', photos: [], plan: false, video: '', p: '', dep: '', neg: true, name: '', phone: '', agree: false, published: null, saved: null, fee: '', feePayer: 'kupac', editRef: null };
   /* provizija: zakon traži da agencija jasno navede iznos i ko ga plaća (kritika #7) */
   const PAYERS = {
     prodaja: [{ v: 'kupac', l: 'Kupac' }, { v: 'prodavac', l: 'Prodavac' }, { v: 'dogovor', l: 'Po dogovoru' }],
@@ -986,7 +1233,9 @@
         priceOk = fair.diffPct >= -15 && fair.diffPct <= 10;
         priceNote = fair.verdict === 'ispod' ? `${pct} ispod procene` : fair.verdict === 'iznad' ? `${pct} iznad procene` : 'u opsegu procene';
       }
-      else { const dl = fair && fair.delta; priceOk = !dl || Math.abs(dl) <= 25; priceNote = priceOk ? 'blizu proseka opštine' : 'daleko od proseka opštine'; }
+      /* bodovi samo kad imamo sa čim da poredimo (prosek sa n ≥ 5, spec 5.7) — bez kvadrature ili uzorka nema „besplatnih“ 15 */
+      else if (fair && fair.deltaObj && fair.deltaObj.n >= 5 && fair.delta != null) { priceOk = Math.abs(fair.delta) <= 25; priceNote = priceOk ? 'blizu proseka oblasti' : 'daleko od proseka oblasti'; }
+      else priceNote = numOr(d.a) ? 'nema dovoljno podataka za poređenje' : 'unesi kvadraturu';
     }
     const yr = numOr(d.y);
     const yearOk = yr != null && yr >= 1800 && yr <= new Date().getFullYear() + 4;
@@ -1128,8 +1377,8 @@
         }), null)),
         el('div', { class: 'pw-f' }, el('span', { class: 'lbl' }, 'Tip nekretnine'), S(() => pills(types, [d.pt], (v) => upd({ pt: v }), { single: true }), null)),
         el('div', { class: 'pw-f' }, el('span', { class: 'lbl' }, 'Oglašavam kao'),
-          el('div', { class: 'pw-radios' }, [['vlasnik', 'Vlasnik', 'Besplatno, bez provizije za kupca'], ['agencija', 'Agencija', 'Upisana u registar posrednika']].map(([v, l, h]) =>
-            el('label', { class: 'check pw-radio' }, el('input', { type: 'radio', name: 'pw-adv', value: v, checked: d.adv === v, onchange: () => upd({ adv: v }, { step: true }) }), el('span', {}, el('b', {}, l), el('small', {}, h)))))),
+          el('div', { class: 'pw-radios' }, [['vlasnik', 'Vlasnik', d.t === 'izdavanje' ? 'Besplatno, bez provizije za stanara' : 'Besplatno, bez provizije za kupca'], ['agencija', 'Agencija', 'Upisana u registar posrednika']].map(([v, l, h]) =>
+            el('label', { class: 'check pw-radio' }, el('input', { type: 'radio', id: 'pw-adv-' + v, name: 'pw-adv', value: v, checked: d.adv === v, onchange: () => upd({ adv: v }, { step: true }) }), el('span', {}, el('b', {}, l), el('small', {}, h)))))),
         d.adv === 'agencija' ? el('div', { class: 'pw-grid pw-fee' },
           fld(d.t === 'izdavanje' ? 'Provizija (% jedne kirije)' : 'Provizija (%)', sfx(inp('fee', { inputmode: 'decimal', placeholder: d.t === 'izdavanje' ? '50' : '2', max: '5' }), '%'),
             d.t === 'izdavanje' ? 'Uobičajeno 40–50 % prve kirije; u Beogradu je često plaća vlasnik.' : 'Uobičajeno 2–3 % + PDV. Zakon traži da jasno navedeš iznos i ko ga plaća.'),
@@ -1202,7 +1451,7 @@
       const seedL = () => ({ ...draftListing(d), s: 'nacrt' });
       let dragFrom = null;
       const move = (from, to) => { if (to < 0 || to >= d.photos.length || from === to) return; const a = d.photos.slice(); const [x] = a.splice(from, 1); a.splice(to, 0, x); upd({ photos: a }); paintGrid(); };
-      const addPhotos = (k) => { const next = d.photos.length ? Math.max(...d.photos) + 1 : 0; const more = Array.from({ length: k }, (_, i) => next + i); upd({ photos: d.photos.concat(more).slice(0, 30) }); paintGrid(); say(k === 1 ? 'Fotografija je dodata' : `${k} fotografija je dodato`); };
+      const addPhotos = (k) => { const next = d.photos.length ? Math.max(...d.photos) + 1 : 0; const more = Array.from({ length: k }, (_, i) => next + i); upd({ photos: d.photos.concat(more).slice(0, 30) }); paintGrid(); say(k === 1 ? 'Fotografija je dodata' : `${k} ${plural(k, 'fotografija je dodata', 'fotografije su dodate', 'fotografija je dodato')}`); };
       const paintGrid = () => {
         const l = seedL();
         fill(grid, ...d.photos.map((idx, i) => el('li', { class: 'pw-ph' + (i === 0 ? ' cover' : ''), draggable: 'true', 'data-i': String(i),
@@ -1267,8 +1516,12 @@
         fill(live, );
         if (!l.p || !l.a) { add(live, el('p', { class: 'meta' }, l.a ? 'Unesi cenu da uporedimo sa sličnim oglasima.' : 'Unesi kvadraturu (korak Detalji) i cenu da uporedimo sa sličnim oglasima.')); return; }
         const ppmTxt = S(() => fmt.ppm(l.p / l.a), '');
-        const dChip = f && f.deltaObj ? S(() => deltaChip(f.deltaObj), null) : null;
-        add(live, el('p', { class: 'pw-ppm' }, el('b', { class: 'num' }, ppmTxt), dChip, f && f.deltaObj ? el('span', { class: 'meta' }, ` prosek: ${f.deltaObj.label} · ${S(() => fmt.ppm(f.deltaObj.ppm), '')} · n=${f.deltaObj.n}`) : null));
+        const rent = l.t === 'izdavanje';
+        const money = (v) => S(() => fmt.price(v, l.t), rent ? eurMes(v) : eur(v));
+        /* prosek prikazujemo samo kad ima uzorak (n ≥ 5, spec 5.7) — inače bi pisalo „prosek: · · n=0“ */
+        const dOk = !!(f && f.deltaObj && f.deltaObj.n >= 5 && f.deltaObj.label && f.deltaObj.pct != null);
+        const dChip = dOk ? S(() => deltaChip(f.deltaObj), null) : null;
+        add(live, el('p', { class: 'pw-ppm' }, el('b', { class: 'num' }, ppmTxt), dChip, dOk ? el('span', { class: 'meta' }, ` prosek: ${f.deltaObj.label} · ${S(() => fmt.ppm(f.deltaObj.ppm), '')} · n=${f.deltaObj.n}`) : null));
         if (f && f.verdict && f.estimate) {
           const { low, high, mid } = f.estimate;
           const lo = Math.min(low * 0.8, l.p * 0.95), hi = Math.max(high * 1.2, l.p * 1.05);
@@ -1278,19 +1531,26 @@
              „tvoja cena“ je zastavica uz tačku — okrenuta ka sredini da ne izađe iz trake */
           const tag = (v, anchor, ...kids) => el('span', { class: `pw-m-tag at-${anchor(at(v))}`, style: `left:${at(v).toFixed(1)}%` }, ...kids);
           const toMid = (x) => (x <= 50 ? 'start' : 'end');
-          const vtxt = f.verdict === 'ispod' ? `Cena je ${S(() => fmt.pct(Math.abs(f.diffPct)), '')} ispod procene — privući će pažnju, ali proveri da je nisi potcenio.`
-            : f.verdict === 'iznad' ? `Cena je ${S(() => fmt.pct(f.diffPct), '')} iznad procene — očekuj pregovore ili sporiju prodaju.`
-              : 'Cena je u fer opsegu za uporedive oglase.';
-          add(live, el('div', { class: 'pw-merilo', role: 'img', 'aria-label': `Procena ${eur(low)} do ${eur(high)}, tvoja cena ${eur(l.p)}` },
-            el('div', { class: 'pw-m-row pw-m-you num', 'aria-hidden': 'true' }, tag(l.p, toMid, el('b', {}, 'Tvoja cena'), ` ${eur(l.p)}`)),
+          const pctAbs = S(() => fmt.pct(Math.abs(f.diffPct)), '');
+          const vtxt = f.verdict === 'ispod'
+            ? (rent ? `Kirija je ${pctAbs} ispod procene — brzo ćeš naći stanara, ali proveri da kiriju nisi potcenio.` : `Cena je ${pctAbs} ispod procene — privući će pažnju, ali proveri da je nisi potcenio.`)
+            : f.verdict === 'iznad'
+              ? (rent ? `Kirija je ${pctAbs} iznad procene — očekuj pregovore ili da se stan duže izdaje.` : `Cena je ${pctAbs} iznad procene — očekuj pregovore ili sporiju prodaju.`)
+              : (rent ? 'Kirija je u fer opsegu za uporedive oglase.' : 'Cena je u fer opsegu za uporedive oglase.');
+          add(live, el('div', { class: 'pw-merilo', role: 'img', 'aria-label': `Procena ${money(low)} do ${money(high)}, tvoja cena ${money(l.p)}` },
+            el('div', { class: 'pw-m-row pw-m-you num', 'aria-hidden': 'true' }, tag(l.p, toMid, el('b', {}, 'Tvoja cena'), ` ${money(l.p)}`)),
             el('div', { class: 'pw-m-track' }, el('span', { class: 'band', style: `left:${pos(low)};right:calc(100% - ${pos(high)})` }), el('span', { class: 'mid', style: `left:${pos(mid)}` }), el('span', { class: 'dot', style: `left:${pos(l.p)}` })),
-            el('div', { class: 'pw-m-row pw-m-lbl num', 'aria-hidden': 'true' }, tag(low, (x) => (x >= 20 ? 'end' : 'start'), eur(low)), tag(high, (x) => (x <= 80 ? 'start' : 'end'), eur(high))),
-            el('p', { class: 'pw-m-cap meta', 'aria-hidden': 'true' }, el('i', { class: 'sw' }), el('b', {}, 'Procena'), ` ${eur(low)} – ${eur(high)} · ${f.n} uporedivih`)),
+            el('div', { class: 'pw-m-row pw-m-lbl num', 'aria-hidden': 'true' }, tag(low, (x) => (x >= 20 ? 'end' : 'start'), money(low)), tag(high, (x) => (x <= 80 ? 'start' : 'end'), money(high))),
+            el('p', { class: 'pw-m-cap meta', 'aria-hidden': 'true' }, el('i', { class: 'sw' }), el('b', {}, 'Procena'), ` ${money(low)} – ${money(high)} · ${f.n} uporedivih`)),
           el('p', { class: 'pw-verdict pw-v-' + f.verdict }, vtxt));
-        } else add(live, el('p', { class: 'meta' }, 'Premalo uporedivih oglasa za procenu — oslanjamo se na prosek opštine iznad.'));
-        if (l.t === 'prodaja') {
-          const r = S(() => mortgage(l.p * 0.8, 5, 25).monthly, null);
-          if (r) add(live, el('p', { class: 'meta pw-rata' }, `Kupcu na kredit: rata od oko ${eurMes(r)} (20 % učešće, 25 god., 5 %).`));
+        } else add(live, el('p', { class: 'meta' }, dOk ? `Premalo uporedivih oglasa za procenu raspona — poredimo samo sa prosekom (${f.deltaObj.label}) iznad.`
+          : `U ovoj oblasti nema dovoljno sličnih oglasa (treba bar 5) ni za procenu ni za prosek, pa ${rent ? 'kiriju' : 'cenu'} ne ocenjujemo. Proveri je sa nekoliko oglasa iz kraja.`));
+        /* isto pravilo kao KX.afford gate.financeable: banke finansiraju uknjiženo; zemljište i garažu ne računamo kao stambeni kredit */
+        if (l.t === 'prodaja' && d.pt !== 'zemljiste' && d.pt !== 'garaza') {
+          const fin = FINANCEABLE[d.legal] || 'zavisi';
+          const r = fin === 'ne' ? null : S(() => mortgage(l.p * 0.8, 5, 25).monthly, null);
+          if (fin === 'ne') add(live, el('p', { class: 'meta pw-rata' }, 'Kupci na kredit neće moći da kupe dok nekretnina nije uknjižena — računaj na kupce za keš.'));
+          else if (r) add(live, el('p', { class: 'meta pw-rata' }, `Kupcu na kredit: rata od oko ${eurMes(r)} (20 % učešća, 25 god., kamata 5 %)${fin === 'zavisi' ? ', ako banka odobri kredit — za ovaj pravni status to zavisi od banke.' : '.'}`));
         }
       };
       paintLive();
@@ -1357,10 +1617,23 @@
         return;
       }
       const l = draftListing(d);
-      const ref = 'KV-' + (1000000 + (S(() => hash(JSON.stringify([d.t, d.pt, d.cs, d.ms, d.ad, d.a, d.p, d.name, d.phone, d.d.length])), 7) % 9000000));
-      d.published = { ref, at: new Date().toISOString(), title: l.ti, score: quality(d, fairOf(l)).score };
+      const list = mineGet();
+      const prev = d.editRef ? list.find((x) => x.ref === d.editRef) : null;
+      let ref = prev ? prev.ref : null;
+      if (!ref) {
+        let k = 1000000 + (S(() => hash(JSON.stringify([d.t, d.pt, d.cs, d.ms, d.ad, d.a, d.p, d.name, d.phone, d.d.length])), 7) % 9000000);
+        while (list.some((x) => x.ref === 'KV-' + k)) k = k >= 9999999 ? 1000000 : k + 1;
+        ref = 'KV-' + k;
+      }
+      const now = new Date().toISOString();
+      const score = quality(d, fairOf(l)).score;
+      /* Moji oglasi: izmena zadržava datum objave i status, nov oglas ide na vrh */
+      const entry = { ref, at: prev ? prev.at : now, updated: prev ? now : null, active: prev ? prev.active !== false : true, title: l.ti, score, draft: { ...d, published: null, editRef: null, saved: null } };
+      const kept = mineSet(prev ? list.map((x) => (x.ref === ref ? entry : x)) : [entry, ...list]);
+      d.published = { ref, at: entry.at, title: l.ti, score, edited: !!prev, kept };
+      d.editRef = ref;   /* „Izmeni ovaj oglas“ menja isti oglas, ne pravi novi */
       saveNow();
-      say(`Oglas ${ref} je poslat na proveru (demo)`, { kind: 'success' });
+      say(prev ? `Izmene oglasa ${ref} su poslate na proveru (demo)` : `Oglas ${ref} je poslat na proveru (demo)`, { kind: 'success' });
       paintAll();
       window.scrollTo(0, 0);
     }
@@ -1368,13 +1641,15 @@
       const p = d.published;
       return el('div', { class: 'pw-done' },
         el('span', { class: 'pw-done-ic', 'aria-hidden': 'true' }, ic('check', 28)),
-        el('p', { class: 'eyebrow' }, 'OGLAS JE POSLAT'),
-        el('h1', { class: 't-h1' }, 'Hvala — oglas je na proveri'),
-        el('p', { class: 'lede ax-lede' }, `„${p.title}“ objavljujemo kad proverimo podatke, obično istog dana. Kvalitet oglasa: ${p.score}/100.`),
+        el('p', { class: 'eyebrow' }, p.edited ? 'IZMENE SU POSLATE' : 'OGLAS JE POSLAT'),
+        el('h1', { class: 't-h1' }, p.edited ? 'Izmene su na proveri' : 'Hvala — oglas je na proveri'),
+        el('p', { class: 'lede ax-lede' }, `„${p.title}“ ${p.edited ? 'osvežavamo' : 'objavljujemo'} kad proverimo podatke, obično istog dana. Kvalitet oglasa: ${p.score}/100.`),
         el('div', { class: 'pw-ref' }, el('span', { class: 'lbl' }, 'Broj oglasa'), el('b', { class: 'num', tabindex: '0' }, p.ref), S(() => copyButton(p.ref, { outline: true, label: 'Kopiraj broj oglasa' }), null)),
-        el('p', { class: 'note-rule' }, 'Ovo je demo — oglas nije stvarno objavljen i ne šalje se nikome. Nacrt ostaje sačuvan na ovom uređaju.'),
+        el('p', { class: 'note-rule' }, p.kept === false ? 'Ovo je demo — oglas nije stvarno objavljen i ne šalje se nikome. Pregledač ne dozvoljava čuvanje, pa ga nećeš videti u „Moji oglasi“.'
+          : 'Ovo je demo — oglas nije stvarno objavljen i ne šalje se nikome. Sačuvan je u „Moji oglasi“ na ovom uređaju: tamo vidiš preglede, obnavljaš ga ili deaktiviraš.'),
         el('div', { class: 'btn-row' },
-          el('button', { class: 'btn btn-primary', type: 'button', onclick: () => { d = { ...DRAFT0, photos: [], am: [] }; lsSet(DRAFT_KEY, d); cur = 0; savedAt = null; paintAll(); window.scrollTo(0, 0); } }, 'Postavi novi oglas'),
+          el('a', { class: 'btn btn-primary', href: '#/moji-oglasi' }, 'Moji oglasi', ic('arrow-right', 16)),
+          el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => { d = { ...DRAFT0, photos: [], am: [] }; lsSet(DRAFT_KEY, d); cur = 0; savedAt = null; paintAll(); window.scrollTo(0, 0); } }, 'Postavi novi oglas'),
           el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => { d.published = null; cur = 6; saveNow(); paintAll(); } }, 'Izmeni ovaj oglas'),
           el('a', { class: 'btn btn-ghost', href: '#/' }, 'Na početnu')));
     }
@@ -1384,7 +1659,7 @@
       fill(navBox, 
         cur > 0 ? el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => go(cur - 1) }, ic('arrow-left', 16), 'Nazad') : el('span'),
         savedLine,
-        last ? el('button', { class: 'btn btn-primary btn-lg', type: 'button', onclick: publish }, 'Objavi oglas')
+        last ? el('button', { class: 'btn btn-primary btn-lg', type: 'button', onclick: publish }, d.editRef ? 'Objavi izmene' : 'Objavi oglas')
           : el('button', { class: 'btn btn-primary', type: 'button', onclick: () => go(cur + 1) }, `Dalje: ${STEPS[cur + 1]}`, ic('arrow-right', 16)));
       paintSaved();
     }
@@ -1402,9 +1677,9 @@
         li.dataset.sr = sr;
       });
       lis.forEach((li, i) => { li.style.cursor = 'pointer'; li.setAttribute('role', 'button'); li.tabIndex = 0; li.setAttribute('aria-label', `Korak ${i + 1}: ${STEPS[i]}${li.dataset.sr || ''}`); li.addEventListener('click', () => go(i)); li.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(i); } }); });
-      const active = document.activeElement && stepBox.contains(document.activeElement) ? document.activeElement.id : null;
+      const restore = focusMemo(stepBox);
       fill(stepBox, ...S(() => BUILDERS[cur](), [el('p', {}, 'Korak nije dostupan.')]).filter(Boolean));
-      if (active) { const n = document.getElementById(active); if (n) n.focus({ preventScroll: true }); }
+      restore();
       paintNav();
     }
     function go(i) {
@@ -1419,16 +1694,19 @@
     function paintAll() {
       fill(root, );
       if (d.published) { add(root, success()); return; }
+      const nMine = mineGet().length;
+      const head = pageHead({ crumbs: [{ label: 'Početna', href: '#/' }, { label: 'Postavi oglas' }], eyebrow: d.editRef ? `IZMENA OGLASA ${d.editRef}` : 'BESPLATNO ZA VLASNIKE', title: d.editRef ? 'Izmeni oglas' : 'Postavi oglas',
+        lede: d.editRef ? 'Menjaš već poslat oglas: datum objave ostaje isti, a „ažurirano“ dobija današnji datum kad objaviš izmene.' : 'Sedam kratkih koraka. Pregled oglasa i ocena kvaliteta menjaju se dok pišeš, a nacrt se čuva sam.' });
+      add(head, el('p', { class: 'pw-mine' }, el('a', { class: 'link', href: '#/moji-oglasi' }, ic('building', 16), nMine ? `Moji oglasi · ${nMine}` : 'Moji oglasi')));
       add(root, 
-        pageHead({ crumbs: [{ label: 'Početna', href: '#/' }, { label: 'Postavi oglas' }], eyebrow: 'BESPLATNO ZA VLASNIKE', title: 'Postavi oglas',
-          lede: 'Sedam kratkih koraka. Pregled oglasa i ocena kvaliteta menjaju se dok pišeš, a nacrt se čuva sam.' }),
+        head,
         mScore,
         el('div', { class: 'pw-layout' },
           el('div', { class: 'pw-main' }, stepperBox, el('form', { class: 'pw-form', novalidate: true, onsubmit: (e) => { e.preventDefault(); if (cur === STEPS.length - 1) publish(); else go(cur + 1); } }, stepBox), navBox,
             el('div', { class: 'pw-reset' }, el('button', { class: 'btn btn-ghost btn-sm', type: 'button', onclick: () => {
-              const was = d; d = { ...DRAFT0, photos: [], am: [] }; cur = 0; savedAt = null; lsSet(DRAFT_KEY, d); paintStep(); paintAside();
-              say('Nacrt je obrisan', { action: { label: 'Vrati', onClick: () => { d = was; cur = was.step || 0; lsSet(DRAFT_KEY, d); paintStep(); paintAside(); } } });
-            } }, ic('trash', 16), 'Obriši nacrt'))),
+              const was = d; d = { ...DRAFT0, photos: [], am: [] }; cur = 0; savedAt = null; lsSet(DRAFT_KEY, d); was.editRef ? paintAll() : (paintStep(), paintAside());
+              say(was.editRef ? 'Izmene su odbačene — objavljeni oglas je ostao isti' : 'Nacrt je obrisan', { action: { label: 'Vrati', onClick: () => { d = was; cur = was.step || 0; lsSet(DRAFT_KEY, d); was.editRef ? paintAll() : (paintStep(), paintAside()); } } });
+            } }, ic('trash', 16), d.editRef ? 'Odbaci izmene' : 'Obriši nacrt'))),
           aside));
       paintStep(); paintAside();
     }
@@ -1436,5 +1714,116 @@
     return root;
   }
 
-  Object.assign(window, { viewCompare, viewSaved, viewPlaces, viewPost });
+  /* ═════════════════════════ MOJI OGLASI ═════════════════════════ */
+  /* kv.myListings: [{ref, at, updated|null, active, title, score, draft}] — samo na ovom uređaju; pregledi/čuvanja su demo brojevi iz hash(ref) i dana na sajtu */
+  const MINE_KEY = 'kv.myListings';
+  function mineGet() { const v = lsGet(MINE_KEY, []); return Array.isArray(v) ? v.filter((x) => x && typeof x.ref === 'string') : []; }
+  function mineSet(list) { return lsSet(MINE_KEY, list); }
+  const dateTxt = (iso) => { const t = new Date(iso); return isFinite(t) ? `${t.getDate()}. ${t.getMonth() + 1}. ${t.getFullYear()}.` : ''; };
+  const daysSince = (iso) => { const t = Date.parse(iso); return isFinite(t) ? Math.max(0, Math.floor((Date.now() - t) / 864e5)) : 0; };
+  function mineStats(e) {
+    const h = S(() => hash(e.ref), 7);
+    const days = daysSince(e.at);
+    const views = Math.round((days + 0.35) * (12 + (h % 19)));
+    const saves = Math.floor((views * (3 + (h % 5))) / 100);
+    return { views, saves, days };
+  }
+  function mineDraft(e) {
+    const dd = { ...DRAFT0, ...(e.draft || {}) };
+    dd.photos = Array.isArray(dd.photos) ? dd.photos.filter((x) => Number.isInteger(x)) : [];
+    dd.am = Array.isArray(dd.am) ? dd.am : [];
+    ['title', 'd', 'ad', 'name', 'phone', 'n'].forEach((k) => { if (typeof dd[k] !== 'string') dd[k] = String(dd[k] == null ? '' : dd[k]); });
+    return dd;
+  }
+
+  function viewMyListings() {
+    const root = el('div', { class: 'wrap ax-page mo-page' });
+    const draftOpen = () => {
+      const dr = lsGet(DRAFT_KEY, null);
+      if (!dr || dr.published) return null;
+      const started = (dr.step | 0) > 0 || String(dr.d || '').trim() || numOr(dr.p) != null || numOr(dr.a) != null || (Array.isArray(dr.photos) && dr.photos.length);
+      return started ? dr : null;
+    };
+    const update = (ref, patch, msg) => {
+      const list = mineGet().map((x) => (x.ref === ref ? { ...x, ...patch } : x));
+      if (!mineSet(list)) { say('Pregledač ne dozvoljava čuvanje — promena neće ostati'); return; }
+      draw(); if (msg) say(msg);
+    };
+    const edit = (e) => {
+      const old = lsGet(DRAFT_KEY, null);
+      const open = draftOpen();
+      lsSet(DRAFT_KEY, { ...mineDraft(e), published: null, editRef: e.ref, step: 0 });
+      location.hash = '#/postavi';
+      if (open && open.editRef !== e.ref) {
+        say('Tvoj nedovršeni nacrt je sklonjen da bi menjao ovaj oglas', { action: { label: 'Vrati nacrt', onClick: () => { lsSet(DRAFT_KEY, old); S(() => window.KVApp.render(null, { force: true })); } } });
+      }
+    };
+    const row = (e) => {
+      const dd = mineDraft(e);
+      const l = draftListing(dd);
+      const st = mineStats(e);
+      const on = e.active !== false;
+      const ph = S(() => img.el({ ...l, s: 'nacrt' }, dd.photos.length ? dd.photos[0] : 0, { aspect: '4:3', alt: '' }), null);
+      return el('li', { class: 'mo-item' + (on ? '' : ' off'), 'data-slug': e.ref },
+        el('div', { class: 'mo-ph ph' }, ph),
+        el('div', { class: 'mo-main' },
+          el('p', { class: 'mo-top' }, el('span', { class: 'mo-st mo-st-' + (on ? 'on' : 'off') }, el('i', { 'aria-hidden': 'true' }), on ? (st.days ? 'Aktivan' : 'Na proveri') : 'Deaktiviran'), el('span', { class: 'meta num' }, e.ref)),
+          el('h2', { class: 'mo-t' }, nbsp(e.title || l.ti)),
+          el('p', { class: 'meta' }, [l.p ? S(() => fmt.price(l.p, l.t), '') : 'cena nije uneta', placeLine(l), `kvalitet ${e.score != null ? e.score : '—'}/100`].filter(Boolean).join(' · ')),
+          el('dl', { class: 'mo-stats num' },
+            el('div', {}, el('dt', {}, 'Pregledi'), el('dd', {}, num(st.views))),
+            el('div', {}, el('dt', {}, 'Sačuvali'), el('dd', {}, num(st.saves))),
+            el('div', {}, el('dt', {}, 'Objavljen'), el('dd', {}, dateTxt(e.at), el('small', {}, S(() => fmt.rel(st.days), '')))),
+            el('div', {}, el('dt', {}, 'Ažurirano'), el('dd', {}, e.updated ? dateTxt(e.updated) : el('span', { class: 'ax-muted' }, 'nije obnavljan'), e.updated ? el('small', {}, S(() => fmt.rel(daysSince(e.updated)), '')) : null)))),
+        el('div', { class: 'mo-act' },
+          el('button', { class: 'btn btn-secondary btn-sm', id: 'mo-ob-' + e.ref, type: 'button', disabled: !on, title: on ? null : 'Prvo aktiviraj oglas', 'aria-label': `Obnovi oglas ${e.ref}`, onclick: () => update(e.ref, { updated: new Date().toISOString() }, 'Oglas je obnovljen — datum objave je isti, „ažurirano“ je danas') }, ic('refresh', 16), 'Obnovi'),
+          el('button', { class: 'btn btn-secondary btn-sm', id: 'mo-tg-' + e.ref, type: 'button', 'aria-label': `${on ? 'Deaktiviraj' : 'Aktiviraj'} oglas ${e.ref}`, onclick: () => update(e.ref, { active: !on }, on ? 'Oglas je deaktiviran — ne prikazuje se u pretrazi' : 'Oglas je ponovo aktivan') }, ic(on ? 'eye' : 'check', 16), on ? 'Deaktiviraj' : 'Aktiviraj'),
+          el('button', { class: 'btn btn-ghost btn-sm', type: 'button', 'aria-label': `Izmeni oglas ${e.ref}`, onclick: () => edit(e) }, ic('draw', 16), 'Izmeni'),
+          el('button', { class: 'iconbtn mo-del', type: 'button', 'aria-label': `Ukloni oglas ${e.ref} sa spiska`, onclick: () => {
+            const before = mineGet();
+            if (!mineSet(before.filter((x) => x.ref !== e.ref))) { say('Pregledač ne dozvoljava čuvanje'); return; }
+            draw();
+            say(`Oglas ${e.ref} je uklonjen sa spiska`, { action: { label: 'Vrati', onClick: () => { mineSet(before); draw(); } } });
+          } }, ic('trash', 18))));
+    };
+    function draw() {
+      const restore = focusMemo(root);
+      const list = mineGet();
+      const nOn = list.filter((x) => x.active !== false).length;
+      const open = draftOpen();
+      const startNew = el('a', { class: 'btn btn-primary', href: '#/postavi', onclick: () => {
+        /* poslat oglas u nacrtu → nov prazan nacrt; nedovršen nacrt ostaje (dugme tada glasi „Nastavi nacrt“) */
+        if (!open) { const dr = lsGet(DRAFT_KEY, null); if (dr && dr.published) lsSet(DRAFT_KEY, { ...DRAFT0, photos: [], am: [] }); }
+      } }, open ? 'Nastavi nacrt' : 'Postavi novi oglas', ic('arrow-right', 16));
+      const totals = list.reduce((t, e) => { const s = mineStats(e); return { v: t.v + s.views, f: t.f + s.saves }; }, { v: 0, f: 0 });
+      fill(root,
+        pageHead({ crumbs: [{ label: 'Početna', href: '#/' }, { label: 'Postavi oglas', href: '#/postavi' }, { label: 'Moji oglasi' }], eyebrow: 'ZA OGLAŠIVAČE', title: 'Moji oglasi',
+          lede: list.length ? `${oglasa(list.length)}, ${num(nOn)} ${plural(nOn, 'aktivan', 'aktivna', 'aktivnih')}. Ukupno ${num(totals.v)} ${plural(totals.v, 'pregled', 'pregleda', 'pregleda')} i ${num(totals.f)} ${plural(totals.f, 'čuvanje', 'čuvanja', 'čuvanja')}. Čuva se na ovom uređaju, bez naloga.`
+            : 'Ovde su oglasi koje postaviš — sa pregledima, obnavljanjem i deaktivacijom. Čuvaju se na ovom uređaju, bez naloga.' }),
+        el('div', { class: 'mo-bar' },
+          open ? el('p', { class: 'meta' }, ic('doc', 14), `Nedovršen nacrt: korak ${Math.min(STEPS.length, (open.step | 0) + 1)} od ${STEPS.length}${open.editRef ? ` · izmena oglasa ${open.editRef}` : ''}`) : el('span'),
+          startNew),
+        list.length ? el('ul', { class: 'mo-list' }, list.map(row))
+          : emptyBox('Još nemaš poslatih oglasa', 'Kad objaviš oglas, ovde ćeš videti koliko ga ljudi gleda i čuva, i moći ćeš da ga obnoviš ili privremeno skloniš.', 'Postavi oglas', '#/postavi', { icon: 'building' }),
+        list.length ? el('p', { class: 'note-rule mo-note' }, 'Pregledi i čuvanja su demo brojevi (izvedeni iz broja oglasa i dana od objave), ne stvarna statistika. „Obnovi“ ne menja datum objave — kupci i dalje vide kada je oglas prvi put postavljen, a „ažurirano“ pokazuje da je još aktuelan. ',
+          el('a', { class: 'link', href: '#/kako-racunamo' }, 'Kako računamo')) : null);
+      restore('.mo-act .btn:not([disabled]), .mo-bar .btn, .empty .btn');
+    }
+    draw();
+    bind(root, (fn) => { const h = (e) => { if (!e || e.key === MINE_KEY || e.key === DRAFT_KEY) fn(); }; window.addEventListener('storage', h); return () => window.removeEventListener('storage', h); }, () => draw());
+    return root;
+  }
+
+  /* privremeno: ruta #/moji-oglasi dok je integrator ne doda u app.js (KVApp.routes je izložena tabela) */
+  const ensureMineRoute = () => S(() => {
+    const R = window.KVApp && window.KVApp.routes;
+    if (!R || R['/moji-oglasi']) return;
+    R['/moji-oglasi'] = { view: 'viewMyListings', name: 'Moji oglasi', title: () => 'Moji oglasi', nav: () => '/postavi' };
+    if (/^#\/moji-oglasi(\?|$)/.test(location.hash)) window.KVApp.render(null, { force: true });
+  });
+  if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ensureMineRoute); else setTimeout(ensureMineRoute, 0);
+  }
+
+  Object.assign(window, { viewCompare, viewSaved, viewPlaces, viewPost, viewMyListings });
 })();

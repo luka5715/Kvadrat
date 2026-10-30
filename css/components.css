@@ -449,6 +449,8 @@ body.sheet-open,body.modal-open{overflow:hidden}
 
 /* ───────── Komšiluk (§5.29) ───────── */
 .hood h2{font-family:var(--f-display);font-variation-settings:var(--soft);font-size:22px;letter-spacing:var(--ls-display);color:var(--ink);margin-bottom:8px}
+.hood .hood-src{margin:0 0 4px;color:var(--muted)}
+.hood .hood-src .link{display:inline-flex;align-items:center;min-height:40px}
 .hood ul li{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:44px;border-bottom:1px solid var(--border);font-size:15px}
 .hood ul li .l{display:inline-flex;align-items:center;gap:10px;min-width:0}
 .hood ul li .l .ico{width:16px;height:16px;color:var(--muted)}

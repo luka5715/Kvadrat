@@ -160,7 +160,7 @@
   function tip(node, text) {
     if (!node || !text) return node;
     /* čvor bez sopstvenog teksta (ili role=img) dobija aria-label; čvor sa vidljivim tekstom dobija opis (ime ostaje netaknuto) */
-    /* postojeći aria-label (npr. „Objašnjenje” na dugmetu sa ikonom) ostaje ime; tekst saveta ide u opis */
+    /* postojeći aria-label (npr. „Objašnjenje“ na dugmetu sa ikonom) ostaje ime; tekst saveta ide u opis */
     if (node.getAttribute('role') === 'img' || (!node.textContent.trim() && !node.hasAttribute('aria-label'))) node.setAttribute('aria-label', text);
     else { const d = el('span', { class: 'sr', id: 'tip-' + (++tipSeq), 'aria-hidden': 'true' }, text); node.appendChild(d); node.setAttribute('aria-describedby', d.id); }
     node.addEventListener('mouseenter', () => { clearTimeout(tipTimer); tipTimer = setTimeout(() => showTip(node, text), 300); });
@@ -291,7 +291,7 @@
     const [cls, text] = BADGES[kind] || ['', kind];
     return el('span', { class: 'badge' + (cls ? ' ' + cls : ''), 'data-kind': kind }, kind === 'verifikovan' ? icon('check') : null, label || text);
   }
-  /* snižena cena — jedini izvor je KX.history (isto što prikazuju oglas, poređenje i filter „Snižena cena”);
+  /* snižena cena — jedini izvor je KX.history (isto što prikazuju oglas, poređenje i filter „Snižena cena“);
      bez engine-a (galerija komponenti) ostaje deterministički mock (≈11 % oglasa, stara cena ≈ +4–8 %) */
   const hasKX = () => typeof KX !== 'undefined' && KX && typeof KX.history === 'function';
   function saleInfo(l) {
@@ -312,7 +312,7 @@
     if (l.pr === 'TOP') k.push('top'); else if (l.pr === 'PREMIUM') k.push('premium');
     if (l.co === 'novogradnja' || l.co === 'u-izgradnji') k.push('novogradnja');
     if (saleInfo(l)) k.push('snizena');
-    /* „Uknjiženo” samo kad je pravni status zaista uknjiženo (semafor poverenja), ne samo po polju reg */
+    /* „Uknjiženo“ samo kad je pravni status zaista uknjiženo (semafor poverenja), ne samo po polju reg */
     const legal = hasKX() && l.t === 'prodaja' ? S(() => KX.trust(l).legal, null) : null;
     if (legal ? legal === 'uknjizeno' : l.reg) k.push('uknjizeno');
     if (l.dz <= 1) k.push('novo');
@@ -330,8 +330,9 @@
     const ic = cls === 'up' ? 'arrow-up' : cls === 'down' ? 'arrow-down' : 'minus';
     /* nije Tab-stanica (10+ čipova po strani, 20px visine): objašnjenje čita čitač ekrana iz aria-label (role=img), a tooltip se otvara na prelaz i dodir */
     const n = el('span', { class: 'delta ' + cls, role: 'img' }, icon(ic), txt);
-    /* bez padeža: „12,3 % ispod proseka · Čukarica (2.555 €/m²)” */
-    const text = opts.title || (d.label ? `${fmt.pct(Math.abs(pct))} ${pct >= 0 ? 'iznad' : 'ispod'} proseka · ${d.label}${d.ppm ? ` (${fmt.ppm(d.ppm)})` : ''}` : (pct >= 0 ? 'Iznad proseka' : 'Ispod proseka'));
+    /* bez padeža: „12,3 % ispod proseka · Čukarica (2.555 €/m²)“ */
+    const rel = cls === 'flat' ? 'u proseku' : `${fmt.pct(Math.abs(pct))} ${pct > 0 ? 'iznad' : 'ispod'} proseka`;
+    const text = opts.title || (d.label ? `${rel} · ${d.label}${d.ppm ? ` (${fmt.ppm(d.ppm)})` : ''}` : (cls === 'flat' ? 'U proseku' : pct > 0 ? 'Iznad proseka' : 'Ispod proseka'));
     tip(n, text);
     return n;
   }
@@ -341,7 +342,7 @@
     const node = S(() => img.el(l, idx, o), null);
     return node || el('div', { class: 'ph-fallback', style: 'width:100%;height:100%;background:var(--surface-2)' });
   }
-  /* „Naselje, Opština” bez ponavljanja: kad je naselje = opština (Hadžet, Hadžet) ili = grad, ime se piše jednom */
+  /* „Naselje, Opština“ bez ponavljanja: kad je naselje = opština (Hadžet, Hadžet) ili = grad, ime se piše jednom */
   const same = (a, b) => !!a && !!b && S(() => fmt.fold(a), String(a).toLowerCase()) === S(() => fmt.fold(b), String(b).toLowerCase());
   function placeLine(l) {
     const parts = [];
@@ -349,7 +350,7 @@
     add(l.n); add(l.m && !same(l.m, l.c) ? l.m : l.c);
     return parts.join(', ');
   }
-  /* streetLine(l, {exactOnly:true}) — bez izmišljene ulice: kad oglas nema adresu, samo „naselje, opština · približna lokacija” */
+  /* streetLine(l, {exactOnly:true}) — bez izmišljene ulice: kad oglas nema adresu, samo „naselje, opština · približna lokacija“ */
   function streetLine(l, o = {}) {
     const st = o.exactOnly ? (l.ad ? S(() => mock.street(l), l.ad) : null) : S(() => mock.street(l), l.ad || null);
     const place = placeLine(l);
@@ -360,12 +361,13 @@
     const w = S(() => mock.walk(l), null);
     if (!w || !w.min || !w.to) return null;
     const text = `${w.min} min hoda do ${w.to}`;
-    return el('p', { class: 'walk', title: text }, icon('walk'), el('span', {}, text));
+    /* naziv i minuti su demo (core mock.walk, iz šifre oglasa) — vidi KX.ledger „Komšiluk, minuti hoda …“ / #/kako-racunamo */
+    return el('p', { class: 'walk', title: `${text} — demo procena` }, icon('walk'), el('span', {}, text));
   }
   function roomsText(ro) {
     if (ro == null) return null;
     if (ro === 0.5) return 'garsonjera';
-    /* isto pravilo kao fmt.roomsText: 1 soba, 2–4 sobe, decimalno → genitiv jednine („1,5 sobe”), 5+ soba */
+    /* isto pravilo kao fmt.roomsText: 1 soba, 2–4 sobe, decimalno → genitiv jednine („1,5 sobe“), 5+ soba */
     return fmt.roomsText(ro);
   }
   function factList(l) {
@@ -415,10 +417,12 @@
       el('time', { datetime: new Date(Date.now() - (l.dz || 0) * 864e5).toISOString().slice(0, 10) }, fmt.rel(l.dz || 0)));
   }
   function countEl(l) { return l.im ? el('span', { class: 'count' }, icon('camera'), String(l.im)) : null; }
-  function titleEl(l, tag = 'h3') { return el(tag, {}, el('a', { href: href.listing(l) }, l.ti)); }
+  /* naslov oglasa za prikaz: „59m²“ → „59 m²“ (kao u činjenicama i KX.titleOf); podaci (data.js) ostaju netaknuti */
+  const titleText = (l) => String((l && l.ti) || '').replace(/(\d)\s?m(²|2\b)/g, '$1\u00a0m²');   /* NBSP: „56 m²“ se ne lomi */
+  function titleEl(l, tag = 'h3') { return el(tag, {}, el('a', { href: href.listing(l) }, titleText(l))); }
 
   /* ───────── kartice (§5.3–5.5) ───────── */
-  /* card(l, variant, {price, extras}) — price: čvor ili tekst umesto cene (npr. „ukupno sa troškovima”), extras: čvorovi na kraju tela kartice */
+  /* card(l, variant, {price, extras}) — price: čvor ili tekst umesto cene (npr. „ukupno sa troškovima“), extras: čvorovi na kraju tela kartice */
   function card(l, variant = 'grid', opts) {
     const node = cardBase(l, variant);
     if (opts && typeof opts === 'object') {
@@ -430,7 +434,7 @@
   function cardBase(l, variant) {
     if (variant === 'list') return rowCard(l);
     if (variant === 'compact') return compactCard(l);
-    const ph = el('a', { class: 'ph', href: href.listing(l), 'aria-label': l.ti, tabindex: '-1' }, photo(l, 0, { aspect: '4:3' }), el('div', { class: 'badges' }, badgesFor(l, 2)), countEl(l));
+    const ph = el('a', { class: 'ph', href: href.listing(l), 'aria-label': titleText(l), tabindex: '-1' }, photo(l, 0, { aspect: '4:3' }), el('div', { class: 'badges' }, badgesFor(l, 2)), countEl(l));
     return el('article', { class: 'card', 'data-slug': l.s },
       ph, favButton(l),
       el('div', { class: 'body' },
@@ -443,7 +447,7 @@
         footEl(l)));
   }
   function rowCard(l) {
-    const ph = el('a', { class: 'ph', href: href.listing(l), 'aria-label': l.ti, tabindex: '-1' }, photo(l, 0, { aspect: '4:3' }), el('div', { class: 'badges' }, badgesFor(l, 2)), countEl(l));
+    const ph = el('a', { class: 'ph', href: href.listing(l), 'aria-label': titleText(l), tabindex: '-1' }, photo(l, 0, { aspect: '4:3' }), el('div', { class: 'badges' }, badgesFor(l, 2)), countEl(l));
     return el('article', { class: 'row', 'data-slug': l.s },
       ph,
       el('div', { class: 'body' },
@@ -456,7 +460,7 @@
       el('div', { class: 'side' }, favButton(l), el('a', { class: 'btn btn-secondary btn-sm', href: href.listing(l) }, 'Detalji')));
   }
   function compactCard(l) {
-    const ph = el('a', { class: 'ph', href: href.listing(l), 'aria-label': l.ti, tabindex: '-1' }, photo(l, 0, { aspect: '4:3' }), el('div', { class: 'badges' }, badgesFor(l, 1)), countEl(l));
+    const ph = el('a', { class: 'ph', href: href.listing(l), 'aria-label': titleText(l), tabindex: '-1' }, photo(l, 0, { aspect: '4:3' }), el('div', { class: 'badges' }, badgesFor(l, 1)), countEl(l));
     const facts = factList(l).filter(Boolean);
     return el('article', { class: 'row-c', 'data-slug': l.s },
       ph,
@@ -481,7 +485,7 @@
     if (!ref || !ref.ppm || (ref.n != null && ref.n < 5) || !l.ppm) return null;
     const left = clamp(50 + (l.ppm / ref.ppm - 1) * 100, 4, 96);
     const pct = (l.ppm / ref.ppm - 1) * 100;
-    const sentence = `${fmt.ppm(l.ppm)} je ${fmt.pct(Math.abs(pct))} ${pct >= 0 ? 'iznad' : 'ispod'} proseka · ${ref.label} (${fmt.ppm(ref.ppm)}, n=${ref.n})`;
+    const sentence = `${fmt.ppm(l.ppm)} je ${Math.abs(pct) <= 1.5 ? 'u proseku' : `${fmt.pct(Math.abs(pct))} ${pct > 0 ? 'iznad' : 'ispod'} proseka`} · ${ref.label} (${fmt.ppm(ref.ppm)}, n=${ref.n})`;
     return el('div', { class: 'merilo', role: 'img', 'aria-label': sentence },
       el('div', { class: 'track' }, el('span', { class: 'med' }), el('span', { class: 'dot', style: `left:${left.toFixed(1)}%` })),
       el('div', { class: 'lbl' },
@@ -558,6 +562,8 @@
     const sh = norm(h.prodavnica, 2 + Math.floor(r() * 5)); if (sh) push('shop', sh.name, sh.min);
     return el('section', { class: 'hood' },
       el('h2', {}, 'Komšiluk'),
+      /* nazivi i minuti su demo (core mock.hood/walk) — vidi KX.ledger „Komšiluk, minuti hoda …“ */
+      el('p', { class: 'meta hood-src' }, 'Demo nazivi · minuti su procena · ', el('a', { class: 'link', href: '#/kako-racunamo' }, 'Kako računamo')),
       el('ul', {}, rows.slice(0, 6)),
       h.note ? el('div', { class: 'kraj' }, el('p', { class: 'eyebrow' }, 'Kakav je kraj'), el('p', {}, h.note)) : null);
   }
@@ -779,7 +785,7 @@
     if (state === 'selected') cls.push('on'); if (state === 'visited') cls.push('seen'); if (state === 'hover') cls.push('hov');
     if (l.co === 'novogradnja' || l.co === 'u-izgradnji') cls.push('new');
     if (opts.static) cls.push('static');
-    const b = el('button', { class: cls.join(' '), type: 'button', 'data-slug': l.s, 'aria-label': `${l.ti}, ${fmt.price(l.p, l.t)}`, 'aria-pressed': state === 'selected' ? 'true' : 'false', onclick: opts.onClick },
+    const b = el('button', { class: cls.join(' '), type: 'button', 'data-slug': l.s, 'aria-label': `${titleText(l)}, ${fmt.price(l.p, l.t)}`, 'aria-pressed': state === 'selected' ? 'true' : 'false', onclick: opts.onClick },
       el('span', { class: 'p' }, fmt.price(l.p, l.t)), el('span', { class: 's', 'aria-hidden': 'true' }));
     if (opts.left != null) { b.style.left = opts.left; b.style.top = opts.top; }
     b.setState = (s) => { b.classList.toggle('on', s === 'selected'); b.classList.toggle('seen', s === 'visited'); b.classList.toggle('hov', s === 'hover'); b.setAttribute('aria-pressed', s === 'selected' ? 'true' : 'false'); };
@@ -793,10 +799,10 @@
       el('span', {}, el('i'), 'Cena oglasa'), el('span', {}, el('i', { class: 'on' }), 'Izabran'), el('span', {}, el('i', { class: 'seen' }), 'Već pogledan'), el('span', {}, el('i', { class: 'new' }), 'Novogradnja'));
   }
   function pinPopover(l) {
-    return el('div', { class: 'pin-pop', role: 'dialog', 'aria-label': l.ti },
+    return el('div', { class: 'pin-pop', role: 'dialog', 'aria-label': titleText(l) },
       el('a', { class: 'ph', href: href.listing(l), tabindex: '-1' }, photo(l, 0, { aspect: '4:3' })),
       el('div', { class: 'pricerow' }, priceEl(l), ctxEl(l)),
-      el('h4', {}, l.ti),
+      el('h4', {}, titleText(l)),
       el('a', { class: 'btn btn-secondary btn-sm', href: href.listing(l) }, 'Detalji'));
   }
 
@@ -826,7 +832,7 @@
     const paint = () => {
       counter.textContent = `${i + 1} / ${n}`;
       stage.innerHTML = '';
-      stage.append(photo(l, i, { aspect: '16:10', alt: `${l.ti} — fotografija ${i + 1}` }),
+      stage.append(photo(l, i, { aspect: '16:10', alt: `${titleText(l)} — fotografija ${i + 1}` }),
         el('button', { class: 'arr l', type: 'button', 'aria-label': 'Prethodna', onclick: () => go(-1) }, icon('chev-l')),
         el('button', { class: 'arr r', type: 'button', 'aria-label': 'Sledeća', onclick: () => go(1) }, icon('chev-r')));
       [...thumbs.children].forEach((b, k) => { b.setAttribute('aria-current', k === i ? 'true' : 'false'); if (k === i) b.scrollIntoView({ block: 'nearest', inline: 'center' }); });
@@ -875,7 +881,7 @@
           el('p', { class: 'nm' }, el('span', {}, a.n), a.v ? icon('check') : null),
           el('p', { class: 'sub' }, `${a.v ? 'Verifikovana agencija' : 'Agencija'} · od ${a.y}. · ${a.c}`))),
       el('div', { class: 'kpi' },
-        a.r ? el('span', {}, el('b', {}, nf1.format(a.r)), ` ocena (${a.rc || 0})`) : null,
+        a.r ? el('span', {}, 'ocena ', el('b', {}, nf1.format(a.r)), ` · ${a.rc || 0} ${plu(a.rc || 0, 'recenzija', 'recenzije', 'recenzija')}`) : null,
         el('span', {}, el('b', {}, nf0.format(a.lc || 0)), ' ', plu(a.lc || 0, 'oglas', 'oglasa', 'oglasa')),
         el('span', {}, el('b', {}, nf0.format(a.ac || 1)), ' ', plu(a.ac || 1, 'agent', 'agenta', 'agenata'))),
       el('a', { class: 'btn btn-secondary btn-sm', href: href.agency(a) }, 'Pogledaj oglase'));
@@ -894,12 +900,12 @@
     const paintPhone = () => { phoneBtn.innerHTML = ''; phoneBtn.append(icon('phone'), el('span', { class: 'mask' }, revealed ? phoneNum : maskPhone(phoneNum)), revealed ? null : el('span', { class: 'rev' }, 'prikaži broj')); phoneBtn.setAttribute('aria-label', revealed ? `Pozovi ${phoneNum}` : 'Prikaži broj telefona'); };
     paintPhone();
     phoneBtn.addEventListener('click', async () => {
-      if (!revealed) { revealed = true; paintPhone(); toastSafe('Broj je prikazan — pomenite Kvadrat.rs'); return; }
+      if (!revealed) { revealed = true; paintPhone(); toastSafe('Broj je prikazan — pomeni Kvadrat.rs u razgovoru'); return; }
       try { await navigator.clipboard.writeText(phoneNum); toastSafe('Broj je kopiran'); } catch (e) { toastSafe('Broj: ' + phoneNum); }
     });
     const msg = () => {
-      const ta = el('textarea', { class: 'input', rows: '4', placeholder: 'Poruka oglašivaču…' }, `Poštovani, zanima me oglas ${l.r} (${l.ti}). Da li je još uvek aktuelan?`);
-      const m = modal('Pošalji poruku', el('div', { class: 'stack' }, field('Vaše ime', el('input', { class: 'input', type: 'text', placeholder: 'Ime i prezime' })), field('E-pošta', el('input', { class: 'input', type: 'email', placeholder: 'vi@primer.rs' })), field('Poruka', ta)),
+      const ta = el('textarea', { class: 'input', rows: '4', placeholder: 'Poruka oglašivaču…' }, `Poštovani, zanima me oglas ${l.r} (${titleText(l)}). Da li je još uvek aktuelan?`);
+      const m = modal('Pošalji poruku', el('div', { class: 'stack' }, field('Ime i prezime', el('input', { class: 'input', type: 'text', placeholder: 'npr. Marko Petrović' })), field('E-pošta', el('input', { class: 'input', type: 'email', placeholder: 'ime@primer.rs' })), field('Poruka', ta)),
         { footer: [el('button', { class: 'btn btn-ghost', type: 'button', onclick: () => m.close() }, 'Odustani'), el('button', { class: 'btn btn-primary', type: 'button', onclick: () => { m.close(); toastSafe('Poruka je poslata'); } }, 'Pošalji')] });
     };
     const visit = () => {
@@ -917,14 +923,14 @@
           el('b', {}, el('span', {}, a ? a.n : 'Vlasnik'), a && a.v ? icon('check') : null),
           el('small', {}, a ? `${a.v ? 'Verifikovana agencija' : 'Agencija'} · od ${a.y}.` : 'Privatni oglašivač · bez provizije'))),
       el('div', { class: 'rating' },
-        a && a.r ? el('span', {}, el('b', {}, nf1.format(a.r)), ` ocena (${a.rc || 0})`) : el('span', {}, el('b', {}, fmt.num(l.v || 0)), ' pregleda'),
+        a && a.r ? el('span', {}, 'ocena ', el('b', {}, nf1.format(a.r)), ` · ${a.rc || 0} ${plu(a.rc || 0, 'recenzija', 'recenzije', 'recenzija')}`) : el('span', {}, el('b', {}, fmt.num(l.v || 0)), ' pregleda'),
         a ? el('span', {}, el('b', {}, nf0.format(a.lc || 0)), ' oglasa') : el('span', {}, el('b', {}, fmt.num(l.fv || 0)), ' sačuvano'),
         a ? el('span', {}, el('b', {}, nf0.format(a.ac || 1)), ' ', plu(a.ac || 1, 'agent', 'agenta', 'agenata')) : null),
       phoneBtn,
       el('button', { class: 'btn btn-secondary', type: 'button', onclick: msg }, 'Pošalji poruku'),
       el('button', { class: 'btn btn-secondary', type: 'button', onclick: visit }, 'Zakaži obilazak'),
       el('p', { class: 'agent' }, el('i', { 'aria-hidden': 'true' }, initials(a ? agent : 'Vlasnik')), el('span', {}, a ? 'Agent: ' : '', el('b', {}, a ? agent : 'Vlasnik'), ` · odgovara u proseku za ${hrs} ${hrs === 1 ? 'sat' : hrs < 5 ? 'sata' : 'sati'}`)),
-      el('p', { class: 'note' }, 'Nikada ne uplaćujte kaparu pre obilaska nekretnine i provere dokumentacije. Prijavite sumnjiv oglas.'),
+      el('p', { class: 'note' }, 'Nikada ne uplaćuj kaparu pre obilaska nekretnine i provere dokumentacije. Prijavi sumnjiv oglas.'),
       el('a', { class: 'report', href: '#/prijava?oglas=' + l.r }, 'Prijavi oglas'));
   }
 
@@ -951,7 +957,7 @@
     const head = el('tr', {}, el('th', { scope: 'col' }, 'Oglas'), list.map((l) => el('td', {},
       el('a', { class: 'ph', href: href.listing(l) }, photo(l, 0, { aspect: '4:3' })),
       el('div', { class: 'pricerow' }, priceEl(l), ctxEl(l)),
-      el('p', { class: 'ttl' }, l.ti),
+      el('p', { class: 'ttl' }, titleText(l)),
       opts.onRemove ? el('button', { class: 'rm', type: 'button', onclick: () => opts.onRemove(l) }, 'Ukloni') : null)));
     const body = rows.map(([label, val, render, best]) => {
       const vals = list.map(val);
@@ -985,7 +991,7 @@
         sortKey && opts.onSort ? el('button', { type: 'button', onclick: () => opts.onSort(sortKey) }, label, sorted ? icon(opts.sort.endsWith('desc') ? 'arrow-down' : 'arrow-up') : null) : label);
     });
     const tr = (l) => el('tr', { 'data-slug': l.s },
-      el('td', {}, el('div', { class: 'og' }, el('a', { class: 'thumb', href: href.listing(l), tabindex: '-1' }, photo(l, 0, { aspect: '4:3' })), el('div', { style: 'min-width:0' }, el('a', { class: 'ttl', href: href.listing(l) }, l.ti), el('p', { class: 'sub' }, S(() => mock.street(l), l.ad) || placeLine(l))))),
+      el('td', {}, el('div', { class: 'og' }, el('a', { class: 'thumb', href: href.listing(l), tabindex: '-1' }, photo(l, 0, { aspect: '4:3' })), el('div', { style: 'min-width:0' }, el('a', { class: 'ttl', href: href.listing(l) }, titleText(l)), el('p', { class: 'sub' }, S(() => mock.street(l), l.ad) || placeLine(l))))),
       el('td', { class: 'num' }, l.a ? fmt.m2(l.a) : '—'),
       el('td', { class: 'num' }, l.ro != null ? fmt.roomsN(l.ro) : '—'),
       el('td', { class: 'num' }, l.fl != null ? fmt.floor(l.fl, l.tf) : '—'),
@@ -1000,9 +1006,12 @@
 
   /* ───────── kontrole (§5.2) ───────── */
   const norm = (o) => (typeof o === 'object' && o !== null ? o : { v: o, l: String(o) });
-  function segmented(opts, cur, onPick) {
+  /* pilula samo za Prodaja/Izdavanje (§9.3); sve ostale preklopke su kvadratne (.seg.sq). o.shape: 'pill' | 'sq' nadjačava */
+  function segmented(opts, cur, onPick, o = {}) {
     const items = opts.map(norm);
-    const root = el('div', { class: 'seg', role: 'group' });
+    const isTx = items.length === 2 && items.every((it) => it.v === 'prodaja' || it.v === 'izdavanje');
+    const shape = o.shape || (isTx ? 'pill' : 'sq');
+    const root = el('div', { class: 'seg' + (shape === 'sq' ? ' sq' : ''), role: 'group' });
     items.forEach((it) => root.appendChild(el('button', { type: 'button', 'aria-pressed': it.v === cur ? 'true' : 'false', onclick: () => { root.set(it.v); if (onPick) onPick(it.v); } }, it.l)));
     root.set = (v) => { cur = v; [...root.children].forEach((b, i) => b.setAttribute('aria-pressed', items[i].v === v ? 'true' : 'false')); };
     return root;
@@ -1121,7 +1130,7 @@
     icon, logo, header, footer, bottomNav, card, badge, badgesFor, badgeKinds, saleInfo, deltaChip, merilo, priceBlock, sectionHead, empty, pager, skeletonCard, loader,
     sheet, modal, tabs, accordion, sparkline, bars, histogram, pin, cluster, mapLegend, pinPopover, gallery, lightbox, agencyCard, contactCard, walkLine, streetLine,
     factsStrip, keyFacts, hood, copyButton, themeToggle, setTheme, currentTheme, segmented, pills, chip, filterChip, activeFilters, field, select, check, toggle, range,
-    views, crumbs, tiles, stepper, compareTable, listTable, amenityTags, photoCap, ctaBar, tip, favButton,
+    views, crumbs, tiles, stepper, compareTable, listTable, amenityTags, photoCap, ctaBar, tip, favButton, titleText,
   });
   window.UI_NAV = NAV;
   window.UI_HREF = href;
