@@ -36,9 +36,9 @@
     if (m && c) s += ' · ' + m.n;
     return s;
   }
-  const listingTitle = (q) => { const l = S(() => find.listing(q.get('s')), null); return l ? (S(() => KX.titleOf(l), null) || l.ti) : 'Oglas'; };
-  const agencyTitle = (q) => S(() => find.agency(q.get('s')).n, null) || 'Agencija';
-  const articleTitle = (q) => S(() => find.article(q.get('s')).t, null) || 'Savet';
+  const listingTitle = (q) => { const l = S(() => find.listing(q.get('s')), null); return l ? (S(() => KX.titleOf(l), null) || l.ti) : 'Oglas nije pronađen'; };
+  const agencyTitle = (q) => S(() => find.agency(q.get('s')).n, null) || 'Agencija nije pronađena';
+  const articleTitle = (q) => S(() => find.article(q.get('s')).t, null) || 'Tekst nije pronađen';
 
   /* navPath: koja stavka glavne i donje navigacije je aktivna (ui.header gleda prefiks putanje) */
   function resultsNav(q) {
@@ -51,7 +51,7 @@
   /* ───────────────────────── tabela ruta ─────────────────────────
      view: ime globalne funkcije · title(q) · nav(q) · id: parametar koji određuje „istu stranicu” (drugačiji → skrol na vrh) */
   const ROUTES = {
-    '/': { view: 'viewHome', name: 'Početna', title: () => null, desc: 'Stanovi, kuće i poslovni prostori u Srbiji — cena po m² uz svaki oglas i poređenje sa prosekom opštine.' },
+    '/': { view: 'viewHome', name: 'Početna', title: () => null, desc: 'Stanovi, kuće i poslovni prostori u Srbiji — cena po m² uz svaki oglas i poređenje sa prosekom kraja.' },
     '/pretraga': { view: 'viewResults', name: 'Pretraga', title: resultsTitle, nav: resultsNav, args: (q, path) => [q, path] },
     '/oglas': { view: 'viewListing', name: 'Oglas', title: listingTitle, nav: listingNav, id: 's' },
     '/mapa': { view: 'viewMap', name: 'Mapa', title: (q) => (q.get('m') === 'budzet' ? 'Šta dobijam za svoj budžet' : 'Mapa nekretnina'), nav: () => '/mapa' },
@@ -180,7 +180,23 @@
 
     /* ista stranica, drugi parametri: pogled se sam osvežava (bez skrola i gubitka fokusa) */
     if (same && typeof cur.root.update === 'function') {
-      try { cur.root.update(q, path); cur.hash = location.hash; setMeta(path, q, route); after(path, false); return; }
+      try {
+        cur.root.update(q, path); cur.hash = location.hash; setMeta(path, q, route);
+        /* aktivna stavka navigacije zavisi od parametara (prodaja/izdavanje/novogradnja) — zaglavlje se menja u mestu */
+        const navPath = route && route.nav ? S(() => route.nav(q), path) : path;
+        if (navPath !== cur.navPath) {
+          S(() => {
+            const old = document.querySelector('#app > .hdr'); if (!old) return;
+            /* fokus u starom zaglavlju (klik/Enter na stavku) prelazi na istu stavku u novom */
+            const fa = old.contains(document.activeElement) ? document.activeElement : null;
+            const fh = fa && fa.getAttribute('href'); const fNav = fa && fa.closest('.nav, .bnav');
+            const nh = makeHeader(navPath); old.replaceWith(nh);
+            if (fh && fNav) { const t = [...nh.querySelectorAll('.' + (fNav.classList.contains('bnav') ? 'bnav' : 'nav') + ' a')].find((x) => x.getAttribute('href') === fh); if (t) t.focus({ preventScroll: true }); }
+          });
+          cur.navPath = navPath;
+        }
+        after(path, false); return;
+      }
       catch (e) { S(() => console.error('[Kvadrat] update nije uspeo, pun render', e)); }
     }
     /* skrol: ista stranica zadržava položaj; nazad/napred vraća položaj sačuvan u history.state.kvY
@@ -197,7 +213,7 @@
     const app = document.getElementById('app');
     try { app.replaceChildren(makeHeader(navPath), main, makeFooter()); }
     catch (e) { app.replaceChildren(el('main', { id: 'main' }, errorBlock(e, path))); }
-    cur = { key, path, root: body, hash: location.hash || '#/' };
+    cur = { key, path, root: body, hash: location.hash || '#/', navPath };
     setMeta(path, q, route);
     window.scrollTo(0, y);
     if (y0 > 0) restoreScroll(y0);

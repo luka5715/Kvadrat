@@ -347,6 +347,8 @@ const mapView = (() => {
       clusterCache = { zb, list: visible, sel: selected, out };
       return out;
     }
+    /* opts.pinClass(l) → dodatna klasa pina (npr. 'mv-van' = van budžeta po profilu); menja se kroz api.setPinClass */
+    const applyPc = (n, l) => { const c = o.pinClass ? String(S(() => o.pinClass(l), '') || '') : ''; if (n._pc === c) return; if (n._pc) n.classList.remove(...n._pc.split(' ').filter(Boolean)); if (c) n.classList.add(...c.split(' ').filter(Boolean)); n._pc = c; };
     const pinState = (l) => (l.s === selected ? 'selected' : l.s === hovered ? 'hover' : recent.has(l.s) ? 'visited' : 'default');
     function makePin(l) {
       let n = S(() => UI().pin(l, pinState(l), {}), null);
@@ -359,7 +361,7 @@ const mapView = (() => {
       const pEl = n.querySelector('.p'); pEl.textContent = shortPrice(l);
       if (nOff > 1) { pEl.appendChild(el('span', { class: 'mv-x', 'aria-hidden': 'true' }, '×' + nOff)); n.classList.add('mv-dup'); }
       n.setAttribute('aria-label', `${l.ti || ''}, ${fullPrice(l)}` + (nOff > 1 ? `, isti stan nudi ${nOff} oglašivača` : ''));
-      n.dataset.slug = l.s; n.classList.add('mv-pin');
+      n.dataset.slug = l.s; n.classList.add('mv-pin'); applyPc(n, l);
       if (!o.interactive) { n.tabIndex = -1; n.setAttribute('aria-hidden', 'true'); }   /* mapa samo za prikaz: pinovi nisu tab-stanice */
       return n;
     }
@@ -389,7 +391,7 @@ const mapView = (() => {
           if (c.cl.some((l) => l.s === hovered || l.s === selected)) n.classList.add('hov'); else n.classList.remove('hov');
         } else if (zb < 13 && c.l.s !== selected) {
           /* §5.22: ispod z13 samo klasteri — usamljen oglas je tačka bez cene (klik približava) */
-          const id = 'd' + c.l.s; let n = clNodes.get(id); if (!n) { n = el('button', { class: 'mv-pin mv-dot', type: 'button', 'aria-label': `${c.l.ti || 'Oglas'}, ${fullPrice(c.l)} — približi`, title: `${fullPrice(c.l)} — klikni da približiš` }); n.dataset.cluster = id; clNodes.set(id, n); frag.appendChild(n); }
+          const id = 'd' + c.l.s; let n = clNodes.get(id); if (!n) { n = el('button', { class: 'mv-pin mv-dot', type: 'button', 'aria-label': `${c.l.ti || 'Oglas'}, ${fullPrice(c.l)} — približi`, title: `${fullPrice(c.l)} — klikni da približiš` }); n.dataset.cluster = id; n.dataset.slug = c.l.s; applyPc(n, c.l); clNodes.set(id, n); frag.appendChild(n); }
           n._mem = [c.l]; n.style.left = px.toFixed(1) + 'px'; n.style.top = py.toFixed(1) + 'px'; keepC.add(id);
           visibleBoxes.push([px - 7, py - 7, px + 7, py + 7]);
           n.classList.toggle('hov', c.l.s === hovered);
@@ -597,9 +599,10 @@ const mapView = (() => {
       if (mode === 'budget') {
         const vals = budgetRows.map((r) => r.m2).filter((v) => v > 0);
         const lo = vals.length ? Math.min(...vals) : 0, hi = vals.length ? Math.max(...vals) : 0;
-        legend.appendChild(el('div', { class: 'legend mv-legend-b' }, el('span', { class: 'mv-ramp' }, el('i'), el('span', {}, `${nf0.format(Math.round(lo))} m²`), el('span', {}, `${nf0.format(Math.round(hi))} m²`)), el('span', {}, el('i', { class: 'hollow' }), 'malo podataka')));
+        legend.appendChild(el('div', { class: 'legend mv-legend-b' }, el('span', { class: 'mv-ramp' }, el('span', {}, `${nf0.format(Math.round(lo))}\u00a0m²`), el('i', { class: 'r1' }), el('i', { class: 'r2' }), el('i', { class: 'r3' }), el('span', {}, `${nf0.format(Math.round(hi))}\u00a0m²`)), el('span', {}, el('i', { class: 'hollow' }), 'malo podataka')));
       } else {
         const lg = S(() => UI().mapLegend(), null) || el('div', { class: 'legend' }, el('span', {}, el('i'), 'Cena oglasa'), el('span', {}, el('i', { class: 'on' }), 'Izabran'), el('span', {}, el('i', { class: 'seen' }), 'Već pogledan'), el('span', {}, el('i', { class: 'new' }), 'Novogradnja'));
+        if (o.pinClass && o.pinClassLegend) lg.appendChild(el('span', { class: 'mv-lvan' }, el('i'), o.pinClassLegend));
         if (places.length) { lg.appendChild(el('span', {}, el('i', { class: 'mv-la' }), 'Ja')); if (places.some((p) => p.who === 'partner')) lg.appendChild(el('span', {}, el('i', { class: 'mv-lb' }), 'Partner')); lg.appendChild(el('span', { class: 'mv-lnote' }, 'krugovi 10/20/30 min, procena')); }
         legend.appendChild(lg);
       }
@@ -850,6 +853,7 @@ const mapView = (() => {
         schedule();
       },
       setPlaces(p) { places = p || []; paintLegend(); schedule(); },
+      setPinClass(fn, legendLabel) { o.pinClass = fn || null; o.pinClassLegend = legendLabel || ''; const by = new Map(all.map((l) => [l.s, l])); pinNodes.forEach((n, s) => { const l = by.get(s); if (l) applyPc(n, l); }); clNodes.forEach((n) => { if (n.classList.contains('mv-dot') && n._mem && n._mem[0]) applyPc(n, n._mem[0]); }); paintLegend(); },
       setRadius(r) { radius = r; schedule(); },
       getBounds, getVisible: () => visible.filter((l) => inView(l)), getFiltered: () => visible, getPolygon: () => (polygon ? polygon.map(([x, y]) => latLngOfW(x, y)) : null),
       startDraw, finishDraw, cancelDraw, isDrawing: () => drawing, clearZone() { polygon = null; applyPolygon(); if (o.onDraw) o.onDraw('cancel'); },

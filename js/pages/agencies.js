@@ -184,7 +184,7 @@
     /* dugme „Prikaži broj“ → selektabilan broj + kopiraj (tel: nije pouzdan u artifact-u) */
     const wrap = el('span', { class: 'ag-phone' + (o.cls ? ' ' + o.cls : '') });
     const masked = number.replace(/\d(?=\d?$)/g, '·');
-    const btn = el('button', { class: 'btn ' + (o.primary ? 'btn-primary' : 'btn-secondary btn-sm'), type: 'button', 'aria-label': `Prikaži broj telefona ${o.who || ''}`.trim(),
+    const btn = el('button', { class: 'btn ' + (o.primary ? 'btn-primary' : 'btn-secondary btn-sm'), type: 'button', 'aria-label': o.label ? `Pozovi — prikaži broj telefona ${o.who || ''}`.trim() : `Prikaži broj telefona ${o.who || ''}`.trim(),
       onclick: () => {
         wrap.innerHTML = '';
         const t = el('span', { class: 'ag-num num', tabindex: '-1' }, number);
@@ -223,11 +223,11 @@
     const verCheck = S(() => check('Samo proverene', st.ver, (on) => { st.ver = on; paint(); }, { count: nVer }), null);
 
     function list() {
-      const words = fold(st.q).split(/\s+/).filter(Boolean);
+      const words = fold(st.q).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
       let L = all.filter((a) => {
         if (st.ver && !a.v) return false;
         if (st.c) { const c = cityOfAgency(a); if ((c ? c.s : fold(a.c)) !== st.c) return false; }
-        if (words.length) { const hay = fold(a.n + ' ' + a.c + ' ' + (a.ad || '')); if (!words.every((w) => hay.includes(w))) return false; }
+        if (words.length) { const toks = fold(a.n + ' ' + a.c + ' ' + (a.ad || '')).split(/[^\p{L}\p{N}]+/u).filter(Boolean); if (!words.every((w) => toks.some((t) => t.startsWith(w)))) return false; }
         return true;
       });
       const by = {
@@ -252,6 +252,8 @@
       if (agSpan && /agen/.test(agSpan.textContent)) { const sp = teamSplit(agencyTeam(a)); agSpan.textContent = ''; agSpan.append(el('b', {}, num(sp.lic)), ' ' + licText(sp.lic).replace(/^\S+\s/, '')); }
       const regLine = el('p', { class: 'ag-reg' }, reg ? [ico('check-circle', 14), `Reg. br. posrednika ${reg}`] : [ico('info', 14), 'Broj registra nije dostavljen']);
       if (kpi) kpi.after(regLine); else c.append(regLine);
+      /* provizija kod izdavanja: ko plaća (isto kao KX.cost i tab „O agenciji“) */
+      regLine.after(el('p', { class: 'ag-reg ag-fee' }, ico('info', 14), a.pm ? 'Izdavanje: provizija 50 % kirije, plaća zakupac' : 'Izdavanje: proviziju plaća vlasnik'));
       if (!a.v) c.classList.add('ag-unver');
       return c;
     }
@@ -352,7 +354,7 @@
     const medPpm = saleFlats.length ? S(() => stats.median(saleFlats.map((l) => l.ppm)), null) : null;
     const medDz = L.length ? S(() => stats.median(L.map((l) => l.dz)), null) : null;
     const kpis = S(() => tiles([
-      { v: num(L.length), l: `${plu(L.length, 'aktivan oglas', 'aktivna oglasa', 'aktivnih oglasa')} · ${nT.prodaja} prodaja, ${nT.izdavanje} izdavanje` },
+      { v: num(L.length), l: `${plu(L.length, 'aktivan oglas', 'aktivna oglasa', 'aktivnih oglasa')} · ${nT.prodaja} na prodaju, ${nT.izdavanje} za izdavanje` },
       medPpm ? { v: S(() => fmt.ppm(medPpm), num(medPpm)), l: `medijana za stanove na prodaju · n=${saleFlats.length}` } : null,
       medDz != null ? { v: `${num(Math.round(medDz))} ${plu(Math.round(medDz), 'dan', 'dana', 'dana')}`, l: 'medijana starosti oglasa' } : null,
       { v: `~${resp} h`, l: 'prosečno vreme odgovora (demo)' },
@@ -456,7 +458,7 @@
         el('button', { class: 'iconbtn', type: 'button', 'aria-label': 'Zatvori poruku', onclick: () => api.close() }, ico('x'))));
       if (sent) {
         box.append(el('div', { class: 'agp-sent', role: 'status' },
-          el('p', {}, ico('check-circle', 18), el('span', {}, `Hvala${who ? ', ' + who.split(' ')[0] : ''}. ${a.n} je dobila vašu poruku i javiće se na kontakt koji ste ostavili.`)),
+          el('p', {}, ico('check-circle', 18), el('span', {}, `Hvala${who ? ', ' + who.split(' ')[0] : ''}. Agencija ${a.n} je dobila vašu poruku i javiće se na kontakt koji ste ostavili.`)),
           el('p', { class: 'meta' }, 'Demo: poruka se ne šalje stvarnoj agenciji i ne čuva se na serveru.'),
           el('button', { class: 'btn btn-secondary btn-sm', type: 'button', onclick: () => { sent = false; paint(); } }, 'Nova poruka')));
       } else box.append(form());
@@ -661,7 +663,7 @@
         paintMine(); paintForm();
         S(() => toast(okSave ? 'Hvala — vaša ocena je sačuvana' : 'Ocena je prikazana, ali pregledač ne dozvoljava čuvanje'));
       } },
-      el('h3', { class: 't-h3' }, m ? 'Izmenite svoju ocenu' : 'Ostavi ocenu'),
+      el('h3', { class: 't-h3' }, m ? 'Izmenite svoju ocenu' : 'Ostavite ocenu'),
       el('p', { class: 'meta' }, `Sarađivali ste sa agencijom ${a.n}? Ocena pomaže drugima da izaberu posrednika.`),
       group, errStars,
       S(() => field('Ime (prikazuje se skraćeno)', name), name),

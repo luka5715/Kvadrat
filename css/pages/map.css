@@ -21,7 +21,7 @@
 .mv-pop{position:absolute;inset:0;pointer-events:none;z-index:5}
 .mv-popwrap{position:absolute;pointer-events:auto;width:280px;max-width:calc(100% - 16px)}
 .mv-popwrap .pin-pop{max-width:100%}
-.mv-popclose{position:absolute;right:16px;top:16px;width:32px;height:32px;background:var(--bg);color:var(--ink);box-shadow:var(--shadow-sm);border-radius:var(--r)}
+.mv-popclose{position:absolute;right:12px;top:12px;width:40px;height:40px;background:var(--bg);color:var(--ink);box-shadow:var(--shadow-sm);border-radius:var(--r)}
 .mv-popclose:hover{background:var(--surface)}
 .mv-chrome{position:absolute;inset:0;pointer-events:none;z-index:4}
 .mv-chrome>*{pointer-events:auto}
@@ -81,18 +81,26 @@
 .mv-compact .mv-blabel b{font-size:10px;letter-spacing:.06em}
 .mv-compact .mv-blabel span{font-size:15px}
 .mv-compact .mv-blabel.hollow span{font-size:11px}
-/* ispod z13 (§5.22: samo klasteri) usamljen oglas je tačka bez cene; cilj 32 px */
-.mv-dot{position:absolute;width:32px;height:32px;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:1;padding:0;background:none;border:0}
-.mv-dot::after{content:"";width:10px;height:10px;border-radius:50%;background:var(--ink);box-shadow:0 0 0 2px var(--bg),var(--shadow-pin);transition:transform var(--dur-fast) var(--ease)}
+/* ispod z13 (§5.22: samo klasteri) usamljen oglas je kvadratna oznaka bez cene (kao drška pina); cilj 40 px */
+.mv-dot{position:absolute;width:40px;height:40px;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:1;padding:0;background:none;border:0}
+.mv-dot::after{content:"";width:10px;height:10px;border-radius:0;background:var(--ink);box-shadow:0 0 0 2px var(--bg),var(--shadow-pin);transition:transform var(--dur-fast) var(--ease)}
 .mv-dot:hover::after,.mv-dot.hov::after,.mv-dot:focus-visible::after{transform:scale(1.4)}
 .mv-dot.hov::after{background:var(--accent)}
 .mv-legend-b{align-items:center}
-.mv-ramp{display:inline-flex;align-items:center;gap:6px}
-.mv-ramp i{width:64px;height:9px;border:0;background:linear-gradient(90deg,var(--accent-soft),var(--accent));margin:0}
+.mv-ramp{display:inline-flex;align-items:center;gap:0;font-variant-numeric:tabular-nums}
+.mv-ramp>span:first-child{margin-right:6px}
+.mv-ramp>span:last-child{margin-left:6px}
+.map .legend .mv-ramp i{width:14px;height:9px;margin:0;border:0;background:var(--accent)}
+.map .legend .mv-ramp i.r1{opacity:.3}
+.map .legend .mv-ramp i.r2{opacity:.6}
 .mv-legend i.hollow{border-style:dashed;border-color:var(--border-strong)}
-.mv-legend i.mv-la{background:var(--accent);border-color:var(--accent);border-radius:50%}
-.mv-legend i.mv-lb{background:var(--ink);border-color:var(--ink);border-radius:50%}
-.mv-lnote{color:var(--faint)}
+.mv-legend i.mv-la{background:var(--accent);border-color:var(--accent)}
+.mv-legend i.mv-lb{background:var(--ink);border-color:var(--ink)}
+.mv-lnote{color:var(--muted)}
+/* van budžeta po profilu (Keš ili kredit): pin na 55 %, pun kad je izabran / pod mišem */
+.mv-pins .mv-van{opacity:.55}
+.mv-pins .mv-van.on,.mv-pins .mv-van.hov,.mv-pins .mv-van:hover,.mv-pins .mv-van:focus-visible{opacity:1}
+.mv-legend .mv-lvan i{opacity:.55}
 
 /* chrome: dugmad, traka za crtanje, čip zone, „Pretraži u ovom području“, razmernik */
 .mv .ctl button:hover{background:var(--surface)}
@@ -101,9 +109,9 @@
 .mv .draw[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .mv-drawbar{position:absolute;left:50%;top:12px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;max-width:calc(100% - 24px);padding:6px 6px 6px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-sm);font-size:13px;color:var(--muted);z-index:5}
 .mv-drawhint{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mv-zone{position:absolute;left:12px;top:12px;display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 4px 0 12px;background:var(--accent-soft);color:var(--accent-ink);border-radius:var(--r);font-size:14px;font-weight:500;box-shadow:var(--shadow-sm);z-index:5}
+.mv-zone{position:absolute;left:12px;top:12px;display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 2px 0 12px;background:var(--accent-soft);color:var(--accent-ink);border-radius:var(--r);font-size:14px;font-weight:500;box-shadow:var(--shadow-sm);z-index:5}
 .mv-zone .ico{width:14px;height:14px}
-.mv-zone button{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;color:var(--accent-ink);border-radius:2px}
+.mv-zone button{width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;color:var(--accent-ink);border-radius:2px}
 .mv-zone button:hover{background:var(--bg)}
 .mv-area{position:absolute;left:50%;top:12px;transform:translateX(-50%);box-shadow:var(--shadow);z-index:5;white-space:nowrap;max-width:calc(100% - 24px)}
 .mv-area .ico{width:16px;height:16px}
@@ -143,9 +151,11 @@
 .mp-top .chip-filters{background:var(--ink)}
 .mp-top .btn-secondary[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .mp-top .seg{box-shadow:var(--shadow);background:var(--bg)}
-.mp-top .seg button{height:36px;padding:0 14px}
+.mp-top .seg{padding:1px}
+.mp-top .seg button{height:40px;padding:0 14px}
 .mp-chips{display:flex;gap:6px;flex-wrap:wrap;flex-basis:100%;pointer-events:none}
-.mp-chips .tag{box-shadow:var(--shadow-sm);pointer-events:auto}
+.mp-chips .tag{box-shadow:var(--shadow-sm);pointer-events:auto;height:40px;background:var(--bg);border:1px solid var(--border);padding-right:0}
+.mp-chips .tag button{width:40px;height:38px}
 
 /* desna fioka (≥1100) */
 .mp-drawer{position:absolute;top:0;right:0;bottom:0;width:var(--mp-drawer);background:var(--bg);border-left:1px solid var(--border);display:flex;flex-direction:column;z-index:6}
@@ -157,6 +167,10 @@
 .mp-drawer .row .walk,.mp-drawer .row .side .btn{display:none}
 .mp-drawer .row h3{font-size:15px}
 .mp-drawer .row .price{font-size:var(--fs-price-sm)}
+/* uska fioka: činjenice u jednom redu — stavka koja ne stane prelazi u skriveni drugi red (sa svojom tačkom), agencija dobija „…” */
+.mp-drawer .row .facts{flex-wrap:wrap;line-height:20px;height:20px;overflow:hidden;row-gap:0}
+.mp-drawer .row .foot .ag{display:block;min-width:0;flex:1 1 auto}
+.mp-drawer .row .foot .ag .ico{display:inline-block;vertical-align:-2px;margin-left:4px}
 .mp-drawer .row.hl{margin:0 -16px;padding-left:16px;padding-right:16px}
 .mp-drawer .row.on{box-shadow:inset 3px 0 0 var(--accent);margin:0 -16px;padding-left:16px;padding-right:16px}
 .mp-drawer .more{padding:16px 0;font-size:13px;color:var(--muted);text-align:left}
@@ -182,14 +196,41 @@
 .mp-budget h1 em{font-style:italic;color:var(--accent)}
 .mp-budget .row2{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:8px;margin-top:12px}
 .mp-budget .input-wrap .input{padding-left:12px;padding-right:34px;font-weight:600;font-variant-numeric:tabular-nums}
-.mp-budget input[type="range"]{width:100%;margin:12px 0 2px;accent-color:var(--accent);height:24px}
+.mp-budget input[type="range"]{width:100%;margin:4px 0 0;accent-color:var(--accent);height:40px;display:block}
 .mp-budget .net{font-size:13px;color:var(--muted);margin-top:6px;line-height:1.4}
 .mp-budget .net b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
 .mp-budget .note{font-size:12px;color:var(--muted);margin-top:8px}
+.mp-budget .opts{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}
+.mp-budget .opts .select{flex:1 1 150px;width:auto;min-width:0;height:40px;font-size:14px}
+.mp-budget .mp-bcost{flex:none;gap:6px}
+.mp-budget .mp-bcost[hidden]{display:none}
+.mp-budget .mp-bcost .chip{padding:0 12px;font-size:13px}
+/* tipičan stan: pravi oglas u budžetu (link 40 px visine, tekst u jednom redu) */
+.mp-typ{display:flex;align-items:center;gap:4px;min-height:40px;min-width:0;font-size:13px;color:var(--accent-ink);font-weight:500}
+.mp-typ .k{flex:none;color:var(--muted);font-weight:500}
+.mp-typ .v{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
+.mp-typ .ico{flex:none;width:14px;height:14px}
+.mp-typ:hover .v{text-decoration:underline}
+.mp-slide .area .mp-typ{grid-column:1/-1;margin:2px 0 -6px}
+.mp-drawer .barea .mp-typ{margin:-4px 0 6px}
+.mp-budget .opts{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}
+.mp-budget .opts .select{flex:1 1 150px;width:auto;min-width:0;height:40px;font-size:14px}
+.mp-budget .mp-bcost{flex:none;gap:6px}
+.mp-budget .mp-bcost[hidden]{display:none}
+.mp-budget .mp-bcost .chip{padding:0 12px;font-size:13px}
+/* tipičan stan: pravi oglas u budžetu (link 40 px visine, tekst u jednom redu) */
+.mp-typ{display:flex;align-items:center;gap:4px;min-height:40px;min-width:0;font-size:13px;color:var(--accent-ink);font-weight:500}
+.mp-typ .k{flex:none;color:var(--muted);font-weight:500}
+.mp-typ .v{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
+.mp-typ .ico{flex:none;width:14px;height:14px}
+.mp-typ:hover .v{text-decoration:underline}
+.mp-slide .area .mp-typ{grid-column:1/-1;margin:2px 0 -6px}
+.mp-drawer .barea .mp-typ{margin:-4px 0 6px}
 .mp-budget .foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin-top:12px}
 .mp-budget .seg{margin-top:0}
-.mp-budget .seg button{height:34px;padding:0 12px;font-size:13px}
-.mp-budget .back{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--accent);height:32px}
+.mp-budget .seg{padding:1px}
+.mp-budget .seg button{height:40px;padding:0 12px;font-size:13px}
+.mp-budget .back{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--accent);height:40px}
 .mp-budget .back .ico{width:14px;height:14px}
 .mp[data-mode="budget"] .mv-drawbar,.mp[data-mode="budget"] .mv-area{display:none}
 
@@ -238,22 +279,22 @@
   .mp-top .mp-drawbtn{width:40px;padding:0;justify-content:center;flex:none}
   .mp-top .mp-drawbtn span{display:none}
   .mp-top .chip-filters{flex:none}
-  .mp-top .seg{flex:none;height:40px;display:inline-flex;align-items:center}
+  .mp-top .seg{flex:none;height:42px;display:inline-flex;align-items:center}
   .mp .mv-zone,.mp .mv-drawbar,.mp .mv-area{top:auto}
   .mp .mv-zone{left:auto;right:var(--gutter-r);bottom:calc(var(--mp-car) + 56px);top:auto}
   .mp .map .legend{max-width:calc(100% - 24px);gap:4px 10px;padding:5px 8px;font-size:11px}
   /* razmernik ide ispod zum kontrola da se ne sudara sa legendom */
   .mp .mv-scale{bottom:auto;top:108px}
   .mp[data-mode="budget"] .mv-scale{top:calc(var(--mp-btop,120px) + 90px)}
-  .mp-top .seg button{height:32px;padding:0 10px;font-size:13px}
-  .mp-top .seg{padding:2px}
+  .mp-top .seg button{height:40px;padding:0 10px;font-size:13px}
+  .mp-top .seg{padding:0}
   .mp .map .ctl button:nth-child(3){display:none}
   .mp-carousel{padding-bottom:10px}
   /* budžet: sklopljena traka preko cele širine (≤ ~100 px), „Podesi” otvara klizač, neto red i Kupujem/Iznajmljujem */
   .mp-budget{padding:8px 10px 10px 14px;width:auto;right:var(--gutter-r)}
   .mp-budget h1{font-size:19px;line-height:1.2;padding-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .mp-budget h1 .sub{display:none}
-  .mp-budget .backx{display:inline-flex;width:32px;height:32px;margin:-2px -4px 0 0;color:var(--muted)}
+  .mp-budget .backx{display:inline-flex;width:40px;height:40px;margin:-6px -8px -6px 0;color:var(--muted)}
   .mp-budget .row2{margin-top:6px;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) auto}
   .mp-budget .row2 .input,.mp-budget .row2 .select{height:40px}
   .mp-budget .tog{display:inline-flex;height:40px;padding:0 10px;gap:6px}
@@ -262,7 +303,7 @@
   .mp-budget.open .more{display:block}
   .mp-budget .foot .back{display:none}
   .mp[data-mode="budget"] .map .ctl{top:var(--mp-btop,120px)}
-  .mp-budget input[type="range"]{margin:8px 0 0}
+  .mp-budget input[type="range"]{margin:2px 0 0}
   .mp-budget .net{font-size:12px}
   .mp-budget .foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}
   .mp-budget .seg{margin-top:0}

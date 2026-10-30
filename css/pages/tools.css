@@ -34,6 +34,7 @@
 .tl-grid2:empty{display:none}
 .tl-sub-opt{margin-top:calc(-1 * var(--s-3))}
 .tl-sub-opt .help{margin-top:0}
+.tl-tp .help{margin-top:2px}
 .tl-ltv{font-size:var(--fs-xs);margin-top:calc(-1 * var(--s-2))}
 .tl-ltv b{color:var(--text);font-weight:600}
 .tl-form .check{align-self:flex-start}
@@ -41,13 +42,13 @@
 .tl-form .seg{align-self:flex-start}
 
 /* klizač: hairline staza, kvadratni ink jahač (kao .range §5.2) */
-.tl-slider{-webkit-appearance:none;appearance:none;display:block;width:100%;height:28px;margin:2px 0 0;background:transparent;cursor:pointer;--fill:50%}
+.tl-slider{-webkit-appearance:none;appearance:none;display:block;width:100%;height:40px;margin:-4px 0 0;background:transparent;cursor:pointer;--fill:50%}
 .tl-slider::-webkit-slider-runnable-track{height:2px;background:linear-gradient(var(--accent),var(--accent)) 0 0/var(--fill) 100% no-repeat,var(--border-strong);border-radius:1px}
 .tl-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:18px;height:18px;margin-top:-8px;background:var(--ink);border:2px solid var(--bg);box-shadow:0 0 0 1px var(--border-strong);border-radius:2px}
 .tl-slider::-moz-range-track{height:2px;background:var(--border-strong);border:0}
 .tl-slider::-moz-range-progress{height:2px;background:var(--accent)}
 .tl-slider::-moz-range-thumb{width:14px;height:14px;background:var(--ink);border:2px solid var(--bg);box-shadow:0 0 0 1px var(--border-strong);border-radius:2px}
-.tl-ticks{position:relative;height:16px;margin-top:-2px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tl-ticks{position:relative;height:16px;margin-top:-8px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
 .tl-ticks span{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap}
 .tl-ticks span.l{transform:none}.tl-ticks span.r{transform:translateX(-100%)}
 
@@ -268,3 +269,14 @@ form.tl-step{max-width:640px}
   .tl-2l-plot svg{height:140px}
   .tl-load .select{flex:1 1 100%;max-width:100%}
 }
+
+/* procena: Δ uz €/m² uporedivih oglasa; nedavne procene (kv.valuations) */
+.tl-comps td.tl-ppm{white-space:nowrap}
+.tl-comps td.tl-ppm .delta{margin-left:6px}
+.tl-recent{margin-top:var(--s-8);padding-top:var(--s-5);border-top:1px solid var(--border);max-width:640px}
+.tl-recent ul{list-style:none;margin:var(--s-2) 0 0;padding:0}
+.tl-recent li{border-bottom:1px solid var(--border)}
+.tl-recent-a{display:flex;align-items:center;justify-content:space-between;gap:var(--s-4);min-height:44px;padding:8px 0;color:var(--text);text-decoration:none;font-size:var(--fs-sm)}
+.tl-recent-a .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl-recent-a b{color:var(--ink);font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
+.tl-recent-a:hover .nm{color:var(--ink);text-decoration:underline;text-underline-offset:3px}

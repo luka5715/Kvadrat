@@ -309,8 +309,21 @@
 .pw-m-track .band{position:absolute;top:6px;height:8px;background:var(--accent-soft);border-radius:2px}
 .pw-m-track .mid{position:absolute;top:3px;width:2px;height:14px;background:var(--border-strong);transform:translateX(-50%)}
 .pw-m-track .dot{position:absolute;top:4px;width:12px;height:12px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);box-shadow:0 0 0 1.5px var(--accent);transform:translateX(-50%);transition:left var(--dur) var(--ease)}
-.pw-m-lbl{display:flex;justify-content:space-between;gap:12px;margin-top:6px;font-size:var(--fs-xs);color:var(--muted)}
-.pw-m-lbl b{font-weight:600;color:var(--text)}
+.pw-m-row{position:relative;height:18px}
+.pw-m-you{margin-bottom:2px}
+.pw-m-lbl{margin-top:2px}
+.pw-m-tag{position:absolute;top:0;white-space:nowrap;font-size:var(--fs-xs);line-height:18px;color:var(--muted);font-variant-numeric:tabular-nums}
+.pw-m-tag b{font-weight:600;color:var(--text)}
+.pw-m-lbl .pw-m-tag{color:var(--text)}
+.pw-m-lbl .at-start{transform:translateX(0)}
+.pw-m-lbl .at-end{transform:translateX(-100%)}
+.pw-m-you .pw-m-tag{color:var(--text)}
+.pw-m-you .at-start{transform:translateX(-6px)}
+.pw-m-you .at-end{transform:translateX(calc(-100% + 6px))}
+.pw-m-cap{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px;font-size:var(--fs-xs)}
+.pw-m-cap .sw{display:inline-block;width:14px;height:8px;border-radius:2px;background:var(--accent-soft)}
+.pw-m-cap b{font-weight:600;color:var(--text)}
+@media (prefers-reduced-motion:reduce){.pw-m-track .dot{transition:none}}
 .pw-verdict{padding-left:12px;border-left:2px solid var(--accent);font-size:15px;color:var(--text);max-width:62ch}
 .pw-rata{font-variant-numeric:tabular-nums}
 .pw-sum{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 32px;border-top:1px solid var(--border)}
@@ -393,3 +406,14 @@
   .cmp th.lab{position:static}
   .cmp td,.cmp th.lab{break-inside:avoid}
 }
+/* tlocrt i video u koraku Fotografije */
+.pw-media{margin-top:20px}
+.pw-plan{display:flex;flex-direction:column;gap:10px}
+.pw-plan-fig{margin:0;max-width:360px;padding:12px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface)}
+.pw-plan-fig figcaption{margin-top:8px;font-size:var(--fs-xs)}
+.pw-plan-svg{display:block;width:100%;height:auto;max-height:260px}
+.pw-plan-svg rect{fill:var(--bg);stroke:var(--ink);stroke-width:2.5}
+.pw-plan-svg text{fill:var(--muted);font-family:var(--f-body);font-size:11px}
+.pw-media .input{max-width:480px}
+/* base.css gasi klik na .btn[aria-disabled]; ovde klik ostaje živ da toast objasni „izaberi bar 2“ */
+.sv-bar .btn[aria-disabled="true"]{pointer-events:auto;cursor:not-allowed}

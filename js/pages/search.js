@@ -1033,7 +1033,7 @@
     const sbtn = el('button', { class: 'btn btn-ghost btn-sm srp-sortbtn', type: 'button', 'data-act': 'sortsheet' }, icon('sort', 16), 'Sortiraj');
     const allBtn = filterChip('Svi filteri', { n: n || null, icon: 'filter', chevron: false }); allBtn.dataset.act = 'filters'; allBtn.classList.add('srp-all');
     [fbtn, sbtn, allBtn].forEach((b) => { b.setAttribute('aria-haspopup', 'dialog'); b.setAttribute('aria-expanded', 'false'); });
-    const modePill = filterChip(modesFor(s.t).find((m) => m.v === s.mode).l, { on: s.mode !== 'oglas', expands: true }); modePill.dataset.act = 'modesheet';
+    const modePill = filterChip(s.mode === 'oglas' ? 'Prikaz cene' : modesFor(s.t).find((m) => m.v === s.mode).l, { on: s.mode !== 'oglas', expands: true }); modePill.dataset.act = 'modesheet';
     return el('div', { class: 'filterbar srp-bar' },
       el('div', { class: 'row1' }, fbtn, sbtn, el('span', { class: 'sp' }), phoneViews),
       el('div', { class: 'rail srp-rail-h' }, pillsArr.map((b) => b.cloneNode(true)), modePill),

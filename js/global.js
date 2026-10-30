@@ -107,7 +107,7 @@
       const input = el('input', {
         class: 'kp-input', type: 'search', role: 'combobox', 'aria-expanded': 'true', 'aria-controls': 'kp-list', 'aria-autocomplete': 'list',
         autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', enterkeyhint: 'search',
-        placeholder: 'npr. dvosoban vračar do 150k uknjižen', 'aria-label': 'Šta tražite',
+        placeholder: 'npr. dvosoban beograd do 200k uknjižen', 'aria-label': 'Šta tražite',
       });
       const chips = el('div', { class: 'kp-chips', 'aria-label': 'Prepoznato' });
       const count = el('p', { class: 'kp-count', role: 'status', 'aria-live': 'polite' });
@@ -455,8 +455,8 @@
         f: 'provizija = procenat × cena × 1,20', e: 'Stan od 100.000 € uz 2 % → 2.000 € + 400 € PDV = 2.400 €. Oglas vlasnika: 0 €.' },
       { t: 'Rata kredita', p: 'Računamo standardni anuitet. Učešće je podrazumevano 20 % (10 % za prvi stan, kako NBS dozvoljava), kamata 5 %, rok 25 godina — sve se menja u profilu i kalkulatoru. Banka finansira uknjiženu nepokretnost; za stan u procesu uknjižavanja ili upisan po Zakonu iz 2025. odluka zavisi od banke, a neuknjižen ili u postupku ozakonjenja kupuje se samo kešom.',
         f: 'rata = kredit × i ÷ (1 − (1 + i)^−n), i = godišnja kamata ÷ 12, n = godine × 12', e: `Kredit od 80.000 € na 25 godina uz 5 % → ${rata}.` },
-      { t: 'Δ naspram proseka opštine', p: 'Uz svaku cenu po kvadratu stoji čip koji kaže koliko je oglas iznad ili ispod medijane iste opštine, za isti tip nekretnine. Unutar ±1,5 % smatramo da je u proseku. Kada u opštini nema bar 5 uporedivih oglasa, čip ne prikazujemo.',
-        f: 'Δ = (€/m² oglasa ÷ medijana €/m² opštine − 1) × 100 %', e: 'Stan od 2.800 €/m² u opštini sa medijanom 2.555 €/m² → +9,6 %.' },
+      { t: 'Δ naspram proseka kraja', p: 'Uz svaku cenu po kvadratu stoji čip koji kaže koliko je oglas iznad ili ispod medijane za isti tip i vrstu posla, u najužem području sa bar 5 oglasa: naselje → opština → prigradske opštine Beograda → grad → manji gradovi regiona. Uz čip piše koje je područje upoređeno. Unutar ±1,5 % smatramo da je u proseku. Ako ni region nema 5 oglasa, čip ne prikazujemo.',
+        f: 'Δ = (€/m² oglasa ÷ medijana €/m² područja − 1) × 100 %', e: 'Stan od 2.800 €/m² u području sa medijanom 2.555 €/m² → +9,6 %.' },
       { t: 'Fer cena', p: 'Za svaki oglas biramo do 8 najsličnijih oglasa istog tipa u istom gradu (blizina, kvadratura, broj soba, naselje). Medijana njihove cene po m² — ponderisana blizinom i korigovana za sprat, stanje, grejanje, terasu i energetski razred — daje procenu sa opsegom ±6 %. Ispod 5 uporedivih oglasa ne izričemo ocenu.',
         f: 'procena = medijana(€/m² uporedivih) × korekcije × m² · opseg ±6 %', e: 'Ako je oglas 8 % iznad gornje granice, pregovarač to navodi kao prvi argument za nižu ponudu.' },
       { t: 'Semafor poverenja', p: 'Za prodaju boja zavisi od pravnog stanja: uknjiženo, u procesu uknjižavanja, upisano po posebnom zakonu iz 2025, u postupku ozakonjenja i neuknjiženo — uz zastavice kao što su hipoteka i suvlasništvo. Za zakup sabiramo znake rizika od prevare (kirija mnogo ispod proseka, malo fotografija, uplata unapred, vlasnik u inostranstvu…).',
@@ -480,13 +480,13 @@
         el('caption', { class: 'sr' }, 'Šta se računa iz podataka, a šta je demo procena'),
         el('thead', {}, el('tr', {}, el('th', { scope: 'col' }, 'Funkcija'), el('th', { scope: 'col' }, 'Poreklo'), el('th', { scope: 'col' }, 'Kako'))), tbody))
       : el('p', { class: 'kr-note' }, 'Spisak funkcija trenutno nije dostupan (modul za proračune nije učitan). Formule ispod važe za ceo sajt.');
-    /* opštine u kojima postoji medijana (bar 5 oglasa) — samo tamo se prikazuje čip Δ */
-    const nMed = S(() => { const c = {}; D.listings.forEach((l) => { c[l.ms] = (c[l.ms] || 0) + 1; }); return D.muns.filter((m) => (c[m.s] || 0) >= 5).length; }, 0);
+    /* opštine čija se sopstvena medijana stvarno koristi za čip Δ (obim 'mun' u stats.delta; ostali padaju na naselje/grad/region) */
+    const nMed = S(() => new Set(D.listings.filter((l) => !l.syn && S(() => stats.delta(l).scope, null) === 'mun').map((l) => l.ms)).size, 0);
     const tilesNode = S(() => tiles([
-      { v: N0(S(() => D.listings.length, 660)), l: 'oglasa u bazi' },
+      { v: N0(S(() => D.listings.filter((l) => !l.syn).length, 660)), l: 'oglasa u bazi (bez ponovljenih)' },
       { v: String(nReal || '—'), l: 'funkcija iz podataka' },
       { v: String(nDemo || '—'), l: 'demo procena' },
-      { v: N0(nMed), l: `${plural(nMed, 'opština', 'opštine', 'opština')} sa medijanom (≥ 5 oglasa)` },
+      { v: N0(nMed), l: `${plural(nMed, 'opština', 'opštine', 'opština')} sa sopstvenom medijanom` },
     ]), null);
 
     return el('div', { class: 'wrap kr' },
@@ -642,8 +642,8 @@
     ] },
     '/pomoc': { eyebrow: 'Pomoć', title: 'Česta pitanja', lede: 'Najkraći put do odgovora — i prečice koje štede vreme.', body: () => [
       ...[
-        ['Kako da pretražujem rečima?', ['Pritisnite ', el('kbd', {}, isMac ? '⌘ K' : 'Ctrl K'), ' ili ', el('kbd', {}, '/'), ' i ukucajte npr. „dvosoban vračar do 150k uknjižen”. Videćete prepoznate filtere i broj oglasa pre nego što pritisnete Enter.']],
-        ['Šta znači čip pored cene po m²?', ['Koliko je oglas iznad (↑) ili ispod (↓) medijane cene po m² u istoj opštini. Detalji su na stranici ', el('a', { class: 'link', href: '#/kako-racunamo' }, 'Kako računamo'), '.']],
+        ['Kako da pretražujem rečima?', ['Pritisnite ', el('kbd', {}, isMac ? '⌘ K' : 'Ctrl K'), ' ili ', el('kbd', {}, '/'), ' i ukucajte npr. „dvosoban beograd do 200k uknjižen”. Videćete prepoznate filtere i broj oglasa pre nego što pritisnete Enter.']],
+        ['Šta znači čip pored cene po m²?', ['Koliko je oglas iznad (↑) ili ispod (↓) medijane cene po m² u istom kraju (naselje, opština ili grad — piše uz čip). Detalji su na stranici ', el('a', { class: 'link', href: '#/kako-racunamo' }, 'Kako računamo'), '.']],
         ['Kako da uporedim stanove?', 'Na kartici ili oglasu dodajte do četiri oglasa u poređenje. Fioka „Uporedi” se pojavljuje pri dnu ekrana; dugme „Uporedi” otvara tabelu u kojoj je označeno ko pobeđuje u kom redu.'],
         ['Da li su oglasi stvarni?', 'Ne. Ovo je demo verzija sa ' + N0(S(() => D.listings.length, 660)) + ' generisanih oglasa u ' + N0(S(() => D.cities.length, 34)) + ' grada; proračuni i formule su stvarni.'],
         ['Gde se čuvaju moji podaci?', ['Samo u vašem pregledaču. Spisak i dugme za brisanje su na stranici ', el('a', { class: 'link', href: '#/privatnost' }, 'Privatnost'), '.']],

@@ -116,6 +116,16 @@
     return cols.map((l, i) => [...all[i]].filter((k) => !common.includes(k)));
   }
 
+  /* natpis ispod „Na dan kupovine / useljenja“ — samo stavke koje zaista ulaze u zbir (isti uslov kao KX.cost: nije opciono, ne plaća prodavac/vlasnik, iznos > 0) */
+  const DAY_WORD = { porez: 'porez', pdv: 'PDV', provizija: 'provizija', notar: 'overa', overa: 'overa', upis: 'upis', procena: 'troškovi kredita', obrada: 'troškovi kredita', osiguranje: 'osiguranje', kirija: 'kirija', depozit: 'depozit' };
+  function dayCaption(c) {
+    const when = c.kind === 'prodaja' ? 'kupovina' : 'useljenje';
+    const words = (c.lines || []).filter((x) => x.when === when && !x.optional && x.payer !== 'prodavac' && x.payer !== 'vlasnik' && x.amount > 0 && x.key !== 'cena')
+      .map((x) => DAY_WORD[x.key] || String(x.label || '').split(/[ (—]/)[0].toLowerCase()).filter((w, i, a) => w && a.indexOf(w) === i);
+    if (c.kind === 'prodaja') return words.length ? `cena + ${words.join(', ')}` : 'samo cena';
+    return words.join(', ') || 'kirija';
+  }
+
   /* definicije redova: get(l) → { v (za poređenje) | null, node, raw (tekst za „isto“) } */
   function compareRows(cols, places) {
     const A = S(() => AMEN, {});
@@ -140,6 +150,15 @@
       return { v: f.diffPct, raw: f.verdict + f.diffPct, node: el('span', { class: 'ax-fair ax-fair-' + f.verdict }, el('b', {}, word), ` ${S(() => fmt.pct(f.diffPct, { sign: true }), '')}`,
         el('small', {}, `procena ${eur(f.estimate.low)} – ${eur(f.estimate.high)} · n=${f.n}`)) };
     }, why: () => 'najpovoljnije u odnosu na uporedive oglase' });
+    addRow({ key: 'nego', label: 'Prostor za pregovor', best: 'max', delta: dEur, get: (l) => {
+      if (!sale(l)) return dash;
+      const f = S(() => X().fair(l), null);
+      const ng = f && f.negotiation;
+      if (!ng || ng.roomEur == null || !isFinite(ng.roomEur)) return dash;
+      const r = Math.round(ng.roomEur);
+      if (!r) return { v: 0, raw: '0', node: el('span', { class: 'ax-muted' }, 'nema prostora') };
+      return { v: r, raw: String(r), node: el('span', {}, `oko ${eur(r)}`, el('small', {}, `${S(() => fmt.pct(ng.roomPct), ng.roomPct + ' %')} od cene${ng.leverage ? ` · pozicija: ${ng.leverage}` : ''}`)) };
+    }, why: () => 'najviše prostora za pregovor' });
     addRow({ key: 'hist', label: 'Istorija cene', best: 'min', get: (l) => {
       const h = S(() => X().history(l), null);
       if (!h) return dash;
@@ -204,12 +223,15 @@
     addRow({ key: 'day', label: 'Na dan kupovine / useljenja', best: mixedT ? null : 'min', delta: mixedT ? null : dEur, get: (l) => {
       const c = costOf(l); if (!c) return dash;
       const v = c.kind === 'prodaja' ? c.onPurchase : c.moveIn;
-      return { v, raw: String(v), node: el('span', {}, eur(v), el('small', {}, c.kind === 'prodaja' ? `cena + porez, provizija, overa` : `kirija, depozit, provizija`)) };
+      return { v, raw: String(v), node: el('span', {}, eur(v), el('small', {}, dayCaption(c))) };
     }, why: (w, s) => s != null ? `${eur(s - w)} manje novca odjednom` : 'najmanje novca odjednom' });
-    addRow({ key: 'mon', label: 'Mesečno (bez rate)', best: 'min', delta: dEurMes, get: (l) => {
+    /* kupovina i zakup u istom poređenju: nema pobednika (rata gradi imovinu, kirija ne) — obe ćelije pokazuju ukupan mesečni odliv */
+    addRow({ key: 'mon', label: mixedT ? 'Mesečno (rata ili kirija + računi)' : 'Mesečno (bez rate)', best: mixedT ? null : 'min', delta: mixedT ? null : dEurMes, get: (l) => {
       const c = costOf(l); if (!c) return dash;
-      const v = Math.round(c.monthly - (c.kind === 'prodaja' ? (rataOf(l) || 0) : 0));
-      return { v, raw: String(v), node: el('span', {}, eurMes(v), el('small', {}, c.kind === 'prodaja' ? 'grejanje, struja, zgrada, porez' : 'kirija + računi')) };
+      const rata = c.kind === 'prodaja' ? (rataOf(l) || 0) : 0;
+      const v = Math.round(c.monthly - (mixedT ? 0 : rata));
+      const cap = c.kind !== 'prodaja' ? 'kirija + računi' : mixedT ? (rata ? `rata ${eurMes(rata)} + računi` : 'računi, bez kredita') : 'grejanje, struja, zgrada, porez';
+      return { v, raw: String(v), node: el('span', {}, eurMes(v), el('small', {}, cap)) };
     }, why: (w, s) => s != null ? `${eurMes(s - w)} manje svakog meseca` : 'najmanji mesečni troškovi' });
 
     if (places.length) {
@@ -279,7 +301,12 @@
     const refOf = () => (refSlug && ids.includes(refSlug) ? refSlug : ids[0] || null);
     const urlParams = () => (ids.length ? { ids, isto: hideSame ? '0' : null, ref: refOf() && refOf() !== ids[0] ? refOf() : null } : {});
     const root = el('div', { class: 'wrap ax-page cmp-page' });
-    if (missing.length) setTimeout(() => say(`${missing.length === 1 ? 'Jedan oglas više ne postoji' : missing.length + ' oglasa više ne postoje'} — uklonjen${missing.length === 1 ? '' : 'i'} iz poređenja`), 300);
+    if (missing.length) {
+      const k = missing.length;
+      const msg = k === 1 ? 'Jedan oglas više ne postoji — uklonjen iz poređenja'
+        : `${num(k)} ${plural(k, 'oglas više ne postoji — uklonjen', 'oglasa više ne postoje — uklonjeni', 'oglasa više ne postoji — uklonjeno')} iz poređenja`;
+      setTimeout(() => say(msg), 300);
+    }
 
     const syncStore = () => {
       S(() => { store.clearCompare(); ids.forEach((s) => store.toggleCompare(s)); });
@@ -321,6 +348,14 @@
       return el('div', { class: 'cmp-share' }, el('label', { class: 'lbl' }, 'Link ka ovom poređenju'), el('div', { class: 'cmp-share-row' }, inp, S(() => copyButton(() => shareUrl(), { outline: true, label: 'Kopiraj link' }), null)));
     }
 
+    function profileNote() {
+      const p = S(() => X().profile.get(), null);
+      if (!p) return 'podrazumevani profil';
+      const def = S(() => X().profile.defaults, null) || { ltv: 0.8, years: 25, ratePct: 5 };
+      const own = ['ltv', 'years', 'ratePct'].some((k) => Math.abs((+p[k] || 0) - (+def[k] || 0)) > 1e-9);
+      return el('span', {}, `${own ? 'tvoj profil' : 'podrazumevani profil'}: ${Math.round((1 - p.ltv) * 100)} % učešće, ${p.years} god., ${num(p.ratePct, 1)} % kamata · `,
+        el('a', { class: 'link', href: '#/kalkulator' }, 'promeni'));
+    }
     function draw() {
       fill(root, );
       const cols = ids.map(findL).filter(Boolean);
@@ -406,7 +441,7 @@
       requestAnimationFrame(paintFade);
       add(root, fade);
       add(root, el('p', { class: 'note-rule cmp-foot' },
-        'Troškovi, rata i fer cena su procene iz Kvadrat modela (podrazumevani profil: ', S(() => { const p = X().profile.get(); return `${Math.round((1 - p.ltv) * 100)} % učešće, ${p.years} god., ${num(p.ratePct, 1)} % kamata`; }, '20 % učešće'), '). ',
+        'Troškovi, rata i fer cena su procene iz Kvadrat modela (', profileNote(), '). ',
         places.length ? 'Minuti do tvojih mesta su vazdušna linija × 1,3 i prosečna brzina — ne znamo linije ni gužve. ' : el('span', {}, 'Dodaj ', el('a', { class: 'link', href: '#/moja-mesta' }, 'svoja mesta'), ' (posao, fakultet, roditelji) da vidiš i minute do njih. '),
         el('a', { class: 'link', href: '#/kako-racunamo' }, 'Kako računamo')));
     }
@@ -511,6 +546,13 @@
   }
   const savedCard = (l, variant) => syncSale(S(() => card(l, variant), null), l);
 
+  const MONTHS_LOC = ['januaru', 'februaru', 'martu', 'aprilu', 'maju', 'junu', 'julu', 'avgustu', 'septembru', 'oktobru', 'novembru', 'decembru'];
+  function changeWhen(ch) {
+    const days = ch.daysAgo != null ? ch.daysAgo : ch.d ? Math.round((Date.now() - Date.parse(ch.d)) / 864e5) : null;
+    if (days != null && isFinite(days) && days >= 0) { const r = S(() => fmt.rel(days), ''); if (r) return r; }
+    const [y, m] = String(ch.m || '').split('-').map(Number);
+    return y && m ? `u ${MONTHS_LOC[m - 1]} ${y}.` : '';
+  }
   function savedListings(state, rerender) {
     const favs = S(() => [...store.favs], []).filter((s) => findL(s));
     if (!favs.length) return emptyBox('Još nema sačuvanih oglasa', 'Klikni na srce na kartici ili na oglasu — ovde ćeš imati beleške, ocene i poređenje.', 'Pretraži oglase', '#/pretraga', { icon: 'heart' });
@@ -541,7 +583,7 @@
       return el('div', { class: 'sv-item', 'data-slug': l.s },
         savedCard(l, 'grid') || el('a', { href: lhref(l) }, titleOf(l)),
         el('div', { class: 'sv-tools' },
-          ch ? el('p', { class: 'sv-change' }, ic(ch.to < ch.from ? 'arrow-down' : 'arrow-up', 14), `Cena ${ch.to < ch.from ? 'snižena' : 'povećana'} ${S(() => fmt.month(ch.m), ch.m)}: `, el('s', {}, eur(ch.from)), ' → ', el('b', {}, eur(ch.to))) : null,
+          ch ? el('p', { class: 'sv-change' }, ic(ch.to < ch.from ? 'arrow-down' : 'arrow-up', 14), `Cena ${ch.to < ch.from ? 'snižena' : 'povećana'} ${changeWhen(ch)}: `, el('s', {}, S(() => fmt.price(ch.from, l.t), eur(ch.from))), ' → ', el('b', {}, S(() => fmt.price(ch.to, l.t), eur(ch.to)))) : null,
           el('div', { class: 'sv-row' },
             S(() => check('Uporedi', sel.has(l.s), (on) => { if (on) sel.add(l.s); else sel.delete(l.s); paintBtn(); }), null),
             stars(l.s, () => { if (state.sort === 'rating') rerender(); })),
@@ -592,7 +634,8 @@
   function recentPanel() {
     const list = S(() => store.recent, []).map(findL).filter(Boolean);
     if (!list.length) return emptyBox('Još nisi gledao oglase', 'Oglasi koje otvoriš pojaviće se ovde, da lako nađeš onaj od juče.', 'Pretraži oglase', '#/pretraga', { icon: 'eye' });
-    return el('div', { class: 'sv-panel' }, el('p', { class: 'meta sv-lead' }, `Poslednjih ${oglasa(list.length)} koje si otvorio, najnoviji prvi. Čuva se samo na ovom uređaju.`),
+    return el('div', { class: 'sv-panel' }, el('p', { class: 'meta sv-lead' }, list.length === 1 ? 'Poslednji oglas koji si otvorio. Čuva se samo na ovom uređaju.'
+      : `${plural(list.length, 'Poslednji', 'Poslednja', 'Poslednjih')} ${oglasa(list.length)} ${plural(list.length, 'koji', 'koja', 'koje')} si otvorio, najnoviji prvi. Čuva se samo na ovom uređaju.`),
       el('div', { class: 'sv-compact' }, list.map((l) => savedCard(l, 'compact'))));
   }
 
@@ -847,7 +890,7 @@
   ];
   const DRAFT0 = { v: 1, step: 0, t: 'prodaja', pt: 'stan', adv: 'vlasnik', cs: 'beograd', ms: '', n: '', ad: '', lat: null, lng: null,
     a: '', ro: 2, fl: '', tf: '', y: '', he: '', co: '', fu: '', legal: 'uknjizeno', proof: false, am: [],
-    title: '', d: '', photos: [], p: '', dep: '', neg: true, name: '', phone: '', agree: false, published: null, saved: null, fee: '', feePayer: 'kupac' };
+    title: '', d: '', photos: [], plan: false, video: '', p: '', dep: '', neg: true, name: '', phone: '', agree: false, published: null, saved: null, fee: '', feePayer: 'kupac' };
   /* provizija: zakon traži da agencija jasno navede iznos i ko ga plaća (kritika #7) */
   const PAYERS = {
     prodaja: [{ v: 'kupac', l: 'Kupac' }, { v: 'prodavac', l: 'Prodavac' }, { v: 'dogovor', l: 'Po dogovoru' }],
@@ -876,6 +919,41 @@
     const ls = S(() => D.listings.filter((l) => (ms ? l.ms === ms : l.cs === cs) && l.lat), []);
     if (!ls.length) { const c = S(() => find.city(cs), null); return c ? { lat: c.lat, lng: c.lng } : { lat: 44.8125, lng: 20.4612 }; }
     return { lat: ls.reduce((t, l) => t + l.lat, 0) / ls.length, lng: ls.reduce((t, l) => t + l.lng, 0) / ls.length };
+  }
+  const isUrl = (v) => { try { const u = new URL(v); return (u.protocol === 'https:' || u.protocol === 'http:') && /\./.test(u.hostname); } catch (e) { return false; } };
+  /* šematski tlocrt nacrta: model sa stranice oglasa (viewListing._planModel) ako je učitan, inače jednostavan raspored po sobama */
+  const PLAN_SHORT = { Kuhinja: 'Kuh.', 'Čajna kuhinja': 'Kuh.', Kupatilo: 'Kup.', 'Kupatilo 2': 'Kup. 2', Toalet: 'WC', Hodnik: 'Hod.', Kabinet: 'Kab.', Spavaća: 'Sp.', 'Spavaća 1': 'Sp. 1', 'Spavaća 2': 'Sp. 2', 'Spavaća 3': 'Sp. 3', Trpezarija: 'Trp.', Ostava: 'Ost.', 'Radna soba': 'Rad.', Garderober: 'Gard.', Dnevna: 'Dn.', Terasa: 'Ter.', Balkon: 'Balk.' };
+  function planSvg(l) {
+    const m = S(() => (typeof viewListing === 'function' && viewListing._planModel ? viewListing._planModel({ ...l, s: 'nacrt', a: l.a || 50, ro: l.ro != null ? l.ro : 2 }) : null), null);
+    let rooms, W, H;
+    if (m && m.rooms && m.rooms.length) ({ rooms, W, H } = m);
+    else {
+      const a = l.a || 50; W = Math.sqrt(a * 1.4); H = a / W;
+      const n = Math.max(1, Math.floor(l.ro || 2));
+      rooms = [{ n: n > 1 ? 'Dnevna' : 'Soba', x: 0, y: 0, w: W * 0.55, h: H * 0.6 }, { n: 'Kuhinja', x: 0, y: H * 0.6, w: W * 0.3, h: H * 0.4 }, { n: 'Kupatilo', x: W * 0.3, y: H * 0.6, w: W * 0.25, h: H * 0.4 }];
+      for (let i = 1; i < n; i++) rooms.push({ n: n > 2 ? `Spavaća ${i}` : 'Spavaća', x: W * 0.55, y: (H / (n - 1)) * (i - 1), w: W * 0.45, h: H / (n - 1) });
+    }
+    const SC = 24, pad = 4;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', `${-pad} ${-pad} ${W * SC + pad * 2} ${H * SC + pad * 2}`);
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', `Šematski tlocrt: ${rooms.map((r) => r.n).join(', ')}`);
+    svg.setAttribute('class', 'pw-plan-svg');
+    for (const r of rooms) {
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      [['x', r.x * SC], ['y', r.y * SC], ['width', r.w * SC], ['height', r.h * SC]].forEach(([k, v]) => rect.setAttribute(k, v.toFixed(1)));
+      g.appendChild(rect);
+      if (r.w * SC > 34 && r.h * SC > 18) {
+        const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        t.setAttribute('x', ((r.x + r.w / 2) * SC).toFixed(1)); t.setAttribute('y', ((r.y + r.h / 2) * SC + 4).toFixed(1));
+        t.setAttribute('text-anchor', 'middle');
+        t.textContent = r.w * SC > 70 ? r.n : PLAN_SHORT[r.n] || PLAN_SHORT[r.n.replace(/ \d+$/, '')] || r.n.slice(0, 3) + '.';
+        g.appendChild(t);
+      }
+      svg.appendChild(g);
+    }
+    return svg;
   }
   function draftListing(d) {
     const city = S(() => find.city(d.cs), null);
@@ -910,14 +988,18 @@
       }
       else { const dl = fair && fair.delta; priceOk = !dl || Math.abs(dl) <= 25; priceNote = priceOk ? 'blizu proseka opštine' : 'daleko od proseka opštine'; }
     }
+    const yr = numOr(d.y);
+    const yearOk = yr != null && yr >= 1800 && yr <= new Date().getFullYear() + 4;
     const items = [
       { k: 'naslov', label: 'Naslov od bar 20 znakova', pts: 10, got: d.title.trim().length >= 20 ? 10 : d.title.trim() ? 0 : 5, note: d.title.trim() ? (d.title.trim().length >= 20 ? `${d.title.trim().length} znakova` : `prekratak: ${d.title.trim().length} znakova`) : 'naš predlog · tvoj naslov donosi još 5', step: 3 },
-      { k: 'opis', label: 'Opis od bar 300 znakova', pts: 20, got: Math.min(20, Math.floor(len / 300 * 20)), note: `${len} / 300`, step: 3 },
+      { k: 'opis', label: 'Opis od bar 300 znakova', pts: 15, got: Math.min(15, Math.floor(len / 300 * 15)), note: `${len} / 300`, step: 3 },
       { k: 'foto', label: 'Bar 5 fotografija', pts: 20, got: Math.min(20, d.photos.length * 4), note: `${d.photos.length} / 5`, step: 4 },
+      { k: 'tlocrt', label: 'Tlocrt', pts: 5, got: d.plan ? 5 : 0, note: d.plan ? 'dodat' : 'kupci ga traže odmah posle fotografija', step: 4 },
+      { k: 'godina', label: 'Godina izgradnje', pts: 5, got: yearOk ? 5 : 0, note: yearOk ? String(yr) : (yr != null ? 'proveri godinu' : 'nije uneta'), step: 2 },
       { k: 'ulica', label: 'Ulica i broj', pts: 10, got: d.ad.trim().length >= 3 ? 10 : 0, note: d.ad.trim() ? 'uneto' : 'nije uneto', step: 1 },
       { k: 'dokaz', label: 'Uknjiženo, sa dokazom', pts: 15, got: d.legal === 'uknjizeno' && d.proof ? 15 : d.legal === 'uknjizeno' ? 6 : 0, note: d.legal === 'uknjizeno' ? (d.proof ? 'list nepokretnosti' : 'bez dokaza') : 'nije uknjiženo', step: 2 },
       { k: 'cena', label: 'Realna cena', pts: 15, got: priceOk ? 15 : 0, note: priceNote, step: 5 },
-      { k: 'kontakt', label: 'Kontakt: ime i telefon', pts: 10, got: (d.name.trim() ? 4 : 0) + (phoneDigits >= 8 ? 6 : 0), note: phoneDigits >= 8 && d.name.trim() ? 'uneto' : 'nedostaje', step: 6 },
+      { k: 'kontakt', label: 'Kontakt: ime i telefon', pts: 5, got: (d.name.trim() ? 2 : 0) + (phoneDigits >= 8 ? 3 : 0), note: phoneDigits >= 8 && d.name.trim() ? 'uneto' : 'nedostaje', step: 6 },
     ];
     items.forEach((it) => { it.ok = it.got >= it.pts; });
     const score = items.reduce((t, it) => t + it.got, 0);
@@ -1145,12 +1227,36 @@
         ondrop: (e) => { if (!e.dataTransfer || !e.dataTransfer.files.length) return; e.preventDefault(); drop.classList.remove('over'); addPhotos(e.dataTransfer.files.length); } },
         file, ic('image', 28), el('b', {}, 'Prevuci fotografije ovde ili izaberi sa uređaja'), el('span', { class: 'meta' }, 'JPG ili PNG, do 30 fotografija. Prva je naslovna.'));
       paintGrid();
+      /* tlocrt: šematski, iz kvadrature i strukture (isti model kao na stranici oglasa kad je dostupan) */
+      const planBox = el('div', { class: 'pw-plan' });
+      const paintPlan = () => {
+        fill(planBox,
+          d.plan ? el('figure', { class: 'pw-plan-fig' }, planSvg(draftListing(d)), el('figcaption', { class: 'meta' }, 'Šematski tlocrt (demo) — u pravom oglasu ovde je tvoj crtež ili sken.')) : null,
+          el('div', { class: 'btn-row' }, d.plan
+            ? el('button', { class: 'btn btn-ghost btn-sm', type: 'button', onclick: () => { upd({ plan: false }); paintPlan(); say('Tlocrt je uklonjen'); } }, ic('trash', 16), 'Ukloni tlocrt')
+            : el('button', { class: 'btn btn-secondary btn-sm', type: 'button', onclick: () => { upd({ plan: true }); paintPlan(); say('Tlocrt je dodat'); } }, ic('plus', 16), 'Dodaj tlocrt')));
+      };
+      paintPlan();
+      const vIn = inp('video', { type: 'url', inputmode: 'url', placeholder: 'https://youtube.com/watch?v=…', max: '300' });
+      const vHelp = el('p', { class: 'help', id: 'pw-video-h' });
+      const paintVideo = () => {
+        const v = String(d.video || '').trim();
+        const bad = v && !isUrl(v);
+        if (bad) vIn.setAttribute('aria-invalid', 'true'); else vIn.removeAttribute('aria-invalid');
+        vHelp.className = 'help' + (bad ? ' err' : '');
+        vHelp.textContent = bad ? 'Link treba da počne sa https:// — npr. YouTube, Vimeo ili Matterport.' : 'YouTube, Vimeo ili Matterport link. Nije obavezno.';
+      };
+      vIn.setAttribute('aria-describedby', 'pw-video-h');
+      vIn.addEventListener('input', paintVideo);
+      paintVideo();
       return [
         el('h2', { class: 't-h2s' }, 'Fotografije'),
         drop,
         el('div', { class: 'btn-row pw-ph-btns' }, el('button', { class: 'btn btn-secondary btn-sm', type: 'button', onclick: () => addPhotos(1) }, ic('plus', 16), 'Dodaj generisanu fotografiju')),
         el('p', { class: 'note-rule' }, 'Ovo je demo: fotografije se ne šalju nigde. Umesto tvojih slika prikazujemo generisane ilustracije, da vidiš raspored i naslovnu.'),
         cnt, grid,
+        el('div', { class: 'pw-f pw-media' }, el('span', { class: 'lbl' }, 'Tlocrt'), planBox),
+        el('div', { class: 'fld pw-f pw-media' }, el('label', { class: 'lbl', for: 'pw-video' }, 'Video ili 3D obilazak (link)'), vIn, vHelp),
       ];
     }
     function stepCena() {
@@ -1166,13 +1272,20 @@
         if (f && f.verdict && f.estimate) {
           const { low, high, mid } = f.estimate;
           const lo = Math.min(low * 0.8, l.p * 0.95), hi = Math.max(high * 1.2, l.p * 1.05);
-          const pos = (v) => `${Math.max(2, Math.min(98, ((v - lo) / (hi - lo)) * 100)).toFixed(1)}%`;
+          const at = (v) => Math.max(2, Math.min(98, ((v - lo) / (hi - lo)) * 100));
+          const pos = (v) => `${at(v).toFixed(1)}%`;
+          /* natpisi stoje tačno na svojoj vrednosti (ne na krajevima trake): donja granica završava se na početku opsega, gornja počinje na kraju,
+             „tvoja cena“ je zastavica uz tačku — okrenuta ka sredini da ne izađe iz trake */
+          const tag = (v, anchor, ...kids) => el('span', { class: `pw-m-tag at-${anchor(at(v))}`, style: `left:${at(v).toFixed(1)}%` }, ...kids);
+          const toMid = (x) => (x <= 50 ? 'start' : 'end');
           const vtxt = f.verdict === 'ispod' ? `Cena je ${S(() => fmt.pct(Math.abs(f.diffPct)), '')} ispod procene — privući će pažnju, ali proveri da je nisi potcenio.`
             : f.verdict === 'iznad' ? `Cena je ${S(() => fmt.pct(f.diffPct), '')} iznad procene — očekuj pregovore ili sporiju prodaju.`
               : 'Cena je u fer opsegu za uporedive oglase.';
           add(live, el('div', { class: 'pw-merilo', role: 'img', 'aria-label': `Procena ${eur(low)} do ${eur(high)}, tvoja cena ${eur(l.p)}` },
+            el('div', { class: 'pw-m-row pw-m-you num', 'aria-hidden': 'true' }, tag(l.p, toMid, el('b', {}, 'Tvoja cena'), ` ${eur(l.p)}`)),
             el('div', { class: 'pw-m-track' }, el('span', { class: 'band', style: `left:${pos(low)};right:calc(100% - ${pos(high)})` }), el('span', { class: 'mid', style: `left:${pos(mid)}` }), el('span', { class: 'dot', style: `left:${pos(l.p)}` })),
-            el('div', { class: 'pw-m-lbl num' }, el('span', {}, eur(low)), el('span', {}, el('b', {}, 'procena'), ` · ${f.n} uporedivih`), el('span', {}, eur(high)))),
+            el('div', { class: 'pw-m-row pw-m-lbl num', 'aria-hidden': 'true' }, tag(low, (x) => (x >= 20 ? 'end' : 'start'), eur(low)), tag(high, (x) => (x <= 80 ? 'start' : 'end'), eur(high))),
+            el('p', { class: 'pw-m-cap meta', 'aria-hidden': 'true' }, el('i', { class: 'sw' }), el('b', {}, 'Procena'), ` ${eur(low)} – ${eur(high)} · ${f.n} uporedivih`)),
           el('p', { class: 'pw-verdict pw-v-' + f.verdict }, vtxt));
         } else add(live, el('p', { class: 'meta' }, 'Premalo uporedivih oglasa za procenu — oslanjamo se na prosek opštine iznad.'));
         if (l.t === 'prodaja') {
@@ -1202,7 +1315,7 @@
           grp('Tip', 0, [row('Oglas', `${d.t === 'izdavanje' ? 'Izdavanje' : 'Prodaja'} · ${S(() => typeOf(d.pt).s, d.pt)}`), row('Oglašivač', d.adv === 'agencija' ? 'Agencija' : 'Vlasnik'), row('Provizija', feeText(d))]),
           grp('Lokacija', 1, [row('Mesto', [l.n, l.m, l.c].filter((x, i, a) => x && a.indexOf(x) === i).join(', ')), row('Ulica', d.ad)]),
           grp('Detalji', 2, [row('Kvadratura', l.a ? S(() => fmt.m2(l.a), '') : ''), row('Struktura', l.ro != null ? S(() => fmt.rooms(l.ro), '') : ''), row('Sprat', l.fl != null ? S(() => fmt.floor(l.fl, l.tf), '') : ''), row('Pravni status', legal + (d.legal === 'uknjizeno' && d.proof ? ' · ima dokaz' : ''))]),
-          grp('Opis i fotografije', 3, [row('Naslov', l.ti), row('Opis', d.d.trim() ? `${d.d.trim().length} znakova` : ''), row('Fotografije', d.photos.length ? String(d.photos.length) : '')]),
+          grp('Opis i fotografije', 3, [row('Naslov', l.ti), row('Opis', d.d.trim() ? `${d.d.trim().length} znakova` : ''), row('Fotografije', d.photos.length ? String(d.photos.length) : ''), row('Tlocrt', d.plan ? 'dodat' : ''), row('Video / 3D', String(d.video || '').trim() && isUrl(String(d.video).trim()) ? 'link dodat' : '')]),
           grp('Cena', 5, [row(d.t === 'izdavanje' ? 'Kirija' : 'Cena', l.p ? S(() => fmt.price(l.p, l.t), '') : ''), row('Pregovori', d.neg ? 'cena nije fiksna' : 'fiksna cena')])),
         el('h3', { class: 'pw-h3' }, 'Kontakt'),
         el('div', { class: 'pw-grid' },
