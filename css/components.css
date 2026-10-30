@@ -295,6 +295,7 @@ body.sheet-open,body.modal-open{overflow:hidden}
 .pin.on{z-index:3}.pin.on .p{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}.pin.on .s{background:var(--accent)}
 .pin.seen .p{color:var(--muted);border-color:var(--border-strong);border-style:dashed}.pin.seen .s{background:var(--border-strong)}
 .pin.new .p{border-color:var(--accent);color:var(--accent-ink)}
+.pin.on.new .p{color:var(--on-accent)}   /* izabran pin novogradnje: svetao tekst na tamnoj podlozi */
 .pin.cl{transform:translate(-50%,-50%)}.pin.cl .p{width:36px;height:36px;padding:0;justify-content:center;background:var(--ink);color:var(--bg);border-color:var(--bg);font-weight:700}.pin.cl .s{display:none}
 .pin.cl.lg .p{width:44px;height:44px;font-size:14px}
 .pin.static{position:relative;transform:none;display:inline-flex}
@@ -391,7 +392,7 @@ body.sheet-open,body.modal-open{overflow:hidden}
 @media (max-width:860px){.contact{position:static}}
 
 /* ───────── poređenje (§5.26) ───────── */
-.compare-wrap{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent);-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent)}
+.compare-wrap{position:relative;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent);-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent)}
 .compare-wrap::-webkit-scrollbar{display:none}
 .compare{border-collapse:separate;border-spacing:0;font-size:14px;table-layout:fixed;width:auto}
 .compare th,.compare td{padding:10px 16px 10px 0;border-bottom:1px solid var(--border);vertical-align:top;text-align:left}
@@ -424,7 +425,7 @@ body.sheet-open,body.modal-open{overflow:hidden}
 @media (max-width:600px){.stepper{display:none}.stepper-m{display:block;font-size:13px;color:var(--muted)}.stepper-m b{color:var(--ink);font-weight:600}.stepper-m .bar{height:2px;background:var(--border);margin-top:8px;position:relative}.stepper-m .bar i{position:absolute;left:0;top:0;bottom:0;background:var(--accent)}}
 
 /* ───────── tabela (§5.28) ───────── */
-.table-wrap{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent);-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent)}
+.table-wrap{position:relative;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent);-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent)}
 @media (min-width:1101px){.table-wrap{mask-image:none;-webkit-mask-image:none}}
 .table-wrap::-webkit-scrollbar{display:none}
 .table{width:100%;border-collapse:collapse;font-size:14px}
@@ -466,7 +467,7 @@ body.sheet-open,body.modal-open{overflow:hidden}
 .views button .ico{width:16px;height:16px}
 .filterbar .row1{display:none}
 @media (max-width:860px){
-  .filterbar{flex-direction:column;align-items:stretch;gap:10px;padding:10px 0}
+  .filterbar{flex-direction:column;align-items:stretch;gap:10px;padding:10px 0;flex-wrap:nowrap}   /* nowrap: dug red pilula ne sme da razvuče stranu */
   .filterbar .row1{display:flex;align-items:center;gap:8px}
   .filterbar .row1 .sp{flex:1}
   .filterbar .rail{margin-right:calc(-1 * var(--gutter-r))}
@@ -503,3 +504,23 @@ body.sheet-open,body.modal-open{overflow:hidden}
 .chip-row{display:flex;gap:8px;flex-wrap:wrap}
 .dim{opacity:.6}
 .photo-badges{position:absolute;left:10px;top:10px;display:flex;gap:6px}
+
+/* ───────── integracija: dodirne površine ≥ 40px bez promene izgleda (do-not #11) ───────── */
+.shead .btn-link{min-height:40px;display:inline-flex;align-items:flex-end;margin-bottom:0}
+/* naslov kartice: nevidljivo proširenje klika na visinu 40px */
+.card h3 a,.row h3 a,.row-c h3 a{position:relative}
+.card h3 a::after,.row h3 a::after,.row-c h3 a::after{content:"";position:absolute;left:0;right:0;top:50%;height:40px;transform:translateY(-50%)}
+/* fokusabilni Δ čip (tooltip): pogodak 40px visine */
+.delta[tabindex]{position:relative}
+.delta[tabindex]::after{content:"";position:absolute;left:0;right:0;top:50%;height:40px;transform:translateY(-50%)}
+/* mrvice: veze 40px visine, poravnate sa tekstom */
+.crumbs a{display:inline-flex;align-items:center;min-height:40px}
+.crumbs{row-gap:0}
+/* €/m² bez Δ čipa (manje od 5 sličnih oglasa): prigušeno, objašnjenje na prelazu */
+.ppm.nodelta{cursor:help;text-decoration:underline dotted var(--border-strong);text-underline-offset:3px}
+/* tabovi: fade samo na strani gde ima još sadržaja */
+@media (max-width:860px){
+  .tabs .tabs-ul.is-end:not(.is-start){mask-image:linear-gradient(90deg,transparent,#000 36px);-webkit-mask-image:linear-gradient(90deg,transparent,#000 36px)}
+  .tabs .tabs-ul.is-start.is-end{mask-image:none;-webkit-mask-image:none}
+  .tabs .tabs-ul:not(.is-start):not(.is-end){mask-image:linear-gradient(90deg,transparent,#000 36px,#000 calc(100% - 36px),transparent);-webkit-mask-image:linear-gradient(90deg,transparent,#000 36px,#000 calc(100% - 36px),transparent)}
+}

@@ -426,18 +426,15 @@ button.lst-payer .ico{width:12px;height:12px}
 .lst-trust h2{font-family:var(--f-display);font-variation-settings:var(--soft);font-size:22px;color:var(--ink);line-height:1.15;margin-top:2px}
 .lst-dots{display:flex;flex-direction:column;gap:4px;padding:6px;border:1px solid var(--border);border-radius:var(--r);flex:none}
 .lst-dots i{width:12px;height:12px;box-sizing:border-box;border-radius:50%;background:var(--bg);border:1.5px solid var(--border-strong)}
-.lst-dots i.on.d-zeleno{background:var(--success);border-color:var(--success)}
-.lst-dots i.on.d-zuto{background:var(--warning);border-color:var(--warning)}
-.lst-dots i.on.d-crveno{background:var(--danger);border-color:var(--danger)}
+/* semafor bez žute/zelene/crvene (do-not #1, odluka integracije): položaj upaljenog kruga (gore/sredina/dole) + reč u naslovu nose značenje */
+.lst-dots i.on{background:var(--ink);border-color:var(--ink)}
 .lst-tr-legal,.lst-tr-risk{font-size:14px;color:var(--muted)}
 .lst-tr-legal b,.lst-tr-risk b{color:var(--ink)}
 .lst-trust.is-crveno .lst-tr-risk b{color:var(--danger-ink)}
 .lst-reasons li{position:relative;padding-left:14px;font-size:14px;color:var(--text);line-height:1.45}
 .lst-reasons li+li{margin-top:6px}
 .lst-reasons li::before{content:"";position:absolute;left:0;top:8px;width:5px;height:5px;background:var(--border-strong)}
-.lst-trust.is-zuto .lst-reasons li:first-child::before{background:var(--warning)}
-.lst-trust.is-crveno .lst-reasons li:first-child::before{background:var(--danger)}
-.lst-trust.is-zeleno .lst-reasons li:first-child::before{background:var(--success)}
+.lst-trust .lst-reasons li:first-child::before{background:var(--ink)}
 .lst-tr-cl .eyebrow{justify-content:space-between}
 .lst-tr-cl .eyebrow .meta{text-transform:none;letter-spacing:0;font-weight:500}
 .lst-checks{margin-top:4px;border-top:1px solid var(--border)}

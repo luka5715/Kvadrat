@@ -25,9 +25,9 @@ Styleguide se snima iz korena repoa (zbog `../css`, `../js`, `../data.js`): `nod
   identifikator osim izvoza (`Object.assign(window, …)` na kraju), pa se bezbedno učitava u deljeni globalni opseg.
 * Zavisnosti iz `core.js` koje `ui.js` poziva: `D, el, $, hash, rng, fmt, stats, mock, store, toast, mortgage, TYPES, COND, HEAT, FURN, ORIENT, AMEN`.
   Svaki poziv je zaštićen (`S(fn, fallback)`), pa komponenta ne puca ako nešto nedostaje, ali tada gubi deo sadržaja.
-* **Rute** (hash): `UI_HREF` objekat: `listing(lOrSlug) → '#/oglas/{slug}'`, `agency(aOrSlug) → '#/agencije/{slug}'`, `agencies`,
-  `search(t,pt,c) → '#/prodaja/stanovi/beograd'`, `map '#/mapa'`, `saved '#/sacuvano'`, `compare '#/uporedi'`, `calc(l) → '#/kalkulator?p=…'`,
-  `post '#/postavi'`, `profile '#/profil'`, `home '#/'`. Glavna navigacija: `UI_NAV = [[href, label, basePath] …]`.
+* **Rute** (hash, kanonski oblici iz tabele ruta): `UI_HREF` objekat: `listing(lOrSlug) → '#/oglas?s={slug}'`, `agency(aOrSlug) → '#/agencija?s={slug}'`, `agencies`,
+  `search(t,pt,c) → '#/pretraga?t=prodaja&pt=stan&c=beograd'` (prima i množinu 'stanovi'), `map '#/mapa'`, `saved '#/sacuvani'`, `compare '#/uporedi'`, `calc(l) → '#/kalkulator?s={slug}'`,
+  `post '#/postavi'`, `profile '#/moja-mesta'`, `home '#/'`. Stari oblici (`#/oglas/<slug>`, `#/agencije/<slug>`, `#/prodaja/…`) preusmerava app.js. Glavna navigacija: `UI_NAV = [[href, label, basePath] …]`.
 * **Opcije za izbornike** (`segmented`, `pills`, `select`, `views`): niz stavki `{ v, l, icon?, n? }` ili primitiva (`'2'`, `3`) — primitiv postaje `{v, l:String(v)}`.
 * Sve interaktivne mete ≥ 40px; fokus je globalni (`:focus-visible`); sve ikone su 1,75px linije.
 * Boje nikad u JS-u — samo klase; tema se menja atributom `data-theme` na `<html>` (`setTheme`).
@@ -217,3 +217,16 @@ const bar = el('div', { class: 'filterbar' },
 * Kompaktni red (`.row-c`): `.ctx` (€/m² + Δ) teče odmah iza cene i prelama se u drugi red kad ne stane u 182px (390px ekran); spec dozvoljava prelom „samo za > 7 cifara“, ali Δ čip (koji mock nije imao) to fizički ne dozvoljava.
 * Δ čip „flat“ prikazuje `— ±0,4 %` (glif minus) — spec kaže `±0 %`; zadržana je jedna decimala radi doslednosti sa `.up/.down`.
 * `modal()` na ≤860 postaje `sheet` (po spec-u), ali i `sheet()` na > 860 postaje centrirani panel (`.sheet.desk`) da filteri na tabletu ne vise sa dna.
+
+## Izmene integracije (2026-10-29)
+- `card(l, variant, {price, extras})` — `price`: čvor ili tekst umesto `.price`; `extras`: čvorovi na kraju `.body`.
+- `saleInfo(l)` čita `KX.history(l).changes` (isto što prikazuju oglas, poređenje i filter „Snižena cena”); bez engine-a stari mock.
+- `badgeKinds(l)`: „Uknjiženo” samo kad je `KX.trust(l).legal === 'uknjizeno'` (prodaja).
+- `placeLine` / `streetLine(l, {exactOnly})`: ime se ne ponavlja (naselje = opština ili = grad piše se jednom); `exactOnly` bez izmišljene ulice → „Naselje, Opština · približna lokacija”.
+- Δ čip i Merilo bez padeža: „12,3 % ispod proseka · Čukarica (2.555 €/m²)”. Bez uzorka (`stats.delta(l).reason === 'malo'`) `.ppm.nodelta` dobija tooltip „Malo podataka…”.
+- `header()` sadrži dugme brze pretrage (`.kv-search`, ⌘K/Ctrl+K → `KVG.palette.open()`, bez ljuske vodi na pretragu); sopstveni `.skip` samo kad stranica nema stalni `body > .kv-skip`.
+- `sheet/modal`: Esc i Tab reaguju samo za najgornji dijalog i poštuju `e.defaultPrevented`. `lightbox`: Tab kruži unutar galerije.
+- `tabs()`: traka dobija `is-start`/`is-end` pa maska-fade stoji samo na strani gde ima još tabova.
+- `toggle(…, {label})`: klik na oznaku menja prekidač; prekidač ima nevidljiv pogodak 40 × 48 px.
+- `contactCard`: agent iz `agencyAgentFor(l)` (agencies.js) kad postoji; drugi klik na broj kopira broj (umesto `tel:`).
+- `tip(node, text)`: postojeći `aria-label` ostaje ime, tekst saveta ide u opis.

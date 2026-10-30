@@ -119,8 +119,9 @@ KX.dupes.match(a, b)        // pure: null | 'sigurno' | 'moguce'
 KX.dupes.build(list)        // pure: groups for any array of listing objects (used by the tests)
 ```
 Key: same t, pt, grad, opština, struktura, |Δm²| ≤ 2, same floor (null = wildcard; ±1 only with the same year), |Δyear| ≤ 2,
-≤ 3 km, **different advertiser**. `sigurno` = same naselje, |Δm²| ≤ 1, same floor. **The demo data contains no real
-duplicates (0 groups)** — no listings are synthesised; the UI must handle `groupOf() === null` everywhere.
+≤ 3 km, **different advertiser**. `sigurno` = same naselje, |Δm²| ≤ 1, same floor. data.js itself contains no natural
+duplicates; engine.js adds demo re-postings at load (see „Integration changes” below) so the demo has **14 groups**. The UI must
+still handle `groupOf() === null` for every other listing.
 
 ## `KX.trust(l)` (memoised)
 ```js
@@ -184,9 +185,27 @@ Input is a FILTER_DEFAULTS-shaped filter; scalar values for array fields (`{ro:'
 tries pairs (`Ukloni filtere Opština i Cena do`), then „Zadrži samo lokaciju”, then „Ukloni sve filtere”. Each row's `filters`
 is ready for `setHash`.
 
-## `KX.ledger` → `[{feature, real:boolean, how}]` (20 entries, Serbian)
+## `KX.ledger` → `[{feature, real:boolean, how}]` (32 entries, Serbian)
 Source for the „Kako računamo” page: what is computed from data (`real:true`) vs. deterministic demo (`real:false`), each with
 the formula in one line.
 
 ## Misc
 `KX.median`, `KX.haversine`, `KX.deacc`, `KX.roomWord(ro)`, `KX.medianPpm(l, min, scopes)`, `KX.medianDz(l)`, `KX.EKATASTAR`.
+
+## Integration changes (2026-10-29)
+- **Repostings (demo):** at load time engine.js synthesises re-postings so „Isti stan, više agencija” is visible: 14 stan listings
+  (Beograd 7, Novi Sad 4, Niš 3; prodaja + izdavanje; chosen by `hash(slug+':rep')`, distinct municipalities, no novogradnja) get
+  1–3 offers by other advertisers of the same city (or „Vlasnik” once when the original is an agency): same m², rooms, floor, year,
+  address, coordinates and photos (`l.ps` = original slug), price ±1,5–7 %, different `dz`, slug `<orig>-p<n>`, ref `<orig ref>-<n>`,
+  a slightly rewritten title, `l.syn = true`, `l.synOf`. 30 clones → **14 groups** (all „sigurno”). Clones are excluded from every
+  median (core `stats`, KX indexes, budget map) and never used as fair-price comps; agency `lc` is incremented. `KX.synth.count()`.
+  Declared in `KX.ledger` („Ponovljeni oglasi: demo …”).
+- `KX.fair`: comps from the same opština first; if fewer than 5, add listings ≤ 3 km; distance weight 1,0 per km (was 0,5); acceptance
+  threshold d ≤ 10; never syn listings or other offers of the same flat. `verdict:null` when < 5 comps pass.
+- `KX.cost(l)`: land, „nije uknjiženo” and „ozakonjenje” default to a cash purchase (`res.cashOnly = true`, first assumption explains why);
+  an explicit `{financing}` override still wins.
+- `KX.history(l).changes[]` gains `d` (ISO day within the month) and `daysAgo`.
+- `KX.travelRadiusKm(mode, min)` — radius of an „N minutes” ring in the same model as `travel()` (used by map.js rings).
+- Legal status and demo flags are keyed by the physical flat (`l.ps || l.s`), so all offers of one flat share them.
+- Copy without case errors: „proseka opštine X”, „medijan za opštinu X”, „proseka (opština X)”.
+- `parseQuery('budzet').route` → `#/mapa?m=budzet`.

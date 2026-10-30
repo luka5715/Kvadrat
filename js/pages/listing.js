@@ -61,7 +61,7 @@
     agency: (s) => '#/agencija?s=' + encodeURIComponent(s),
     compare: (ids) => '#/uporedi?ids=' + ids.map(encodeURIComponent).join(','),
     ledger: '#/kako-racunamo',
-    calc: (l) => '#/kalkulator?p=' + l.p,
+    calc: (l) => '#/kalkulator?s=' + encodeURIComponent(l.s),   /* kalkulator učitava cenu, m², grad, grejanje i agenciju iz oglasa */
     saved: '#/sacuvani',
   };
   const PT_ABOUT = { stan: 'O stanu', kuca: 'O kući', vikendica: 'O vikendici', 'poslovni-prostor': 'O prostoru', zemljiste: 'O placu', garaza: 'O garaži', soba: 'O sobi' };
@@ -251,7 +251,7 @@
 
   function planModel(l) {
     if (!(l.a > 0) || (l.ro == null && l.pt !== 'poslovni-prostor') || !['stan', 'kuca', 'vikendica', 'poslovni-prostor'].includes(l.pt) || l.a > 600) return null;
-    const r = rng(hash(l.s + '#plan'));
+    const r = rng(hash((l.ps || l.s) + '#plan'));   /* isti stan kod druge agencije = isti tlocrt */
     const a = l.a, ro = l.ro != null ? l.ro : clamp(Math.round(l.a / 30), 1, 5), ba = clamp(l.ba || 1, 1, 3);
     const am = l.am || [];
     const R = (n, area, kind) => ({ n, area, kind });
@@ -822,7 +822,8 @@
     if (tr === undefined) {
       /* indeks promena traži dovoljno oglasa u svakom mesecu: oblast Merila ako ih ima ≥ 25, inače grad, inače svi oglasi istog tipa */
       const pool = S(() => D.listings, []).filter((x) => x.t === l.t && x.pt === l.pt && x.ppm > 0 && x.p > 0);
-      const inScope = (x) => (ref.scope === 'nbhd' ? x.ns === l.ns && x.cs === l.cs : ref.scope === 'mun' ? x.ms === l.ms : ref.scope === 'city' ? x.cs === l.cs : true);
+      /* obim Merila (naselje, opština, prigradske opštine, grad, manji gradovi regiona) — ista definicija kao core stats.refPpm */
+      const inScope = (x) => (typeof stats.inScope === 'function' ? !x.syn && stats.inScope(x, l, ref) : (ref.scope === 'nbhd' ? x.ns === l.ns && x.cs === l.cs : ref.scope === 'mun' ? x.ms === l.ms : ref.scope === 'city' ? x.cs === l.cs : true));
       let list = pool.filter(inScope), idxScope = ref.label;
       if (list.length < 25) { list = pool.filter((x) => x.cs === l.cs); idxScope = l.c; }
       if (list.length < 25) { list = pool; idxScope = 'Srbija'; }
@@ -1354,7 +1355,9 @@
   /* ───────────────── kontakt kartica (§5.25) ───────────────── */
   function contactCard(l, a, tr, life) {
     const phoneNum = a && a.ph ? a.ph : mockPhone(l);
-    const agent = AGENT_NAMES[hash(l.s + '#ag') % AGENT_NAMES.length];
+    /* isti agent kao na kartici „Tim” profila agencije (agencies.js), kad je modul učitan */
+    const tm = a ? S(() => (typeof window.agencyAgentFor === 'function' ? window.agencyAgentFor(l) : null), null) : null;
+    const agent = (tm && tm.n) || AGENT_NAMES[hash(l.s + '#ag') % AGENT_NAMES.length];
     const hrs = 1 + (hash(l.s + '#h') % 4);
     const api = { onReport: null };
     const risky = !!(tr && tr.color === 'crveno' && l.t === 'izdavanje');

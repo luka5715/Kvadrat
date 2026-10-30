@@ -148,7 +148,7 @@ const fairs = L.map((l) => KX.fair(l));
 const tf = (performance.now() - tf0) / L.length;
 ok(tf < 3, `fair < 3 ms po oglasu (${tf.toFixed(2)} ms)`);
 const withVerdict = fairs.filter((f) => f.verdict);
-ok(withVerdict.length > 150, `presuda postoji za ${withVerdict.length} od ${L.filter((l) => l.pt === 'stan' || l.pt === 'kuca').length} stanova/kuća`);
+ok(withVerdict.length > 90, `presuda postoji za ${withVerdict.length} od ${L.filter((l) => l.pt === 'stan' || l.pt === 'kuca').length} stanova/kuća`);
 ok(fairs.every((f) => (f.n < 5) === (f.verdict === null)), 'verdict null tačno kada n < 5');
 const fv = L.find((l) => KX.fair(l).verdict);
 const ff = KX.fair(fv);
@@ -158,9 +158,16 @@ ok(ff.negotiation.roomPct >= 0 && ff.negotiation.roomPct <= 15 && ff.negotiation
 const dist = { ispod: 0, fer: 0, iznad: 0 }; withVerdict.forEach((f) => dist[f.verdict]++); console.log('  verdicts', dist);
 ok(dist.fer > 0 && dist.ispod > 0 && dist.iznad > 0, 'sve tri presude postoje');
 const dl = KX.ppmDelta(flat);
-ok(!dl || (typeof dl.pct === 'number' && /proseka za/.test(dl.label)), 'ppmDelta vraća pct + labelu ili null kad n < 5');
+ok(!dl || (typeof dl.pct === 'number' && /proseka opštine/.test(dl.label)), 'ppmDelta vraća pct + labelu (bez padeža) ili null kad n < 5');
+/* uporedivi: ista opština ili ≤ 3 km, nikad ponovljeni oglas ni drugi oglas istog stana */
+ok(L.filter((l) => KX.fair(l).verdict).every((l) => KX.fair(l).comps.filter((c) => c.dist <= 10).every((c) => { const x = D.listings.find((y) => y.s === c.s); return !x.syn && (x.ms === l.ms || c.km <= 3); })), 'uporedivi iz iste opštine ili do 3 km, bez sintetičkih');
 ok(KX.ppmDelta(L.find((l) => l.cs === 'kopaonik')) === null, 'ppmDelta null bez uzorka opštine');
 
+/* plac i neuknjiženo: troškovi se računaju za keš kupovinu, bez kreditnih stavki */
+const landX = L.find((l) => l.t === 'prodaja' && l.pt === 'zemljiste');
+ok(KX.cost(landX).cashOnly === true && !KX.cost(landX).lines.some((x) => /kredit|rata/i.test(x.label)), 'plac: cost bez kredita (cashOnly)');
+const noReg = L.find((l) => l.t === 'prodaja' && l.pt === 'stan' && ['nije', 'ozakonjenje'].includes(KX.trust(l).legal));
+ok(!noReg || KX.cost(noReg).cashOnly === true, 'neuknjiženo/ozakonjenje: cost bez kredita');
 section('history');
 const h1 = KX.history(flat), h2 = KX.history(flat);
 ok(h1 === h2, 'memoizovano');
@@ -176,6 +183,7 @@ ok(hist.every((h) => h.changes.length <= 1 && h.changes.every((c) => c.from > c.
 ok(bumped / L.length > 0.12 && bumped / L.length < 0.28, '~20 % obnavljano');
 ok(hist.every((h) => (h.bumped ? h.daysOnMarket >= h.shownDays + 30 && h.daysOnMarket <= h.shownDays + 120 : h.daysOnMarket === h.shownDays)), 'pošten broj dana = dz (+30..120 kad je obnavljan)');
 ok(hist.every((h) => h.changes.every((c) => h.points.findIndex((p) => p.m === c.m) >= h.points.findIndex((p) => p.listed))), 'promena cene nije pre objave');
+ok(hist.every((h) => h.changes.every((c) => /^\d{4}-\d{2}-\d{2}$/.test(c.d) && c.d.slice(0, 7) === c.m && c.daysAgo >= 0 && c.d >= h.firstSeen.slice(0, 7))), 'promena ima dan (d) u svom mesecu i daysAgo');
 ok(/^\d{4}-\d{2}-\d{2}$/.test(h1.firstSeen) && h1.context && typeof h1.context.median === 'number', 'firstSeen ISO, kontekst medijana');
 
 section('dupes');
@@ -185,9 +193,10 @@ groups.slice(0, 5).forEach((g) => console.log('   ', g.offers.map((o) => `${o.r}
 /* U demo podacima (data.js) nema pravih duplikata: nijedan par oglasa različitih agencija nema isto naselje, strukturu,
    sprat i kvadraturu ±1 m² (ni ±5 m²). Oglasi se ne izmišljaju, pa se algoritam proverava na test-fiksturi:
    10 „klonova” stvarnih oglasa (druga agencija, cena ±3 %, m² ±1) — fikstura postoji samo u ovom testu. */
-const fixtureBase = L.filter((l) => l.t === 'prodaja' && l.pt === 'stan' && l.ags && l.fl != null && l.ro != null).slice(0, 10);
+const REAL = L.filter((l) => !l.syn);
+const fixtureBase = REAL.filter((l) => l.t === 'prodaja' && l.pt === 'stan' && l.ags && l.fl != null && l.ro != null && !KX.dupes.groupOf(l.s)).slice(0, 10);
 const agencies = D.agencies.map((a) => a.s);
-const fixture = L.concat(fixtureBase.map((b, i) => ({ ...b, s: b.s + '-test-' + i, r: b.r + '/2', p: Math.round(b.p * (1 + (i % 2 ? 0.03 : -0.03)) / 500) * 500, a: b.a + (i % 3 === 0 ? 1 : 0), ags: agencies.find((s) => s !== b.ags), ag: 'Druga agencija', dz: b.dz + 5 })));
+const fixture = REAL.concat(fixtureBase.map((b, i) => ({ ...b, s: b.s + '-test-' + i, r: b.r + '/2', p: Math.round(b.p * (1 + (i % 2 ? 0.03 : -0.03)) / 500) * 500, a: b.a + (i % 3 === 0 ? 1 : 0), ags: agencies.find((s) => s !== b.ags), ag: 'Druga agencija', dz: b.dz + 5 })));
 const fg = KX.dupes.build(fixture);
 console.log('  fikstura: grupa', fg.length, '| confidence:', fg.map((g) => g.confidence).join(','));
 ok(fg.length >= 8 && fg.length <= 10, `fikstura od 10 klonova daje ≥ 8 grupa (${fg.length})`);
@@ -199,10 +208,21 @@ ok(KX.dupes.match(fixtureBase[0], { ...fixtureBase[0], s: 'x', a: fixtureBase[0]
 ok(KX.dupes.match(fixtureBase[0], { ...fixtureBase[0], s: 'x' }) === null, 'isti oglašivač nije duplikat');
 ok(groups.every((g) => g.offers.every((o) => KX.dupes.groupOf(o.s) === g) && g.offers.slice(1).every((o) => KX.dupes.isSecondary(o.s)) && !KX.dupes.isSecondary(g.master)), 'groupOf / isSecondary dosledni nad demo podacima');
 ok(KX.dupes.groupOf('ne-postoji') === null && KX.dupes.isSecondary('ne-postoji') === false, 'nepoznat slug → null/false');
-ok(KX.dupes.count() === groups.length && KX.stats.dupes === groups.length, `stats.dupes = ${groups.length} (pravi broj grupa u demo podacima)`);
+ok(KX.dupes.count() === groups.length && KX.stats.dupes === groups.length, `stats.dupes = ${groups.length}`);
+/* ponovljeni oglasi (demo): 14 stanova u Beogradu, Novom Sadu i Nišu, 1–3 oglasa drugih oglašivača po stanu */
+const syn = D.listings.filter((l) => l.syn);
+ok(groups.length >= 14, `≥ 14 grupa istog stana (${groups.length})`);
+ok(syn.length >= 14 && syn.length <= 42 && KX.synth.count() === syn.length, `ponovljenih oglasa ${syn.length} (14–42)`);
+ok(syn.every((c) => { const b = D.listings.find((x) => x.s === c.synOf); return b && !b.syn && c.s.startsWith(b.s + '-p') && c.r.startsWith(b.r + '-') && c.ags !== b.ags && c.a === b.a && c.ro === b.ro && c.fl === b.fl && c.y === b.y && c.ms === b.ms && c.ps === b.s && c.dz !== b.dz && Math.abs(c.p / b.p - 1) >= 0.012 && Math.abs(c.p / b.p - 1) <= 0.075 && c.ti !== b.ti && c.pt === 'stan'; }), 'klon: isti stan, druga agencija, cena ±1,5–7 %, drugi dz, slug -pN, šifra -N, izmenjen naslov');
+ok(['beograd', 'novi-sad', 'nis'].every((cs) => groups.some((g) => D.listings.find((x) => x.s === g.master).cs === cs)), 'grupe u Beogradu, Novom Sadu i Nišu');
+ok(['prodaja', 'izdavanje'].every((t) => groups.some((g) => D.listings.find((x) => x.s === g.master).t === t)), 'grupe i za prodaju i za izdavanje');
+ok(syn.every((c) => KX.dupes.groupOf(c.s) && KX.dupes.groupOf(c.s) === KX.dupes.groupOf(c.synOf)), 'svaki klon je u grupi svog izvornog oglasa');
+ok(groups.every((g) => g.offers.length >= 2 && g.offers.length <= 4 && new Set(g.offers.map((o) => o.ags || 'vlasnik')).size === g.offers.length), 'grupa: 2–4 ponude, različiti oglašivači');
+ok(KX.ledger.some((x) => /Ponovljeni oglasi: demo/.test(x.how) && x.real === false), 'ledger: ponovljeni oglasi su demo');
+ok(syn.every((c) => KX.trust(c).legal === KX.trust(D.listings.find((x) => x.s === c.synOf)).legal), 'isti stan = isti pravni status');
 
 section('trust');
-const sale = L.filter((l) => l.t === 'prodaja');
+const sale = L.filter((l) => l.t === 'prodaja' && !l.syn);   /* raspodela nad stvarnim oglasima (ponovljeni dele status izvornog) */
 const legalDist = {}; const colorDist = { zeleno: 0, zuto: 0, crveno: 0 };
 sale.forEach((l) => { const t = KX.trust(l); legalDist[t.legal] = (legalDist[t.legal] || 0) + 1; colorDist[t.color]++; });
 console.log('  legal', legalDist, 'colors', colorDist);
@@ -244,6 +264,8 @@ ok(all2.length === 2 && all2[0].min <= all2[1].min, 'travelAll sortiran');
 const fm = KX.fairMiddle([flat, rent], [place, { ...place, id: 'p2', who: 'partner', lat: 44.82, lng: 20.41 }]);
 ok(fm.get(flat.s).max >= fm.get(flat.s).ja && fm.get(flat.s).sum === fm.get(flat.s).ja + fm.get(flat.s).partner, 'fairMiddle max/sum');
 ok(KX.placeSuggest('vracar').length > 0 && KX.placeSuggest('slav')[0].name === 'Slavija', 'placeSuggest bez dijakritika');
+/* krug „N minuta” na mapi (travelRadiusKm) i tabela minuta (travel) koriste isti model */
+ok(['auto', 'gradski', 'pesice', 'bicikl'].every((mode) => [10, 20, 30].every((m) => { const km = KX.travelRadiusKm(mode, m); if (km <= 0) return true; const lat = place.lat + km / 111.2; const t = KX.travel({ lat, lng: place.lng }, { ...place, mode }); return Math.abs(t.min - m) <= 1; })), 'travelRadiusKm ⇄ travel (±1 min)');
 
 section('parseQuery');
 const tp0 = performance.now();
@@ -300,12 +322,12 @@ KX.profile.reset();
 ok(KX.profile.get().cash === 0 && !KX.profile.hasBudget(), 'reset');
 
 section('ledger');
-ok(KX.ledger.length >= 12 && KX.ledger.length <= 20 && KX.ledger.every((e) => typeof e.feature === 'string' && typeof e.real === 'boolean' && e.how.length > 20), `ledger ima ${KX.ledger.length} stavki sa feature/real/how`);
+ok(KX.ledger.length >= 12 && KX.ledger.length <= 40 && KX.ledger.every((e) => typeof e.feature === 'string' && typeof e.real === 'boolean' && e.how.length > 20), `ledger ima ${KX.ledger.length} stavki sa feature/real/how`);
 ok(KX.ledger.some((e) => /PDV 10 % je već u oglašenoj ceni/.test(e.how)) && KX.ledger.some((e) => /Zakonu 2025/.test(e.how)), 'ledger pominje PDV u ceni i Zakon 2025');
 
 section('regresije (review)');
 {
-  const sale = L.filter((l) => l.t === 'prodaja');
+  const sale = L.filter((l) => l.t === 'prodaja' && !l.syn);
   KX.profile.reset();
   ok(KX.count({ t: 'prodaja', fit: true }) === 0, 'fit bez budžeta = 0');
   KX.profile.set({ income: 3000, cash: 80000 });
@@ -317,7 +339,8 @@ section('regresije (review)');
   const b = by((l) => l.t === 'prodaja' && l.pt === 'stan' && l.co !== 'novogradnja' && l.co !== 'u-izgradnji');
   const syn = { ...b }; delete syn.s; delete syn.dz; delete syn.r;
   ok(KX.cost({ ...syn, p: 100000 }).price === 100000 && KX.cost({ ...syn, p: 200000 }).price === 200000, 'sintetički oglas bez sluga se ne kešira (cost)');
-  ok(KX.fair({ ...syn, p: 100000 }).diffPct !== KX.fair({ ...syn, p: 200000 }).diffPct, 'sintetički oglas bez sluga se ne kešira (fair)');
+  const bv = by((l) => l.t === 'prodaja' && l.pt === 'stan' && !l.syn && KX.fair(l).verdict); const synv = { ...bv }; delete synv.s; delete synv.dz; delete synv.r;
+  ok(KX.fair({ ...synv, p: 100000 }).diffPct !== KX.fair({ ...synv, p: 200000 }).diffPct, 'sintetički oglas bez sluga se ne kešira (fair)');
   let threw = null; try { KX.history(syn); KX.trust(syn); KX.afford(syn, { income: 2000, cash: 10000 }); KX.cost({ ...syn, p: undefined }); KX.afford({ ...syn, p: NaN }, { income: 1000 }); } catch (e) { threw = e.message; }
   ok(threw === null, 'bez dz / p ne baca izuzetak', threw);
   ok(KX.history(syn).daysOnMarket === 0, 'bez dz → 0 dana');

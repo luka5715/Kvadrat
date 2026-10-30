@@ -156,6 +156,7 @@ const KX = (() => {
     for (const l of all()) {
       bySlug.set(l.s, l);
       push(idx.byTP, keyTP(l), l);
+      if (l.syn) continue;   /* ponovljeni oglas istog stana ne ulazi u medijane (jedan stan = jedan glas) */
       if (l.ppm > 0) {
         push(idx.ppmMun, keyTP(l) + '|' + l.ms, l.ppm);
         push(idx.ppmNbhd, keyTP(l) + '|' + l.ns, l.ppm);
@@ -166,7 +167,7 @@ const KX = (() => {
     }
     idx.muns = MUN_LABEL(); idx.cities = CITY_LABEL(); idx.agencies = AGENCY();
     idx.dzAll.clear();
-    for (const t of ['prodaja', 'izdavanje']) idx.dzAll.set(t, median(all().filter((x) => x.t === t).map((x) => x.dz)) || 30);
+    for (const t of ['prodaja', 'izdavanje']) idx.dzAll.set(t, median(all().filter((x) => x.t === t && !x.syn).map((x) => x.dz)) || 30);
   }
   const medOf = (map, k, min = 5) => { const a = map.get(k); return a && a.length >= min ? { median: median(a), n: a.length } : null; };
   /* medijan €/m² za oglas: naselje → opština → grad (min n), vraća {median, n, scope, label} */
@@ -191,7 +192,7 @@ const KX = (() => {
     if (!r) return null;
     const pct = (l.ppm / r.median - 1) * 100;
     const dir = Math.abs(pct) < 1.5 ? 'flat' : pct > 0 ? 'up' : 'down';
-    const label = dir === 'flat' ? `u proseku za ${l.m} (${fmtN(r.median)} €/m²)` : `${fmtPct(Math.abs(pct))} ${pct > 0 ? 'iznad' : 'ispod'} proseka za ${l.m} (${fmtN(r.median)} €/m²)`;
+    const label = dir === 'flat' ? `u proseku opštine ${l.m} (${fmtN(r.median)} €/m²)` : `${fmtPct(Math.abs(pct))} ${pct > 0 ? 'iznad' : 'ispod'} proseka opštine ${l.m} (${fmtN(r.median)} €/m²)`;
     return { pct, median: r.median, n: r.n, dir, label, scope: 'mun' };
   }
 
@@ -347,7 +348,10 @@ const KX = (() => {
     if (override && override.firstHome !== undefined && override.ltv === undefined && (P.ltv === 0.8 || P.ltv === 0.9)) P.ltv = override.firstHome ? 0.9 : 0.8;
     const mk = memoKey(l, override);
     if (mk && memo.cost.has(mk)) return memo.cost.get(mk);
-    const res = l.t === 'izdavanje' ? costRental(l, P) : costSale(l, P);
+    /* plac, neuknjiženo i ozakonjenje banke ne finansiraju: bez izričitog izbora računa se kupovina za keš (isto kao KX.afford) */
+    const cashOnly = l.t !== 'izdavanje' && !(override && override.financing) && P.financing !== 'kes' && financeableOf(l) === 'ne';
+    const res = l.t === 'izdavanje' ? costRental(l, P) : costSale(l, cashOnly ? { ...P, financing: 'kes' } : P);
+    if (cashOnly) { res.cashOnly = true; res.assumptions.unshift(l.pt === 'zemljiste' ? 'Banke po pravilu ne finansiraju zemljište — računamo kupovinu za keš.' : 'Banke ne finansiraju neuknjiženu nekretninu ni nekretninu u postupku ozakonjenja — računamo kupovinu za keš.'); }
     if (mk) memo.cost.set(mk, res);
     return res;
   }
@@ -488,11 +492,16 @@ const KX = (() => {
     if (mk) memo.afford.set(mk, r);
     return r;
   }
+  function financeableOf(l) {
+    const legal = legalOf(l);
+    let f = l.pt === 'zemljiste' ? 'ne' : FINANCEABLE[legal] || 'zavisi';
+    if (l.co === 'u-izgradnji' && f === 'da') f = 'zavisi';
+    return f;
+  }
   function affordCalc(l, P) {
     const tr = trust(l);
     const legal = tr.legal;
-    let financeable = l.pt === 'zemljiste' ? 'ne' : FINANCEABLE[legal] || 'zavisi';
-    if (l.co === 'u-izgradnji' && financeable === 'da') financeable = 'zavisi';
+    const financeable = financeableOf(l);
     const gate = { legal, financeable };
     const base = { state: 'nepoznato', label: 'Unesi budžet', reason: 'Unesi platu i keš da vidiš da li se stan uklapa.', maxLoan: 0, monthly: 0, dtiUsed: 0, gate, loanNeeded: 0, cashAllIn: 0 };
     if (l.t !== 'prodaja') return { ...base, reason: 'Procena budžeta važi samo za prodaju.' };
@@ -551,16 +560,21 @@ const KX = (() => {
     if (!(l.a > 0) || !(l.p > 0) || !(l.pt === 'stan' || l.pt === 'kuca')) return { ...empty, reason: 'procena samo za stanove i kuće' };
     const pool = idx.byTP.get(keyTP(l)) || [];
     const tolA = l.pt === 'kuca' ? 8 : 6;
+    const grp = idx.dupes.get(l.s);
+    /* uporedivi: prvo ista opština; ako ih je manje od 5, dopuna oglasima iz drugih opština do 3 km.
+       Ponovljeni oglasi (syn) i drugi oglasi istog stana nikad nisu uporedivi. */
+    const ok = (c) => c !== l && c.s !== l.s && !c.syn && !(grp && grp.offers.some((o) => o.s === c.s)) && c.ppm > 0 && c.a > 0 && c.cs === l.cs;
+    const sameMun = pool.filter((c) => ok(c) && c.ms === l.ms);
+    const cand = sameMun.length >= 5 ? sameMun : sameMun.concat(pool.filter((c) => ok(c) && c.ms !== l.ms && haversine(l, c) <= 3));
     const scored = [];
-    for (const c of pool) {
-      if (c === l || c.s === l.s || !(c.ppm > 0) || !(c.a > 0) || c.cs !== l.cs) continue;
-      const d = 0.5 * haversine(l, c) + tolA * Math.abs(Math.log(c.a / l.a)) + (l.ro != null && c.ro != null ? 2 * Math.abs(c.ro - l.ro) : 1) + (c.ns === l.ns ? 0 : 1.5) + (c.ms === l.ms ? 0 : 1);
+    for (const c of cand) {
+      const d = 1.0 * haversine(l, c) + tolA * Math.abs(Math.log(c.a / l.a)) + (l.ro != null && c.ro != null ? 2 * Math.abs(c.ro - l.ro) : 1) + (c.ns === l.ns ? 0 : 1.5) + (c.ms === l.ms ? 0 : 1);
       scored.push([d, c]);
     }
     scored.sort((x, y) => x[0] - y[0]);
     const near = scored.slice(0, 8);
     const comps = near.map(([d, c]) => ({ s: c.s, r: c.r, ppm: c.ppm, p: c.p, a: c.a, ro: c.ro, fl: c.fl, y: c.y, n: c.n, dz: c.dz, dist: Math.round(d * 10) / 10, km: Math.round(haversine(l, c) * 10) / 10 }));
-    const good = near.filter(([d]) => d <= 8);
+    const good = near.filter(([d]) => d <= 10);   /* prag 10 (bio 8) jer udaljenost sada nosi težinu 1,0 po km (bila 0,5) */
     if (good.length < 5) return { ...empty, comps, n: good.length };
     const basePpm = wmedian(good.map(([d, c]) => [c.ppm, 1 / (1 + d)]));
     const adjustments = [];
@@ -593,7 +607,7 @@ const KX = (() => {
     const h = history(l), md = medianDz(l);
     if (h.daysOnMarket >= 14) {
       const ratio = md.median ? h.daysOnMarket / md.median : 0;
-      if (ratio >= 2) add(3, `Na oglasu je ${h.daysOnMarket} dana, medijan u ${md.scope === 'all' ? md.label : md.label} je ${Math.round(md.median)}`);
+      if (ratio >= 2) add(3, `Na oglasu je ${h.daysOnMarket} dana, medijan ${md.scope === 'mun' ? 'za opštinu ' + md.label : md.scope === 'city' ? 'za grad ' + md.label : 'za celu Srbiju'} je ${Math.round(md.median)}`);
       else if (ratio >= 1.5) add(2, `Na oglasu je ${h.daysOnMarket} dana, duže od medijana (${Math.round(md.median)})`);
       else if (ratio > 1) add(1, `Na oglasu je ${h.daysOnMarket} dana, nešto duže od medijana (${Math.round(md.median)})`);
     }
@@ -642,7 +656,14 @@ const KX = (() => {
       const k = lo + Math.floor(r() * (12 - lo));
       const dropPct = 2 + r() * 7;
       const p0 = Math.max(Math.ceil(lp / 0.98 / step) * step, roundTo(lp / (1 - dropPct / 100), step));
-      changes = [{ m: months[k], from: p0, to: lp, pct: p0 ? Math.round((lp / p0 - 1) * 1000) / 10 : 0 }];
+      /* dan promene u mesecu k (posle prve objave, nikad posle danas) — za filtere „sniženo u poslednjih N dana” */
+      const rd = R(H(seed + ':hd'));
+      const [yy, mm] = months[k].split('-').map(Number);
+      const dLo = months[k] === firstMonth ? firstSeen.getDate() + 1 : 1;
+      const dHi = k === 11 ? now.getDate() : new Date(yy, mm, 0).getDate();
+      const day = Math.min(dHi, Math.max(1, dLo + Math.floor(rd() * Math.max(1, dHi - dLo + 1))));
+      const d = `${months[k]}-${String(day).padStart(2, '0')}`;
+      changes = [{ m: months[k], d, daysAgo: Math.max(0, Math.round((now - new Date(yy, mm - 1, day, 12)) / 864e5)), from: p0, to: lp, pct: p0 ? Math.round((lp / p0 - 1) * 1000) / 10 : 0 }];
       points = months.map((m, i) => ({ m, p: i < k ? p0 : lp, listed: i >= listedFrom }));
     } else points = months.map((m, i) => ({ m, p: lp, listed: i >= listedFrom }));
     const p0 = points[0].p;
@@ -667,9 +688,11 @@ const KX = (() => {
   ];
   const scamHits = (text) => { const d = deacc(text); return SCAM_PATTERNS.filter((x) => x.re.test(d)); };
   const readChecks = () => { try { return JSON.parse(localStorage.getItem(LS_CHECKS) || '{}') || {}; } catch { return {}; } };
+  /* fizička nekretnina: ponovljeni oglas istog stana (l.ps) ima isti pravni status i iste zastavice */
+  const flatKey = (l) => String(l.ps || l.s || l.r || 'sinteticki');
   function legalOf(l) {
     if (l.t !== 'prodaja' && l.t !== 'izdavanje') return 'uknjizeno';
-    const r = R(H(String(l.s || l.r || 'sinteticki') + ':leg'))();
+    const r = R(H(flatKey(l) + ':leg'))();
     if (l.co === 'u-izgradnji') return 'u-procesu';
     if (l.reg) return r < 0.88 ? 'uknjizeno' : 'poseban-zakon';
     if (l.co === 'novogradnja') return 'u-procesu';
@@ -688,9 +711,9 @@ const KX = (() => {
   function trustSale(l) {
     const legal = legalOf(l);
     const reasons = [], flags = [];
-    const hip = l.reg && H(l.s + ':hip') % 12 === 0;
-    const suv = H(l.s + ':suv') % 20 === 0;
-    const noUd = l.co === 'u-izgradnji' || (l.co === 'novogradnja' && H(l.s + ':ud') % 5 === 0);
+    const hip = l.reg && H(flatKey(l) + ':hip') % 12 === 0;
+    const suv = H(flatKey(l) + ':suv') % 20 === 0;
+    const noUd = l.co === 'u-izgradnji' || (l.co === 'novogradnja' && H(flatKey(l) + ':ud') % 5 === 0);
     let color = 'zeleno';
     if (legal === 'nije' || legal === 'ozakonjenje') { color = 'crveno'; reasons.push(legal === 'nije' ? 'Nije uknjiženo — banka ne daje kredit, a preprodaja je rizična.' : 'U postupku ozakonjenja — do rešenja nema upisa ni kredita.'); }
     else if (legal === 'u-procesu') { color = 'zuto'; reasons.push('Uknjižba je u toku — tražite dokaz o podnetom zahtevu.'); }
@@ -720,6 +743,8 @@ const KX = (() => {
     const title = color === 'zeleno' ? 'Pravno čisto (po oglasu)' : color === 'zuto' ? 'Proveri pre kapare' : 'Visok pravni rizik';
     return { color, title, reasons, checks, legal, legalLabel: LEGAL_LABEL[legal], flags, ekatastarUrl: EKATASTAR, rental: null, face: 'pravni' };
   }
+  /* naziv obima bez padeža: „opština Čukarica”, „naselje Cerak”, „grad Niš” */
+  const scopeName = (m) => (m.scope === 'nbhd' ? 'naselje ' : m.scope === 'mun' ? 'opština ' : m.scope === 'city' ? 'grad ' : '') + m.label;
   function trustRental(l) {
     const legal = legalOf(l);
     const flags = [], reasons = [];
@@ -728,9 +753,9 @@ const KX = (() => {
     let priceSignal = false;
     if (med && l.ppm > 0) {
       const dev = l.ppm / med.median - 1;
-      if (dev <= -0.3) { score += 35; priceSignal = true; flags.push(`Kirija je ${fmtPct(-dev * 100, 0)} ispod proseka za ${med.label} — tipično za mamac oglase`); }
-      else if (dev <= -0.15) { score += 15; priceSignal = true; flags.push(`Kirija je ${fmtPct(-dev * 100, 0)} ispod proseka za ${med.label}`); }
-      else reasons.push(`Kirija je u skladu sa prosekom za ${med.label} (${fmtN(med.median)} €/m²).`);
+      if (dev <= -0.3) { score += 35; priceSignal = true; flags.push(`Kirija je ${fmtPct(-dev * 100, 0)} ispod proseka (${scopeName(med)}) — tipično za mamac oglase`); }
+      else if (dev <= -0.15) { score += 15; priceSignal = true; flags.push(`Kirija je ${fmtPct(-dev * 100, 0)} ispod proseka (${scopeName(med)})`); }
+      else reasons.push(`Kirija je u skladu sa prosekom (${scopeName(med)}, ${fmtN(med.median)} €/m²).`);
     } else reasons.push('Nema dovoljno sličnih oglasa za poređenje kirije.');
     if (!(l.im > 3)) { score += 10; flags.push(l.im > 0 ? `Samo ${l.im} ${l.im === 1 ? 'fotografija' : 'fotografije'}` : 'Oglas bez fotografija'); }
     if (!l.ags) { score += 8; flags.push('Oglas vlasnika bez verifikacije i telefona na profilu'); }
@@ -782,7 +807,7 @@ const KX = (() => {
     const key = [t, pt, budget, !!opts.owner, !!opts.credit, opts.cs || ''].join('|');
     if (memo.budget.has(key)) return memo.budget.get(key);
     const net = t === 'prodaja' ? netForBudget(budget, opts) : budget;
-    const pool = (idx.byTP.get(t + '|' + pt) || []).filter((l) => l.ppm > 0 && (!opts.cs || l.cs === opts.cs));
+    const pool = (idx.byTP.get(t + '|' + pt) || []).filter((l) => l.ppm > 0 && !l.syn && (!opts.cs || l.cs === opts.cs));
     const byMun = new Map(), byCity = new Map();
     for (const l of pool) {
       let a = byMun.get(l.ms); if (!a) { a = []; byMun.set(l.ms, a); } a.push(l);
@@ -829,6 +854,11 @@ const KX = (() => {
     const [speed, fixed] = SPEED[mode];
     const min = clamp(Math.round(km * CIRCUITY / speed * 60 + fixed), 1, 180);
     return { min, mode, km: Math.round(km * 10) / 10, far: km > 60 };
+  }
+  /* poluprečnik kruga „N minuta” u istom modelu kao travel(): (min − fiksno) × brzina ÷ 60 ÷ 1,3 (za mape) */
+  function travelRadiusKm(mode, min) {
+    const [speed, fixed] = SPEED[mode] || SPEED.auto;
+    return Math.max(0, num(min) - fixed) * speed / 60 / CIRCUITY;
   }
   function travelAll(l, places) {
     const list = (places || prof().places || []).filter((x) => x && x.lat != null && x.lng != null);
@@ -945,7 +975,7 @@ const KX = (() => {
       const t = toks[i], nx = toks[i + 1] || '';
       /* navigacija */
       if (/^kv-?\d{5,}$/.test(t)) { const ref = 'KV-' + t.replace(/\D/g, ''); const l = all().find((x) => x.r === ref); if (l) { route = '#/oglas?s=' + l.s; chip('Oglas ' + ref, 'route', route); i++; continue; } }
-      const NAV = { uporedi: '#/uporedi', sacuvani: '#/sacuvani', sacuvano: '#/sacuvani', omiljeni: '#/sacuvani', kalkulator: '#/kalkulator', mapa: '#/mapa', agencije: '#/agencije', budzet: '#/mapa?mode=budzet', saveti: '#/saveti', procena: '#/procena', trziste: '#/trziste' };
+      const NAV = { uporedi: '#/uporedi', sacuvani: '#/sacuvani', sacuvano: '#/sacuvani', omiljeni: '#/sacuvani', kalkulator: '#/kalkulator', mapa: '#/mapa', agencije: '#/agencije', budzet: '#/mapa?m=budzet', saveti: '#/saveti', procena: '#/procena', trziste: '#/trziste' };
       if (NAV[t] && toks.length <= 2) { route = NAV[t]; chip(cap(t), 'route', route); i++; continue; }
       if (t === 'moja' && nx === 'mesta') { route = '#/moja-mesta'; chip('Moja mesta', 'route', route); i += 2; continue; }
       /* negacije */
@@ -1175,24 +1205,104 @@ const KX = (() => {
     { feature: 'Keš ili kredit', real: true, how: 'Maks. rata = DTI (50 %, konzervativno; NBS dozvoljava 60 %) × neto prihod − postojeće rate; maks. kredit iz anuiteta; kapija uknjiženosti: neuknjiženo/ozakonjenje → samo keš, u procesu/Zakon 2025 → zavisi od banke.' },
     { feature: 'Mesečni računi (grejanje, struja, voda, održavanje)', real: false, how: 'Procena po m²: CG 1,15 €/m²; ostala grejanja 0,45–1,05 €/m² × faktor energetskog razreda; struja 20 € + 0,30 €/m²; voda i smeće 8 € + 0,20 €/m²; stambena zajednica 0,12 €/m² (0,25 sa liftom) + 5 €.' },
     { feature: 'Porez na imovinu', real: false, how: 'Gruba procena: m² × medijan €/m² opštine × 0,85 × (1 − amortizacija 1 %/god, maks. 40 %) × 0,4 %, −50 % za stanovanje (maks. 20.000 RSD). Prava osnovica je prosečna cena zone koju utvrđuje opština.' },
-    { feature: 'Fer cena', real: true, how: 'Do 8 najsličnijih oglasa istog tipa u istom gradu (udaljenost + razlika m², soba, naselja); medijan €/m² ponderisan blizinom, korigovan za sprat, stanje, grejanje, terasu, energetski razred; opseg ±6 %. Bez presude kada je manje od 5 uporedivih.' },
+    { feature: 'Fer cena', real: true, how: 'Do 8 najsličnijih oglasa istog tipa: prvo ista opština, a ako ih je manje od 5, i oglasi do 3 km (udaljenost 1,0 po km + razlika m², soba, naselja; ponovljeni oglasi istog stana se ne računaju); medijan €/m² ponderisan blizinom, korigovan za sprat, stanje, grejanje, terasu, energetski razred; opseg ±6 %. Bez presude kada je manje od 5 uporedivih.' },
     { feature: 'Pregovarač', real: true, how: 'Bodovi za odstupanje od procene, dane na oglasu naspram medijana opštine, sniženja, „po dogovoru”, više oglašivača, renoviranje, oglas vlasnika; zbir (maks. 15 %) = prostor za pregovor; prva ponuda = cena × (1 − (bodovi + 3) %).' },
     { feature: 'Istorija cene', real: false, how: 'Demo prikaz: oko trećine oglasa starijih od dve nedelje dobija tačno jedno sniženje 2–9 % u determinisanom mesecu (hash sluga); trenutna cena je uvek prava. 12 mesečnih tačaka.' },
     { feature: 'Dani na oglasu', real: false, how: 'Objavljeno = danas − dz (pravo polje). ~20 % oglasa je „obnavljano” (demo): pravi broj dana = dz + 30–120 i taj pošten broj prikazujemo. Percentil i medijan dana računaju se iz pravih dz vrednosti opštine.' },
-    { feature: 'Isti stan, više agencija', real: true, how: `Ključ: isti tip, grad, opština, struktura, |Δm²| ≤ 2, isti sprat (ili nepoznat), ista godina ±2, različit oglašivač, ≤ 3 km. „Sigurno” = isto naselje, |Δm²| ≤ 1, isti sprat; ostalo „moguće”. U demo podacima nema pravih duplikata, pa su grupe „moguće” — nijedan oglas nije izmišljen.` },
+    { feature: 'Isti stan, više agencija', real: true, how: `Ključ: isti tip, grad, opština, struktura, |Δm²| ≤ 2, isti sprat (ili nepoznat), ista godina ±2, različit oglašivač, ≤ 3 km. „Sigurno” = isto naselje, |Δm²| ≤ 1, isti sprat; ostalo „moguće”. Glavni oglas grupe je najjeftiniji; ostali se u rezultatima skrivaju dok ih ne uključite.` },
+    { feature: 'Ponovljeni oglasi', real: false, how: 'Ponovljeni oglasi: demo — da bi se prikazalo spajanje istog stana, za 14 stanova generisani su oglasi drugih agencija. Svaki ima istu kvadraturu, strukturu, sprat, adresu i fotografije kao izvorni oglas, cenu ±1,5–7 %, drugi datum objave, šifru „KV-…-2/3/4” i oznaku u podacima (syn); ne ulaze u medijane €/m² ni u procene.' },
     { feature: 'Pravni status (semafor)', real: false, how: 'Iz polja uknjiženo + demo raspodela (hash): uknjiženo ≈ 68 %, u procesu ≈ 13 %, upisano po Zakonu 2025 ≈ 9 %, ozakonjenje ≈ 5 %, nije ≈ 4 %. Hipoteka, suvlasništvo i upotrebna dozvola su demo zastavice. Proverite u eKatastru.' },
     { feature: 'Rizik prevare (zakup)', real: true, how: 'Bodovi: kirija ≥ 30 % ispod medijana naselja/opštine (35), ≥ 15 % (15), ≤ 3 fotografije (10), vlasnik bez verifikacije (8), neverifikovana agencija (5), depozit > 2 kirije (15), obrasci u opisu — uplata unapred (25), vlasnik u inostranstvu (25), Western Union / MoneyGram (45), ključevi poštom ili kurirom (45), kontakt samo preko poruka (15), zbir maks. 60 — nov oglas sa niskom kirijom (5). < 20 zeleno, 20–44 žuto, ≥ 45 crveno. Demo opisi ne sadrže takve fraze.' },
     { feature: 'Šta dobijaš za svoj budžet', real: true, how: 'Po opštini (≥ 5 oglasa): medijan €/m²; neto = budžet − porez 2,5 % − provizija 2 % + PDV − beležnik − upis; m² = neto ÷ medijan €/m².' },
     { feature: 'Vreme do mojih mesta', real: false, how: 'Vazdušna linija × 1,3; auto 22 km/h + 4 min, gradski prevoz 14 km/h + 6 min, peške 4,5 km/h, bicikl 14 km/h + 2 min; 1–180 min. Procena, bez saobraćaja i linija.' },
-    { feature: 'Brza pretraga i živi brojači', real: true, how: 'Rečnik gradova, opština i naselja (bez dijakritika), gramatika cena/kvadratura/struktura/osobina; brojači = applyFilters nad svih 660 oglasa.' },
-    { feature: 'Δ naspram proseka opštine', real: true, how: '€/m² oglasa ÷ medijan €/m² iste opštine (isti tip, ≥ 5 oglasa) − 1; sakriveno kad nema uzorka.' },
+    { feature: 'Brza pretraga i živi brojači', real: true, how: 'Rečnik gradova, opština i naselja (bez dijakritika), gramatika cena/kvadratura/struktura/osobina; brojači = applyFilters nad svih oglasa u bazi.' },
+    { feature: 'Δ naspram proseka (Merilo)', real: true, how: '€/m² oglasa ÷ medijan €/m² istog tipa i vrste posla − 1, u prvom obimu sa ≥ 5 oglasa: naselje → opština → prigradske opštine Beograda (Surčin, Grocka, Obrenovac, Lazarevac, Mladenovac, Sopot, Barajevo — porede se međusobno) → grad (Beograd bez prigradskih opština) → manji gradovi istog regiona (≥ 6 oglasa; Zlatibor, Kopaonik i Vrnjačka Banja su zaseban skup turističkih mesta). Nikad prosek cele Srbije. Bez uzorka nema čipa („malo podataka”). Plac (cena po aru) i soba nemaju Δ.' },
+    { feature: 'Tržište ovog meseca (početna)', real: false, how: 'Medijana €/m² po gradu je stvarna (prodaja, stanovi); promena za 12 meseci na pločicama početne je demo vrednost (deterministička, −2 do +10 %), jer podaci nemaju istoriju tržišta.' },
+    { feature: 'Rok završetka novogradnje', real: false, how: 'Rok useljenja („rok Q4 2027”) je demo: određen iz šifre oglasa (hash), 1–2 godine od danas.' },
+    { feature: 'Mapa: tkivo grada i krugovi Moja mesta', real: false, how: 'Mapa je nacrtana iz podataka: blokovi, ulice i parkovi su generisani; reke i imenovani parkovi su približne ručne koordinate. Krugovi 10/20/30 min koriste isti model kao tabela minuta: (minuti − fiksno vreme) × brzina ÷ 1,3.' },
+    { feature: 'Cena po m² oblasti · 12 meseci (oglas)', real: false, how: 'Današnja medijana oblasti Merila × indeks promena traženih cena istih oglasa (KX.history, podrezana sredina 5 %); kad oblast ima manje od 25 oglasa, indeks se računa za ceo grad. Procena.' },
+    { feature: 'Procena vrednosti — rezervni put', real: true, how: 'Redosled: procena fer cene (≥ 5 uporedivih) → ±15 % oko medijane najbližih oglasa u istom gradu → medijana grada (≥ 3 oglasa) → medijana u krugu od 60 km ili regiona (≥ 5, bez Beograda i Novog Sada) → „Procena nije moguća”. Korekcije: prizemlje −5 %, poslednji sprat bez lifta −4 %, lux +8 %, renovirano +4 %, novogradnja +3 %, potrebno renoviranje −8 %, grejanje struja/TA/klima −3 %, centralno/podno/toplotna pumpa +2 %, terasa +2 %, gradnja pre 1965. −3 %.' },
+    { feature: 'Kalkulator: kreditna sposobnost i kupovina ili zakup', real: true, how: 'Životni minimum 250 € + 120 € po izdržavanom članu. Kupovina: troškovi kupovine + kamata + porez na imovinu + održavanje 0,5 % cene godišnje − rast vrednosti stana (3 %/god.). Zakup: kirija koja raste 4 %/god. − prinos 3 % na učešće i troškove kupovine. Predlog kirije = medijana zakupa stanova ±15 % (pa ±30 %) kvadrature. Kurs za prikaz u dinarima je demo: 1 € = 117,2 RSD.' },
+    { feature: 'Sniženja traženih cena (tržište)', real: false, how: 'Lančani indeks istih oglasa iz demo istorije cena; beleži samo sniženja i nije indeks tržišta (za tržište vidi RGZ).' },
+    { feature: 'Sačuvane pretrage i kvalitet oglasa', real: false, how: 'Broj „novih od poslednje posete” računa se iz starosti oglasa (dz) u odnosu na vreme čuvanja pretrage. Ocena kvaliteta oglasa (0–100) je fiksna lista: naslov, opis ≥ 300 znakova, ≥ 5 fotografija, ulica, uknjiženo sa dokazom, realna cena, kontakt.' },
+    { feature: 'Agencije: tim, ocene, kancelarija', real: false, how: 'Demo: broj registra i licence, tročlani tim, telefoni i jezici agenata, radno vreme i vreme odgovora (iz hash-a); pojedinačne ocene i podocene su izvedene tako da daju prosek a.r × a.rc; kancelarija je centar grada uz mali pomak, fotografija je ilustracija. Vaše ocene se čuvaju samo u pregledaču i ne ulaze u prosek.' },
+    { feature: 'Novogradnja — raspored zgrade (demo)', real: false, how: 'Projekat = oglasi iste agencije u istom naselju (stan, kuća, lokal u novogradnji). Stvarni oglasi su uvek dostupni; izmišljene jedinice prate tok gradnje (u izgradnji prodato 20–55 %, useljivo 70–85 %, rezervisano 3–10 %). Nazivi projekata, datumi toka gradnje, plan plaćanja, istorija isporuke, broj stanova i broj građevinske dozvole su demo.' },
+    { feature: 'Oglas: tlocrt, uslovi zakupa, termini obilaska', real: false, how: 'Tlocrt je šematski crtež iz strukture i kvadrature (nije arhitektonski plan); minimalni period zakupa, datum useljenja, slobodni termini obilaska, ime agenta i vreme odgovora su demo vrednosti iz hash-a. Poruke, obilasci i prijave čuvaju se samo u pregledaču.' },
   ];
+
+  /* ─────────── ponovljeni oglasi (demo) ───────────
+     Podaci nemaju prirodnih duplikata, pa se „Isti stan, više agencija” ne bi video. Za 14 stanova (Beograd 7, Novi Sad 4, Niš 3;
+     prodaja i izdavanje; izbor po hash-u, različite opštine) dodaje se 1–3 oglasa drugih agencija iz istog grada (ili vlasnika):
+     isti fizički stan (m², struktura, sprat, godina, adresa, koordinate, fotografije: l.ps), cena ±1,5–7 %, drugi dz, slug '<orig>-p<n>',
+     šifra '<orig>-<n>', blago izmenjen naslov, l.syn = true. Pokreće se jednom, pri učitavanju engine.js (pre bilo kakvog brojanja). */
+  const SYN_PLAN = [['beograd', 'prodaja', 4], ['beograd', 'izdavanje', 3], ['novi-sad', 'prodaja', 2], ['novi-sad', 'izdavanje', 2], ['nis', 'prodaja', 2], ['nis', 'izdavanje', 1]];
+  const SYN_TITLE = {
+    prodaja: [' — odmah useljiv', ', povoljno', ' — bez ulaganja', ', hitna prodaja', ' — direktno od prodavca'],
+    izdavanje: [' — slobodan odmah', ', dugoročno', ' — bez provizije za zakupca', ', na duži period', ' — useljiv od prvog'],
+  };
+  let synDone = false;
+  function synthRepostings() {
+    if (synDone) return 0;
+    synDone = true;
+    const list = all();
+    if (!list.length || list.some((l) => l.syn)) return 0;
+    const agencies = data().agencies || [];
+    const made = [];
+    for (const [cs, t, quota] of SYN_PLAN) {
+      const cand = list.filter((l) => l.cs === cs && l.t === t && l.pt === 'stan' && !l.syn && l.a > 0 && l.ro != null && l.p > 0 && !isNew(l))
+        .sort((a, b) => (H(a.s + ':rep') - H(b.s + ':rep')) || (a.s < b.s ? -1 : 1));
+      const usedMs = new Set(), picks = [];
+      for (const l of cand) { if (picks.length >= quota) break; if (usedMs.has(l.ms)) continue; usedMs.add(l.ms); picks.push(l); }
+      for (const l of cand) { if (picks.length >= quota) break; if (!picks.includes(l)) picks.push(l); }
+      for (const base of picks) {
+        const r = R(H(base.s + ':syn'));
+        const pool = agencies.filter((a) => a.c === base.c && a.s !== base.ags).sort((a, b) => H(base.s + a.s) - H(base.s + b.s));
+        const sellers = pool.map((a) => ({ ag: a.n, ags: a.s, agv: !!a.v }));
+        if (base.ags) sellers.splice(Math.min(1, sellers.length), 0, { ag: null, ags: null, agv: false });   /* jedan „vlasnik” kad izvorni oglas drži agencija */
+        const n = Math.min(sellers.length, 1 + (H(base.s + ':nrep') % 3));
+        const step = t === 'izdavanje' ? 10 : 500;
+        const usedP = new Set([base.p]);
+        for (let i = 0; i < n; i++) {
+          const who = sellers[i];
+          const sign = r() < 0.5 ? -1 : 1;
+          let p = roundTo(base.p * (1 + sign * (1.5 + r() * 5.5) / 100), step);
+          while (usedP.has(p)) p += step;
+          usedP.add(p);
+          const dz = Math.max(0, Math.round(base.dz + (r() < 0.5 ? -1 : 1) * (3 + Math.floor(r() * 40))));
+          const k = i + 2;
+          const sfx = SYN_TITLE[t][(H(base.s + ':ti' + k)) % SYN_TITLE[t].length];
+          const clone = {
+            ...base,
+            s: base.s + '-p' + k, r: base.r + '-' + k, ti: base.ti + sfx,
+            p, ppm: Math.round((p / base.a) * 100) / 100, dz,
+            ag: who.ag, ags: who.ags, agv: who.agv,
+            pr: 'NONE', v: Math.max(3, Math.round((base.v || 50) * (0.25 + r() * 0.5))), fv: Math.max(0, Math.round((base.fv || 0) * r())),
+            im: Math.max(3, (base.im || 5) - (H(base.s + ':im' + k) % 3)),
+            dep: base.dep != null && t === 'izdavanje' ? roundTo(base.dep * p / base.p, 10) : base.dep,
+            neg: r() < 0.5,
+            am: Array.isArray(base.am) ? base.am.slice() : [],
+            ps: base.ps || base.s, syn: true, synOf: base.s,
+          };
+          if (clone.ppm >= 100) clone.ppm = Math.round(clone.ppm);
+          made.push(clone);
+        }
+      }
+    }
+    for (const c of made) list.push(c);
+    /* broj oglasa agencije (a.lc) ostaje jednak broju njenih oglasa u listi */
+    for (const c of made) { const a = c.ags && agencies.find((x) => x.s === c.ags); if (a && typeof a.lc === 'number') a.lc++; }
+    /* core keševi (find, medijane, Δ) su lenji — posle dodavanja se grade iznova */
+    try { if (typeof find !== 'undefined' && find.reset) find.reset(); } catch (e) { /* core nije učitan */ }
+    try { if (typeof stats !== 'undefined' && stats.reset) stats.reset(); } catch (e) { /* core nije učitan */ }
+    return made.length;
+  }
 
   /* ─────────── enrich ─────────── */
   let enriched = false;
   function enrich(force) {
     if (enriched && !force) return idx;
     const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    synthRepostings();
     buildIndexes();
     buildDupes();
     for (const m of Object.values(memo)) m.clear();
@@ -1204,12 +1314,13 @@ const KX = (() => {
   const ensure = () => { if (!enriched) enrich(); };
   const guard = (fn) => (...args) => { ensure(); return fn(...args); };
 
+  synthRepostings();
   return {
-    enrich, profile, ledger, titleOf, EKATASTAR, POI, TARIFF,
+    enrich, profile, ledger, titleOf, EKATASTAR, POI, TARIFF, synth: { count: () => all().filter((l) => l.syn).length },
     cost: guard(cost), afford: guard(afford), creditCapacity, fair: guard(fair), history: guard(history),
     dupes: { groupOf: guard(dupes.groupOf), isSecondary: guard(dupes.isSecondary), groups: guard(dupes.groups), count: guard(dupes.count), hiddenCount: guard(dupes.hiddenCount), match: dupes.match, build: dupes.build },
     trust: guard(trust), trustCheck, budgetMap: guard(budgetMap), netForBudget,
-    travel, travelAll, fairMiddle, placeSuggest: guard(placeSuggest),
+    travel, travelAll, travelRadiusKm, fairMiddle, placeSuggest: guard(placeSuggest),
     parseQuery: guard(parseQuery), count: guard(kxCount), filter: guard(kxFilter), relax: guard(relax),
     ppmDelta: guard(ppmDelta), medianPpm: guard(medianPpm), medianDz: guard(medianDz),
     annuity, notar, haversine, deacc, median, utilities, legalLabel: LEGAL_LABEL, roomWord,

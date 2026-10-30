@@ -344,9 +344,34 @@
     let node = null;
     let ro = null;
     const measure = () => S(() => { if (node) document.body.style.setProperty('--kv-notice-h', Math.ceil(node.getBoundingClientRect().height) + 'px'); });
+    /* nikad preko donje trake sa pozivom (.cta-bar), fioke „Uporedi” ni donje navigacije: obaveštenje se slaže iznad
+       najvišeg takvog elementa koji se horizontalno preklapa sa njim (telefon i desktop) */
+    let mo = null, raf = 0;
+    function place() {
+      raf = 0;
+      if (!node) return;
+      S(() => {
+        node.style.bottom = '';
+        const vh = window.innerHeight, base = node.getBoundingClientRect();
+        let minTop = Infinity;
+        document.querySelectorAll('.cta-bar, .kv-tray, .bnav').forEach((o) => {
+          if (o.hidden || !o.isConnected) return;
+          const cs = getComputedStyle(o); if (cs.display === 'none' || cs.visibility === 'hidden' || cs.position !== 'fixed') return;
+          const r = o.getBoundingClientRect();
+          if (!r.height || r.top < vh / 2 || r.right <= base.left || r.left >= base.right) return;
+          if (r.top < minTop) minTop = r.top;
+        });
+        if (minTop < base.bottom + 8) node.style.bottom = Math.ceil(vh - minTop + 8) + 'px';
+        const b = node.getBoundingClientRect();
+        document.body.style.setProperty('--kv-notice-b', Math.max(0, Math.round(vh - b.bottom)) + 'px');
+      });
+    }
+    const schedule = () => { if (!raf) raf = requestAnimationFrame(place); };
     function dismiss() {
       lsSet(NOTICE_KEY, { ok: 1, at: new Date().toISOString().slice(0, 10) });
       S(() => ro && ro.disconnect()); ro = null;
+      S(() => mo && mo.disconnect()); mo = null; window.removeEventListener('resize', schedule);
+      S(() => document.body.style.removeProperty('--kv-notice-b'));
       if (node) { node.remove(); node = null; }
       document.body.classList.remove('has-notice'); S(() => document.body.style.removeProperty('--kv-notice-h'));
     }
@@ -360,9 +385,13 @@
       document.body.appendChild(node);
       document.body.classList.add('has-notice');
       measure();
-      S(() => { ro = new ResizeObserver(measure); ro.observe(node); });   /* obaveštenja (toast) idu iznad njega */
+      S(() => { ro = new ResizeObserver(() => { measure(); schedule(); }); ro.observe(node); });   /* obaveštenja (toast) idu iznad njega */
+      /* promena stranice, fioke ili donje trake → ponovo složi */
+      S(() => { mo = new MutationObserver(schedule); mo.observe(document.body, { attributes: true, attributeFilter: ['class', 'data-bnav'] }); mo.observe(document.getElementById('app') || document.body, { childList: true }); });
+      window.addEventListener('resize', schedule, { passive: true });
+      schedule(); setTimeout(schedule, 300);
     }
-    return { show, dismiss };
+    return { show, dismiss, place: schedule };
   })();
 
   /* ═════════════════════════ 5) TASTATURA ═════════════════════════ */
@@ -468,7 +497,7 @@
         el('p', { class: 'lede' }, 'Svaki broj na Kvadratu ima poreklo. Ovde piše šta je izračunato iz oglasa, šta je demo procena i po kojoj formuli — da biste mogli da proverite, a ne da verujete na reč.'),
         tilesNode),
       el('section', { class: 'section kr-sec' },
-        S(() => sectionHead('Šta je stvarno, a šta procena', 'Oznaka „Iz podataka” znači da broj nastaje iz polja oglasa ili statistike nad svih 660 oglasa. „Demo procena” je deterministička simulacija tamo gde pravi podaci ne postoje u ovoj verziji.'), el('h2', { class: 't-h2' }, 'Šta je stvarno, a šta procena')),
+        S(() => sectionHead('Šta je stvarno, a šta procena', 'Oznaka „Iz podataka” znači da broj nastaje iz polja oglasa ili statistike nad svih ' + N0(S(() => D.listings.filter((l) => !l.syn).length, 660)) + ' oglasa (bez ponovljenih). „Demo procena” je deterministička simulacija tamo gde pravi podaci ne postoje u ovoj verziji.'), el('h2', { class: 't-h2' }, 'Šta je stvarno, a šta procena')),
         filter ? el('div', { class: 'kr-filter', role: 'group', 'aria-label': 'Prikaži' }, filter) : null,
         table),
       el('section', { class: 'section kr-sec' },
@@ -616,7 +645,7 @@
         ['Kako da pretražujem rečima?', ['Pritisnite ', el('kbd', {}, isMac ? '⌘ K' : 'Ctrl K'), ' ili ', el('kbd', {}, '/'), ' i ukucajte npr. „dvosoban vračar do 150k uknjižen”. Videćete prepoznate filtere i broj oglasa pre nego što pritisnete Enter.']],
         ['Šta znači čip pored cene po m²?', ['Koliko je oglas iznad (↑) ili ispod (↓) medijane cene po m² u istoj opštini. Detalji su na stranici ', el('a', { class: 'link', href: '#/kako-racunamo' }, 'Kako računamo'), '.']],
         ['Kako da uporedim stanove?', 'Na kartici ili oglasu dodajte do četiri oglasa u poređenje. Fioka „Uporedi” se pojavljuje pri dnu ekrana; dugme „Uporedi” otvara tabelu u kojoj je označeno ko pobeđuje u kom redu.'],
-        ['Da li su oglasi stvarni?', 'Ne. Ovo je demo verzija sa 660 generisanih oglasa u 34 grada; proračuni i formule su stvarni.'],
+        ['Da li su oglasi stvarni?', 'Ne. Ovo je demo verzija sa ' + N0(S(() => D.listings.length, 660)) + ' generisanih oglasa u ' + N0(S(() => D.cities.length, 34)) + ' grada; proračuni i formule su stvarni.'],
         ['Gde se čuvaju moji podaci?', ['Samo u vašem pregledaču. Spisak i dugme za brisanje su na stranici ', el('a', { class: 'link', href: '#/privatnost' }, 'Privatnost'), '.']],
       ].map(([t, b], i) => S(() => accordion(t, el('p', {}, b), i === 0), el('div', {}, el('h3', { class: 't-h3' }, t), el('p', {}, b)))),
       el('h2', { class: 't-h2s kv-gap' }, 'Prečice sa tastature'),
@@ -648,6 +677,6 @@
     palette, tray, notice, keys, quickList, QUICK, GOTO,
     views: { ledger: viewLedger, info: viewInfo, notFound: viewNotFound, placeholder: viewPlaceholder, error: viewError },
     INFO_PATHS: Object.keys(INFO),
-    onRoute(path) { S(() => tray.update(path)); },
+    onRoute(path) { S(() => tray.update(path)); S(() => notice.place()); setTimeout(() => S(() => notice.place()), 120); },
   };
 })();

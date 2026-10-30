@@ -949,13 +949,13 @@ const img = (() => {
   function src(l, idx = 0, o = {}) {
     const a = VB[o.aspect] || VB['4:3'];
     const kind = kinds(l)[idx % kinds(l).length];
-    const S = scene(l.s, kind, idx, l);
+    const S = scene(l.ps || l.s, kind, idx, l);   /* l.ps: ponovljeni oglas istog stana ima iste fotografije */
     return uri(S.out(`${a[0]} ${a[1]} ${a[2]} ${a[3]}`, altFor(l, idx, kind), o.w || a[4], o.w ? N(o.w * a[5] / a[4]) : a[5]));
   }
   function external(l, idx, aspect) {
     const a = VB[aspect] || VB['4:3']; const kind = kinds(l)[idx % kinds(l).length];
     const tag = /facade|house|office$|entrance|land|backyard|garage|balcony/.test(kind) ? 'building,house' : 'apartment,interior';
-    return `https://loremflickr.com/${a[4]}/${a[5]}/${tag}?lock=${H32(l.s + '#' + idx) % 100000}`;
+    return `https://loremflickr.com/${a[4]}/${a[5]}/${tag}?lock=${H32((l.ps || l.s) + '#' + idx) % 100000}`;
   }
   function el(l, idx = 0, o = {}) {
     const a = VB[o.aspect] || VB['4:3'];
@@ -1114,7 +1114,7 @@ const img = (() => {
     return uri(S.out('0 0 200 200', 'Logo — ' + (ag.n || ag.s), 200, 200));
   }
 
-  const api = { src, el, kinds, hero, city, article, mark, uri, palette: paletteFor, scene: (l, kind, idx = 0) => scene(l.s, kind, idx, l).out('0 0 800 600', altFor(l, idx, kind), 800, 600), PAL, KIND_ALT };
+  const api = { src, el, kinds, hero, city, article, mark, uri, palette: paletteFor, scene: (l, kind, idx = 0) => scene(l.ps || l.s, kind, idx, l).out('0 0 800 600', altFor(l, idx, kind), 800, 600), PAL, KIND_ALT };
   return api;
 })();
 window.img = img;

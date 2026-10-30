@@ -116,7 +116,7 @@ body.has-tray .ftr{padding-bottom:calc(48px + 96px)}
 
 /* ───────── obaveštenje o privatnosti (ZZPL) ───────── */
 /* obaveštenja (toast) idu iznad obaveštenja o privatnosti; --kv-notice-h meri global.js */
-body.has-notice #toasts{bottom:calc(24px + var(--kv-notice-h,96px) + 8px)}
+body.has-notice #toasts{bottom:calc(var(--kv-notice-b,24px) + var(--kv-notice-h,96px) + 8px)}
 .kv-notice{position:fixed;left:24px;bottom:24px;z-index:33;width:min(460px,calc(100vw - 48px));display:flex;align-items:center;gap:16px;padding:14px 14px 14px 18px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-lg);font-size:var(--fs-xs);line-height:1.45;color:var(--text);animation:kvup var(--dur-slow) var(--ease-out)}
 .kv-notice b{color:var(--ink);font-weight:600}
 .kv-notice .link{white-space:nowrap;display:inline-flex;align-items:center;min-height:40px;vertical-align:middle}
@@ -124,10 +124,8 @@ body.has-notice #toasts{bottom:calc(24px + var(--kv-notice-h,96px) + 8px)}
 @media (max-width:860px){
   .kv-notice{left:var(--gutter);right:var(--gutter-r);width:auto;bottom:calc(var(--bottom-nav-h) + env(safe-area-inset-bottom,0px) + 8px);padding:12px 12px 12px 14px;gap:12px}
   body[data-bnav="off"] .kv-notice{bottom:calc(64px + env(safe-area-inset-bottom,0px) + 8px)}
-  body.has-tray .kv-notice{bottom:calc(var(--bottom-nav-h) + env(safe-area-inset-bottom,0px) + 84px)}
-  body.has-notice #toasts{bottom:calc(var(--bottom-nav-h) + env(safe-area-inset-bottom,0px) + 8px + var(--kv-notice-h,120px) + 8px)}
-  body.has-notice[data-bnav="off"] #toasts{bottom:calc(64px + env(safe-area-inset-bottom,0px) + 8px + var(--kv-notice-h,120px) + 8px)}
-  body.has-notice.has-tray #toasts{bottom:calc(var(--bottom-nav-h) + env(safe-area-inset-bottom,0px) + 84px + var(--kv-notice-h,120px) + 8px)}
+  /* tačan položaj iznad .cta-bar / fioke / donje navigacije računa global.js (notice.place → style.bottom, --kv-notice-b) */
+  body.has-notice #toasts{bottom:calc(var(--kv-notice-b,72px) + var(--kv-notice-h,120px) + 8px)}
 }
 
 /* ───────── zajedničko: zaglavlje stranica ljuske ───────── */

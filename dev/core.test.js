@@ -73,17 +73,36 @@ test('plural / count / listings', () => { eq(fmt.listings(106), '106 oglasa'); e
 test('year / month / fold', () => { eq(fmt.year(2025), '2025.'); eq(fmt.month('2025-11'), 'nov ’25'); eq(fmt.fold('Čačak Đeram Žarkovo Šabac Ćuprija'), 'cacak djeram zarkovo sabac cuprija'); });
 
 console.log('\nstats');
-test('refPpm scope fallback', () => {
-  const scopes = { nbhd: 0, mun: 0, city: 0, all: 0 };
+test('refPpm obim: naselje → opština → prigradske → grad → region → null (nikad cela Srbija)', () => {
+  const scopes = { nbhd: 0, mun: 0, sub: 0, city: 0, region: 0, none: 0 };
   for (const l of D.listings) {
-    const r = stats.refPpm(l); assert(r && r.ppm > 0, 'ref'); assert(['nbhd', 'mun', 'city', 'all'].includes(r.scope)); scopes[r.scope]++;
-    if (r.scope !== 'all') assert(r.n >= 5, 'n>=5 za ' + r.scope);
-    const expectedLabel = { nbhd: l.n, mun: l.m, city: l.c, all: 'Srbija' }[r.scope]; eq(r.label, expectedLabel);
-    /* uži opseg bi morao da ima n<5 */
-    if (r.scope === 'mun') { const same = D.listings.filter((x) => x.t === l.t && x.pt === l.pt && x.ns === l.ns); assert(same.length < 5, 'nbhd bi trebalo <5'); }
+    const r = stats.refPpm(l); assert(r, 'ref');
+    if (r.scope == null) { eq(r.ppm, null); assert(['malo', 'tip'].includes(r.reason), r.reason); scopes.none++; continue; }
+    assert(['nbhd', 'mun', 'sub', 'city', 'region'].includes(r.scope), r.scope); scopes[r.scope]++;
+    assert(r.ppm > 0 && r.n >= 5, 'n>=5 za ' + r.scope);
+    if (r.scope === 'nbhd') eq(r.label, l.n);
+    if (r.scope === 'mun') { eq(r.label, l.m); const same = D.listings.filter((x) => x.t === l.t && x.pt === l.pt && x.ns === l.ns && x.ppm > 0); assert(same.length < 5, 'nbhd bi trebalo <5'); }
+    if (r.scope === 'sub') { assert(stats.isSuburban(l), 'prigradski'); eq(r.label, 'prigradske opštine Beograda'); }
+    if (r.scope === 'city') { eq(r.label, l.c); assert(!stats.isSuburban(l), 'prigradska opština ne ide u grad'); }
+    if (r.scope === 'region') { assert(/^(manji gradovi — |turistička mesta)/.test(r.label), r.label); assert(r.n >= 6, 'region n>=6'); }
+    if (l.pt === 'zemljiste' || l.pt === 'soba') assert(false, 'plac/soba bez Δ');
   }
-  /* u ovom skupu nijedno naselje nema ≥5 oglasa istog t+pt, pa je nbhd 0 — opseg postoji, ali se ne aktivira */
-  assert(scopes.mun > 0 && scopes.city > 0 && scopes.nbhd >= 0, JSON.stringify(scopes));
+  assert(scopes.mun > 0 && scopes.city > 0 && scopes.sub > 0 && scopes.region > 0 && scopes.none > 0, JSON.stringify(scopes));
+  for (const l of D.listings.filter((x) => x.pt === 'zemljiste' || x.pt === 'soba')) { const r = stats.refPpm(l); eq(r.scope, null); eq(r.reason, 'tip'); eq(stats.delta(l).pct, null); }
+  /* Vrčin (Grocka) se poredi sa prigradskim opštinama, ne sa gradskim Beogradom */
+  const vr = D.listings.find((x) => x.ms === 'grocka' && x.t === 'prodaja' && x.pt === 'stan'); if (vr) assert(['nbhd', 'mun', 'sub', null].includes(stats.refPpm(vr).scope));
+});
+test('Δ: prosek po (t, pt, obim) bez sistemske pristrasnosti (nijedan obim izvan ±11 %)', () => {
+  const g = {};
+  for (const l of D.listings) { const d = stats.delta(l); if (d.pct == null) continue; const k = l.t + '|' + l.pt + '|' + d.scope; (g[k] = g[k] || []).push(d.pct); }
+  for (const k of Object.keys(g)) { const avg = g[k].reduce((a, b) => a + b, 0) / g[k].length; assert(Math.abs(avg) <= 11, k + ' ' + avg.toFixed(1)); }
+  assert(!Object.keys(g).some((k) => k.endsWith('|all')), 'bez obima all');
+});
+test('inScope prati obim reference', () => {
+  const l = D.listings.find((x) => stats.refPpm(x).scope === 'region');
+  const ref = stats.refPpm(l);
+  const pool = D.listings.filter((x) => !x.syn && x.ppm > 0 && stats.inScope(x, l, ref)).map((x) => x.ppm);
+  eq(pool.length, ref.n); const md = stats.median(pool); eq(md >= 100 ? Math.round(md) : Math.round(md * 100) / 100, ref.ppm);
 });
 test('refPpm = medijana grupe', () => {
   const l = D.listings.find((x) => x.cs === 'beograd' && x.t === 'prodaja' && x.pt === 'stan');
@@ -207,7 +226,14 @@ test('applyFilters: sortiranja', () => {
   for (let i = 1; i < rel.length; i++) assert(rk(rel[i - 1]) > rk(rel[i]) || (rk(rel[i - 1]) === rk(rel[i]) && rel[i - 1].dz <= rel[i].dz), 'rel');
   const chk = (sort, cmp) => { const r = applyFilters({ ...FILTER_DEFAULTS, sort }); for (let i = 1; i < r.length; i++) assert(cmp(r[i - 1], r[i]), sort); };
   chk('new', (a, b) => a.dz <= b.dz); chk('p-asc', (a, b) => a.p <= b.p); chk('p-desc', (a, b) => a.p >= b.p); chk('ppm-asc', (a, b) => a.ppm <= b.ppm); chk('ppm-desc', (a, b) => a.ppm >= b.ppm); chk('a-desc', (a, b) => (a.a || 0) >= (b.a || 0));
-  chk('delta', (a, b) => stats.delta(a).pct <= stats.delta(b).pct);
+  const dv = (l) => (stats.delta(l).pct == null ? Infinity : stats.delta(l).pct);   /* bez Δ (malo podataka) idu na kraj */
+  chk('delta', (a, b) => dv(a) <= dv(b));
+});
+test('promo filter, sortovi stranice, saveSearch {freq}', () => {
+  const pr = applyFilters({ ...FILTER_DEFAULTS, promo: true }); assert(pr.length > 0 && pr.every((l) => ['PREMIUM', 'TOP', 'ISTAKNUT'].includes(l.pr)), 'promo');
+  eq(paramsToFilters(new URLSearchParams('promo=1')).promo, true); deq(filtersToParams({ ...FILTER_DEFAULTS, promo: true }), { promo: true });
+  eq(paramsToFilters(new URLSearchParams('sort=near-p1')).sort, 'near-p1'); eq(paramsToFilters(new URLSearchParams('sort=total')).sort, 'total'); eq(paramsToFilters(new URLSearchParams('sort=xyz')).sort, 'rel');
+  const it = store.saveSearch('Test', { c: 'beograd' }, { freq: 'dnevno', n: 12 }); eq(it.freq, 'dnevno'); eq(it.n, 12); store.removeSearch(it.id);
 });
 test('applyFilters: brzina (660 × 200 poziva)', () => {
   const f = { ...FILTER_DEFAULTS, pt: ['stan'], c: 'beograd', pmin: 50000, q: 'stan', sort: 'delta' };

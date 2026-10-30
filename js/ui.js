@@ -21,22 +21,26 @@
   const sr = (text) => el('span', { class: 'sr' }, text);
   const toastSafe = (msg) => S(() => toast(msg));
 
+  /* kanonske adrese iz tabele ruta (app.js preusmerava i stare oblike #/oglas/<slug>, #/agencije/<slug>, #/prodaja/…) */
+  const PT_PLURAL = { stanovi: 'stan', kuce: 'kuca', 'poslovni-prostori': 'poslovni-prostor', zemljista: 'zemljiste', garaze: 'garaza', sobe: 'soba', vikendice: 'vikendica' };
+  const enc = (v) => encodeURIComponent(v);
   const href = {
-    listing: (l) => '#/oglas/' + (typeof l === 'string' ? l : l.s),
-    agency: (a) => '#/agencije/' + (typeof a === 'string' ? a : a.s),
+    listing: (l) => '#/oglas?s=' + enc(typeof l === 'string' ? l : l.s),
+    agency: (a) => '#/agencija?s=' + enc(typeof a === 'string' ? a : a.s),
     agencies: '#/agencije',
-    search: (t = 'prodaja', pt = 'stanovi', c = '') => '#/' + [t, pt, c].filter(Boolean).join('/'),
+    /* search('prodaja', 'stan' | 'stanovi', 'beograd') → '#/pretraga?t=prodaja&pt=stan&c=beograd' */
+    search: (t = 'prodaja', pt = 'stan', c = '') => '#/pretraga?' + ['t=' + enc(t), pt ? 'pt=' + enc(PT_PLURAL[pt] || pt) : '', c ? 'c=' + enc(c) : ''].filter(Boolean).join('&'),
     map: '#/mapa',
-    saved: '#/sacuvano',
+    saved: '#/sacuvani',
     compare: '#/uporedi',
-    calc: (l) => '#/kalkulator' + (l && l.p ? '?p=' + l.p : ''),
+    calc: (l) => '#/kalkulator' + (l && l.s ? '?s=' + enc(l.s) : l && l.p ? '?p=' + l.p : ''),
     post: '#/postavi',
-    profile: '#/profil',
+    profile: '#/moja-mesta',
     home: '#/',
   };
   const NAV = [
-    ['#/prodaja', 'Prodaja', '/prodaja'],
-    ['#/izdavanje', 'Izdavanje', '/izdavanje'],
+    ['#/pretraga?t=prodaja', 'Prodaja', '/prodaja'],
+    ['#/pretraga?t=izdavanje', 'Izdavanje', '/izdavanje'],
     ['#/novogradnja', 'Novogradnja', '/novogradnja'],
     ['#/mapa', 'Mapa', '/mapa'],
     ['#/agencije', 'Agencije', '/agencije'],
@@ -156,7 +160,8 @@
   function tip(node, text) {
     if (!node || !text) return node;
     /* čvor bez sopstvenog teksta (ili role=img) dobija aria-label; čvor sa vidljivim tekstom dobija opis (ime ostaje netaknuto) */
-    if (node.getAttribute('role') === 'img' || !node.textContent.trim()) node.setAttribute('aria-label', text);
+    /* postojeći aria-label (npr. „Objašnjenje” na dugmetu sa ikonom) ostaje ime; tekst saveta ide u opis */
+    if (node.getAttribute('role') === 'img' || (!node.textContent.trim() && !node.hasAttribute('aria-label'))) node.setAttribute('aria-label', text);
     else { const d = el('span', { class: 'sr', id: 'tip-' + (++tipSeq), 'aria-hidden': 'true' }, text); node.appendChild(d); node.setAttribute('aria-describedby', d.id); }
     node.addEventListener('mouseenter', () => { clearTimeout(tipTimer); tipTimer = setTimeout(() => showTip(node, text), 300); });
     node.addEventListener('mouseleave', hideTip);
@@ -222,7 +227,7 @@
   }
   function bottomNav(path) {
     const items = [
-      ['#/prodaja', 'Pretraga', 'search', ['/prodaja', '/izdavanje', '/novogradnja', '/pretraga']],
+      ['#/pretraga?t=prodaja', 'Pretraga', 'search', ['/prodaja', '/izdavanje', '/novogradnja', '/pretraga']],
       [href.map, 'Mapa', 'map', ['/mapa']],
       [href.post, 'Postavi', 'plus', ['/postavi']],
       [href.saved, 'Sačuvano', 'heart', ['/sacuvano']],
@@ -232,14 +237,24 @@
       items.map(([h, label, ic, bases]) => el('a', { href: h, 'aria-current': bases.some((b) => isActive(path, b)) ? 'page' : null },
         ic === 'plus' ? el('span', { class: 'post' }, icon('plus')) : icon(ic), el('span', {}, label))));
   }
+  /* brza pretraga (⌘K / Ctrl+K): otvara paletu ljuske (global.js) kad postoji, inače vodi na pretragu */
+  function quickSearchButton() {
+    const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+    return el('button', { class: 'iconbtn kv-search', type: 'button', 'aria-label': 'Brza pretraga', 'aria-keyshortcuts': mac ? 'Meta+K' : 'Control+K', title: 'Brza pretraga (' + (mac ? '⌘K' : 'Ctrl+K') + ')',
+      onclick: () => { const pal = S(() => window.KVG.palette, null); if (pal && pal.open) pal.open(); else location.hash = '#/pretraga?t=prodaja'; } },
+    icon('search'), el('span', { class: 'kv-search-l' }, 'Pretraga'), el('kbd', { class: 'kv-search-k' }, mac ? '⌘K' : 'Ctrl K'));
+  }
   function header(path = '/') {
+    /* stalni skip link u <body> (index.html) ima prednost; zaglavlje dodaje svoj samo kad ga nema (galerija komponenti) */
+    const permanentSkip = !!document.querySelector('body > .kv-skip');
     const hdr = el('header', { class: 'hdr' },
-      el('a', { class: 'skip', href: '#main', onclick: (e) => { e.preventDefault(); const m = document.getElementById('main') || document.querySelector('main'); if (m) { m.tabIndex = -1; m.focus(); m.scrollIntoView(); } } }, 'Preskoči na sadržaj'),
+      permanentSkip ? null : el('a', { class: 'skip', href: '#main', onclick: (e) => { e.preventDefault(); const m = document.getElementById('main') || document.querySelector('main'); if (m) { m.tabIndex = -1; m.focus(); m.scrollIntoView(); } } }, 'Preskoči na sadržaj'),
       el('div', { class: 'wrap' },
         logo(),
         el('nav', { class: 'nav', 'aria-label': 'Glavna navigacija' },
           NAV.map(([h, label, base]) => el('a', { href: h, 'aria-current': isActive(path, base) ? 'page' : null }, label))),
         el('div', { class: 'hdr-r' },
+          quickSearchButton(),
           themeToggle(),
           savedButton(),
           el('a', { class: 'btn btn-ink btn-sm', href: href.post }, 'Postavi oglas'),
@@ -257,8 +272,8 @@
           el('div', { class: 'ftr-brand' },
             el('a', { class: 'wordmark', href: href.home }, el('span', { class: 'mark', 'aria-hidden': 'true' }), 'Kvadrat.rs'),
             el('p', { class: 'tagline' }, 'Nekretnine u Srbiji, kvadrat po kvadrat. Cena po m² i poređenje sa prosekom uz svaki oglas.')),
-          col('Nekretnine', [['#/prodaja', 'Prodaja stanova'], ['#/prodaja/kuce', 'Prodaja kuća'], ['#/izdavanje', 'Izdavanje stanova'], ['#/novogradnja', 'Novogradnja'], ['#/prodaja/poslovni-prostori', 'Poslovni prostori'], ['#/prodaja/zemljista', 'Zemljišta']]),
-          col('Gradovi', cities.map((c) => ['#/prodaja/stanovi/' + c.s, c.n])),
+          col('Nekretnine', [[href.search('prodaja', 'stan'), 'Prodaja stanova'], [href.search('prodaja', 'kuca'), 'Prodaja kuća'], [href.search('izdavanje', 'stan'), 'Izdavanje stanova'], ['#/novogradnja', 'Novogradnja'], [href.search('prodaja', 'poslovni-prostor'), 'Poslovni prostori'], [href.search('prodaja', 'zemljiste'), 'Zemljišta']]),
+          col('Gradovi', cities.map((c) => [href.search('prodaja', 'stan', c.s), c.n])),
           col('Kvadrat', [['#/trziste', 'Tržište'], ['#/kalkulator', 'Kalkulator kredita'], ['#/procena', 'Procena vrednosti'], ['#/agencije', 'Agencije'], ['#/saveti', 'Saveti'], ['#/postavi', 'Postavi oglas']]),
           col('Pomoć', [['#/pomoc', 'Česta pitanja'], ['#/kontakt', 'Kontakt'], ['#/uslovi', 'Uslovi korišćenja'], ['#/privatnost', 'Privatnost'], ['#/prijava', 'Prijavi oglas']])),
         el('div', { class: 'ftr-bot' },
@@ -276,8 +291,16 @@
     const [cls, text] = BADGES[kind] || ['', kind];
     return el('span', { class: 'badge' + (cls ? ' ' + cls : ''), 'data-kind': kind }, kind === 'verifikovan' ? icon('check') : null, label || text);
   }
-  /* snižena cena — deterministički mock (≈11 % oglasa), stara cena ≈ +4–8 % */
+  /* snižena cena — jedini izvor je KX.history (isto što prikazuju oglas, poređenje i filter „Snižena cena”);
+     bez engine-a (galerija komponenti) ostaje deterministički mock (≈11 % oglasa, stara cena ≈ +4–8 %) */
+  const hasKX = () => typeof KX !== 'undefined' && KX && typeof KX.history === 'function';
   function saleInfo(l) {
+    if (hasKX()) {
+      const h = S(() => KX.history(l), null);
+      const c = h && h.changes && h.changes.length ? h.changes[h.changes.length - 1] : null;
+      if (!c || !(c.from > c.to)) return null;
+      return { old: c.from, pct: Math.round((1 - c.to / c.from) * 1000) / 10, m: c.m, d: c.d || null };
+    }
     const h = hash(l.s + '#sale');
     if (h % 9 !== 0) return null;
     const pct = 1.04 + (h % 5) / 100;
@@ -289,7 +312,9 @@
     if (l.pr === 'TOP') k.push('top'); else if (l.pr === 'PREMIUM') k.push('premium');
     if (l.co === 'novogradnja' || l.co === 'u-izgradnji') k.push('novogradnja');
     if (saleInfo(l)) k.push('snizena');
-    if (l.reg) k.push('uknjizeno');
+    /* „Uknjiženo” samo kad je pravni status zaista uknjiženo (semafor poverenja), ne samo po polju reg */
+    const legal = hasKX() && l.t === 'prodaja' ? S(() => KX.trust(l).legal, null) : null;
+    if (legal ? legal === 'uknjizeno' : l.reg) k.push('uknjizeno');
     if (l.dz <= 1) k.push('novo');
     return k;
   }
@@ -304,7 +329,8 @@
     const txt = cls === 'flat' ? '±' + fmt.pct(Math.abs(pct)) : fmt.pct(pct, { sign: true });
     const ic = cls === 'up' ? 'arrow-up' : cls === 'down' ? 'arrow-down' : 'minus';
     const n = el('span', { class: 'delta ' + cls, tabindex: '0', role: 'img' }, icon(ic), txt);
-    const text = opts.title || (d.label ? `${fmt.pct(Math.abs(pct))} ${pct >= 0 ? 'iznad' : 'ispod'} proseka za ${d.label}${d.ppm ? ` (${fmt.ppm(d.ppm)})` : ''}` : (pct >= 0 ? 'Iznad proseka' : 'Ispod proseka'));
+    /* bez padeža: „12,3 % ispod proseka · Čukarica (2.555 €/m²)” */
+    const text = opts.title || (d.label ? `${fmt.pct(Math.abs(pct))} ${pct >= 0 ? 'iznad' : 'ispod'} proseka · ${d.label}${d.ppm ? ` (${fmt.ppm(d.ppm)})` : ''}` : (pct >= 0 ? 'Iznad proseka' : 'Ispod proseka'));
     tip(n, text);
     return n;
   }
@@ -314,10 +340,19 @@
     const node = S(() => img.el(l, idx, o), null);
     return node || el('div', { class: 'ph-fallback', style: 'width:100%;height:100%;background:var(--surface-2)' });
   }
-  function placeLine(l) { return [l.n, l.m && l.m !== l.c ? l.m : l.c].filter(Boolean).join(', '); }
-  function streetLine(l) {
-    const st = S(() => mock.street(l), l.ad || null);
-    const text = st ? `${st} · ${placeLine(l)}` : placeLine(l);
+  /* „Naselje, Opština” bez ponavljanja: kad je naselje = opština (Hadžet, Hadžet) ili = grad, ime se piše jednom */
+  const same = (a, b) => !!a && !!b && S(() => fmt.fold(a), String(a).toLowerCase()) === S(() => fmt.fold(b), String(b).toLowerCase());
+  function placeLine(l) {
+    const parts = [];
+    const add = (x) => { if (x && !parts.some((p) => same(p, x))) parts.push(x); };
+    add(l.n); add(l.m && !same(l.m, l.c) ? l.m : l.c);
+    return parts.join(', ');
+  }
+  /* streetLine(l, {exactOnly:true}) — bez izmišljene ulice: kad oglas nema adresu, samo „naselje, opština · približna lokacija” */
+  function streetLine(l, o = {}) {
+    const st = o.exactOnly ? (l.ad ? S(() => mock.street(l), l.ad) : null) : S(() => mock.street(l), l.ad || null);
+    const place = placeLine(l);
+    const text = st ? `${st} · ${place}` : o.exactOnly ? `${place} · približna lokacija` : place;
     return el('p', { class: 'street', title: text }, icon('pin'), el('span', {}, text));
   }
   function walkLine(l) {
@@ -353,7 +388,11 @@
   }
   function ctxEl(l) {
     if (!l.ppm || l.pt === 'zemljiste') return null;
-    return el('span', { class: 'ctx' }, el('span', { class: 'ppm' }, fmt.ppm(l.ppm)), deltaChip(l));
+    const chip = deltaChip(l);
+    const ppm = el('span', { class: 'ppm' }, fmt.ppm(l.ppm));
+    /* bez dovoljnog uzorka (n < 5) nema Δ čipa; €/m² stoji sam, uz prigušeno objašnjenje na prelazu */
+    if (!chip && S(() => stats.delta(l).reason === 'malo', false)) { ppm.classList.add('nodelta'); ppm.title = 'Malo podataka: manje od 5 sličnih oglasa u okolini, pa nema poređenja sa prosekom'; }
+    return el('span', { class: 'ctx' }, ppm, chip);
   }
   function favButton(l, extra = {}) {
     const on = () => S(() => store.isFav(l.s), false);
@@ -379,7 +418,16 @@
   function titleEl(l, tag = 'h3') { return el(tag, {}, el('a', { href: href.listing(l) }, l.ti)); }
 
   /* ───────── kartice (§5.3–5.5) ───────── */
-  function card(l, variant = 'grid') {
+  /* card(l, variant, {price, extras}) — price: čvor ili tekst umesto cene (npr. „ukupno sa troškovima”), extras: čvorovi na kraju tela kartice */
+  function card(l, variant = 'grid', opts) {
+    const node = cardBase(l, variant);
+    if (opts && typeof opts === 'object') {
+      if (opts.price != null) { const pr = node.querySelector('.pricerow .price'); if (pr) pr.replaceWith(opts.price instanceof Node ? opts.price : el('span', { class: 'price' }, String(opts.price))); }
+      if (opts.extras) { const body = node.querySelector('.body'); if (body) [].concat(opts.extras).filter(Boolean).forEach((x) => body.appendChild(x)); }
+    }
+    return node;
+  }
+  function cardBase(l, variant) {
     if (variant === 'list') return rowCard(l);
     if (variant === 'compact') return compactCard(l);
     const ph = el('a', { class: 'ph', href: href.listing(l), 'aria-label': l.ti, tabindex: '-1' }, photo(l, 0, { aspect: '4:3' }), el('div', { class: 'badges' }, badgesFor(l, 2)), countEl(l));
@@ -433,7 +481,7 @@
     if (!ref || !ref.ppm || (ref.n != null && ref.n < 5) || !l.ppm) return null;
     const left = clamp(50 + (l.ppm / ref.ppm - 1) * 100, 4, 96);
     const pct = (l.ppm / ref.ppm - 1) * 100;
-    const sentence = `${fmt.ppm(l.ppm)} je ${fmt.pct(Math.abs(pct))} ${pct >= 0 ? 'iznad' : 'ispod'} proseka za ${ref.label} (${fmt.ppm(ref.ppm)}, n=${ref.n})`;
+    const sentence = `${fmt.ppm(l.ppm)} je ${fmt.pct(Math.abs(pct))} ${pct >= 0 ? 'iznad' : 'ispod'} proseka · ${ref.label} (${fmt.ppm(ref.ppm)}, n=${ref.n})`;
     return el('div', { class: 'merilo', role: 'img', 'aria-label': sentence },
       el('div', { class: 'track' }, el('span', { class: 'med' }), el('span', { class: 'dot', style: `left:${left.toFixed(1)}%` })),
       el('div', { class: 'lbl' },
@@ -498,7 +546,7 @@
     const h = S(() => mock.hood(l), null);
     if (!h) return null;
     const w = S(() => mock.walk(l), { min: 6 });
-    const r = rng(hash(l.s + '#hood'));
+    const r = rng(hash((l.ps || l.s) + '#hood'));
     const norm = (x, fb) => (x == null ? null : typeof x === 'object' ? { name: x.name || x.n || x.label, min: x.min || fb } : { name: String(x), min: fb });
     const rows = [];
     const push = (ic, label, min) => rows.push(el('li', {}, el('span', { class: 'l' }, icon(ic), el('span', {}, label)), el('span', { class: 'r' }, `${min} min hoda`)));
@@ -569,6 +617,10 @@
     const btns = items.map((it) => el('button', { type: 'button', role: 'tab', id: 'tab-' + it.id, 'aria-controls': 'panel-' + it.id, 'aria-selected': it.id === cur ? 'true' : 'false', tabindex: it.id === cur ? '0' : '-1', onclick: () => root.select(it.id) }, it.label));
     const panels = items.map((it) => el('div', { class: 'tabs-p', role: 'tabpanel', id: 'panel-' + it.id, 'aria-labelledby': 'tab-' + it.id, hidden: it.id !== cur }, it.panel));
     const strip = el('div', { class: 'tabs-ul', role: 'tablist' }, btns);
+    /* maska-fade samo na stranama gde ima još tabova (is-start / is-end) */
+    const edges = () => { const max = strip.scrollWidth - strip.clientWidth; strip.classList.toggle('is-start', strip.scrollLeft <= 2); strip.classList.toggle('is-end', max <= 2 || strip.scrollLeft >= max - 2); };
+    strip.addEventListener('scroll', edges, { passive: true });
+    requestAnimationFrame(edges);
     strip.addEventListener('keydown', (e) => {
       const i = items.findIndex((x) => x.id === cur);
       if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); const j = (i + (e.key === 'ArrowRight' ? 1 : items.length - 1)) % items.length; root.select(items[j].id); btns[j].focus(); }
@@ -606,6 +658,9 @@
         el('div', { class: 'panel' }, hd, el('div', { class: 'bd' }, body), ft));
     }
     const onKey = (e) => {
+      if (e.defaultPrevented) return;   /* npr. paleta iznad ovog lista je već obradila Esc */
+      const open = [...document.querySelectorAll('.modal.in, .sheet.in')];
+      if (open.length && open[open.length - 1] !== root) return;   /* reaguje samo najgornji dijalog */
       if (e.key === 'Escape') { e.preventDefault(); api.close(); return; }
       if (e.key !== 'Tab') return;
       const f = [...root.querySelectorAll(FOCUSABLE)].filter((n) => n.offsetParent !== null || n === document.activeElement);
@@ -781,7 +836,20 @@
     const root = el('div', { class: 'lightbox', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Galerija fotografija' },
       el('div', { class: 'top' }, counter, el('button', { class: 'iconbtn', type: 'button', 'aria-label': 'Zatvori', onclick: () => close() }, icon('x'))),
       stage, thumbs);
-    const onKey = (e) => { if (e.key === 'Escape') close(); if (e.key === 'ArrowRight') go(1); if (e.key === 'ArrowLeft') go(-1); };
+    const onKey = (e) => {
+      if (e.defaultPrevented) return;
+      if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+      if (e.key === 'ArrowRight') go(1); if (e.key === 'ArrowLeft') go(-1);
+      /* fokus ostaje u galeriji (Tab / Shift+Tab kruže) */
+      if (e.key === 'Tab') {
+        const f = [...root.querySelectorAll(FOCUSABLE)].filter((n) => n.offsetParent !== null);
+        if (!f.length) return;
+        const first = f[0], last = f[f.length - 1];
+        if (!root.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+        else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    };
     let x0 = null;
     stage.addEventListener('pointerdown', (e) => { x0 = e.clientX; });
     stage.addEventListener('pointerup', (e) => { if (x0 != null && Math.abs(e.clientX - x0) > 40) go(e.clientX < x0 ? 1 : -1); x0 = null; });
@@ -818,13 +886,17 @@
   function contactCard(l) {
     const a = agencyOf(l);
     const phoneNum = a ? a.ph : mockPhone(l);
-    const agent = AGENT_NAMES[hash(l.s + '#ag') % AGENT_NAMES.length];
+    const team = S(() => (typeof window.agencyAgentFor === 'function' ? window.agencyAgentFor(l) : null), null);   /* isti agent kao na profilu agencije */
+    const agent = (team && (team.n || team.name)) || AGENT_NAMES[hash(l.s + '#ag') % AGENT_NAMES.length];
     const hrs = 1 + (hash(l.s + '#h') % 4);
     let revealed = false;
     const phoneBtn = el('button', { class: 'btn btn-primary btn-lg', type: 'button' });
     const paintPhone = () => { phoneBtn.innerHTML = ''; phoneBtn.append(icon('phone'), el('span', { class: 'mask' }, revealed ? phoneNum : maskPhone(phoneNum)), revealed ? null : el('span', { class: 'rev' }, 'prikaži broj')); phoneBtn.setAttribute('aria-label', revealed ? `Pozovi ${phoneNum}` : 'Prikaži broj telefona'); };
     paintPhone();
-    phoneBtn.addEventListener('click', () => { if (!revealed) { revealed = true; paintPhone(); toastSafe('Broj je prikazan — pomenite Kvadrat.rs'); } else { window.location.href = 'tel:' + phoneNum.replace(/\s+/g, ''); } });
+    phoneBtn.addEventListener('click', async () => {
+      if (!revealed) { revealed = true; paintPhone(); toastSafe('Broj je prikazan — pomenite Kvadrat.rs'); return; }
+      try { await navigator.clipboard.writeText(phoneNum); toastSafe('Broj je kopiran'); } catch (e) { toastSafe('Broj: ' + phoneNum); }
+    });
     const msg = () => {
       const ta = el('textarea', { class: 'input', rows: '4', placeholder: 'Poruka oglašivaču…' }, `Poštovani, zanima me oglas ${l.r} (${l.ti}). Da li je još uvek aktuelan?`);
       const m = modal('Pošalji poruku', el('div', { class: 'stack' }, field('Vaše ime', el('input', { class: 'input', type: 'text', placeholder: 'Ime i prezime' })), field('E-pošta', el('input', { class: 'input', type: 'email', placeholder: 'vi@primer.rs' })), field('Poruka', ta)),
@@ -982,7 +1054,8 @@
   function toggle(checked, onChange, o = {}) {
     const b = el('button', { class: 'toggle', type: 'button', role: 'switch', 'aria-checked': checked ? 'true' : 'false', 'aria-label': o.label || null, onclick: () => { const now = b.getAttribute('aria-checked') !== 'true'; b.setAttribute('aria-checked', now ? 'true' : 'false'); if (onChange) onChange(now); } });
     if (!o.label) return b;
-    return el('div', { class: 'toggle-row' }, el('span', {}, o.label), b);
+    /* ceo red je meta klika (oznaka uključuje prekidač) */
+    return el('div', { class: 'toggle-row' }, el('span', { style: 'cursor:pointer', onclick: () => b.click() }, o.label), b);
   }
   function range(o = {}) {
     const min = o.min ?? 0, max = o.max ?? 100, step = o.step || 1;

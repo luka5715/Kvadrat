@@ -69,14 +69,17 @@ Sve vraćaju `''` za `null`/`undefined`. Elementi koji prikazuju brojeve treba d
 ## `stats` — statistika (keširano, računa se lenjo pri prvom pozivu)
 
 ```js
-stats.refPpm(l)   // → { ppm, label, n, scope: 'nbhd'|'mun'|'city'|'all' }
+stats.refPpm(l)   // → { ppm, label, n, scope: 'nbhd'|'mun'|'sub'|'city'|'region', key }  |  { ppm:null, n:0, scope:null, reason:'malo'|'tip' }
 ```
-Medijana €/m² oglasa **istog `t` i `pt`** u istom naselju ako ih ima ≥ 5, inače opština (≥ 5), inače grad (≥ 5), inače svi (`label: 'Srbija'`).
-`label` je ime naselja / opštine / grada. Uvek vraća objekat; ako je i `all` ispod 5 (`n < 5`), **ne prikazuj Δ čip** (spec §5.7). `stats.MIN_N === 5`. Napomena: u trenutnom data.js nijedno naselje nema ≥ 5 oglasa istog t+pt (najviše 4), pa se `scope:'nbhd'` u praksi ne javlja — UI mora da radi sa bilo kojim opsegom i da prikazuje `label`.
+Medijana €/m² oglasa **istog `t` i `pt`**, prvi obim sa dovoljno oglasa: naselje (≥ 5) → opština (≥ 5) → **prigradske opštine Beograda** (`sub`, ≥ 5: Surčin, Grocka, Obrenovac, Lazarevac, Mladenovac, Sopot, Barajevo — porede se međusobno, nikad sa gradskim jezgrom) → grad (≥ 5; Beograd bez prigradskih) → **manji gradovi istog regiona** (`region`, ≥ 6; po `city.reg`, samo gradovi bez sopstvenog uzorka; Zlatibor, Kopaonik i Vrnjačka Banja čine zaseban skup „turistička mesta”) → **null**. Nikad cela Srbija (Beograd bi dominirao: Leskovac je ranije pokazivao −46 %). Plac i soba nemaju Δ (`reason:'tip'`). Sintetički ponovljeni oglasi (`l.syn`) ne ulaze u medijane.
+`label` je ime naselja / opštine / grada, `'prigradske opštine Beograda'` ili `'manji gradovi — <region>'`. Uvek vraća objekat; kad je `scope === null` (`reason:'malo'`) **nema Δ čipa** — €/m² stoji sam, uz tooltip „malo podataka” (`ui` to radi u `.ctx`). `stats.MIN_N === 5`. Napomena: u trenutnom data.js nijedno naselje nema ≥ 5 oglasa istog t+pt (najviše 4), pa se `scope:'nbhd'` u praksi ne javlja — UI mora da radi sa bilo kojim opsegom i da prikazuje `label`.
 U ovom skupu podataka nijedno naselje nema ≥ 5 oglasa istog t+pt, pa je opseg u praksi `mun`/`city`/`all`.
 
 ```js
-stats.delta(l)    // → { pct, ppm, label, n, scope }   pct = (l.ppm / ref.ppm − 1) × 100, jedna decimala; null ako nema podataka
+stats.delta(l)    // → { pct, ppm, label, n, scope, reason }   pct = (l.ppm / ref.ppm − 1) × 100, jedna decimala; pct:null (scope:null) bez uzorka
+stats.inScope(x, l, ref) // da li oglas x pripada obimu reference ref izračunate za l (grafici „oblast Merila”)
+stats.reset()     // briše keš medijana i Δ (posle dodavanja oglasa u D.listings — KX.enrich to radi)
+stats.isSuburban(l) // Beograd + prigradska opština
 stats.deltaPct(l) // → number | null   (brzo, za sortiranje)
 ```
 `ppm` ovde je **referentna** medijana (za tooltip „9,7 % iznad proseka za Vračar (5.519 €/m²)“). Klasa čipa: `|pct| ≤ 1,5` → `flat`, `> 0` → `up`, `< 0` → `down` (radi `ui.deltaChip`).
@@ -204,3 +207,12 @@ Renderuje u `#toasts` (kreira ga u `body` ako ne postoji), `role="status"`, auto
 
 ## Testovi
 `node dev/core.test.js` — 42 testa (formatiranje, opsezi Δ, histogram, round-trip filtera, sortiranja, brzina, ruter, kredit/troškovi, determinizam mock-a, store sa/bez localStorage, `el`, toast, legacy).
+
+## Izmene integracije (2026-10-29)
+- `stats`: novi obimi `sub` i `region`, `null` umesto `all` (vidi gore); `inScope`, `reset`, `isSuburban`, `SUBURBAN`.
+- `find.reset()` — mape po slugu se grade iznova (posle dodavanja ponovljenih oglasa u `KX.enrich`).
+- `mock.street / walk / hood` koriste `l.ps || l.s` (ponovljeni oglas istog stana deli ulicu, hod i komšiluk).
+- Filter `promo` (bool, URL `promo=1`): samo izdvojeni oglasi (PREMIUM/TOP/ISTAKNUT).
+- `paramsToFilters` zadržava sortove stranice rezultata (`total`, `monthly`, `rata`, `pair`, `near-<id>`); `applyFilters` za njih koristi `rel`.
+- `store.saveSearch(name, params, {freq, n})` — učestalost obaveštenja i broj rezultata pri čuvanju.
+- `toast(msg, {action:{label, onClick}})` bez `href`: klik zove `onClick`, poziva `preventDefault()` (adresa se ne menja) i zatvara obaveštenje.

@@ -144,3 +144,10 @@ Stranica koristi `../../css`, `../../js`, `../../data.js`, pa se servira iz **ko
 ```
 node <scratchpad>/shot.js /home/user/Kvadrat <outDir> --page dev/map/index.html '#/' '#/mapa?c=novi-sad&m=budzet' '#/mapa?c=beograd&m=budzet' '#/mapa?c=nis&t=izdavanje' '#/komponenta'
 ```
+
+## Integration changes (2026-10-29)
+- Same flat, several advertisers (`KX.dupes`): one pin per group (the master, cheapest offer) with a `×N` mark (`.mv-x`, aria „isti stan nudi N oglašivača”); other offers are hidden when the master is on the map.
+- `interactive:false`: pins and clusters get `tabindex=-1` and `aria-hidden` (display-only map is not a tab stop).
+- Places rings use `KX.travelRadiusKm(mode, min)` so they match the minutes table (fallback to the old speeds without KX).
+- `.mv-scale` is 12px; every `.mv-pin` has an invisible ≥ 40px hit area.
+- Below zoom 13 the map still shows clusters/dots only — that is SPEC §5.22 („on zoom < 13 show €/m²-free clusters only”).

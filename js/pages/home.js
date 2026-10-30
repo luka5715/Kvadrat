@@ -56,7 +56,8 @@ const homeData = (() => {
   function buildProjects(L) {
     const g = new Map();
     for (const l of L) {
-      if (l.t !== 'prodaja' || !l.ags || !isNew(l)) continue;
+      /* isto grupisanje kao content.js (projekti samo od stana, kuće i lokala) — linkovi #/projekat?s= uvek vode na projekat */
+      if (l.t !== 'prodaja' || !l.ags || !isNew(l) || !(l.pt === 'stan' || l.pt === 'kuca' || l.pt === 'poslovni-prostor')) continue;
       const id = l.ags + '--' + l.ns;
       if (!g.has(id)) g.set(id, { id, units: [] });
       g.get(id).units.push(l);
@@ -692,7 +693,8 @@ function homeProjects() {
     const ph = el('div', { class: 'ph r16' }, img.el(p.cover, 0, { aspect: '16:10', alt: '' }), el('div', { class: 'badges' }, badge('novogradnja')));
     ph.append(photoCap({
       eyebrow: p.rok ? `U izgradnji · rok ${p.rok}` : 'Završeno · useljivo odmah',
-      title: `${p.n}, ${p.m && p.m !== p.n ? p.m : p.c}`,
+      /* naziv projekta isti kao na stranicama novogradnje (contentProjects iz content.js), inače mesto */
+      title: (() => { try { const cp = typeof window.contentProjects === 'function' ? window.contentProjects().find((x) => x.id === p.id) : null; if (cp && cp.name) return cp.name; } catch (e) { /* content.js nije učitan */ } return `${p.n}, ${p.m && p.m !== p.n ? p.m : p.c}`; })(),
       facts: `od ${fmt.price(p.from, 'prodaja')} · ${p.unitLabel}`,
       link: { href: HOME_ROUTES.project(p.id), label: 'Pogledaj projekat' },
     }));

@@ -134,10 +134,11 @@
 .row-c .srp-trav,.row-c .srp-affrow{margin-top:5px}
 .srp-sem{position:relative;display:inline-block;flex:none;width:10px;height:10px;border-radius:50%;cursor:help}
 .srp-sem::before{content:"";position:absolute;inset:-15px}
-.srp-sem-zeleno{background:var(--success)}
+.srp-sem-zeleno{background:var(--ink)}
 /* žuto bez žute boje (do-not #1): napola popunjen krug u boji mastila = „proveri” (oštar prelaz, ne gradijent površine) */
 .srp-sem-zuto{background:linear-gradient(90deg,var(--ink) 50%,transparent 50%);box-shadow:inset 0 0 0 1.5px var(--ink)}
-.srp-sem-crveno{background:var(--danger)}
+/* crveno: prazan krug sa obrubom (isti monohromni sistem kao Sačuvano/Uporedi) */
+.srp-sem-crveno{background:transparent;box-shadow:inset 0 0 0 1.5px var(--ink)}
 .table .ag{display:inline-flex;align-items:center;gap:6px}
 .srp-dup{margin-top:10px}
 .srp-dup-b{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:6px 10px;border-radius:var(--r);background:var(--surface);font-size:13px;font-weight:500;color:var(--text);text-align:left}

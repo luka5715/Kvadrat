@@ -224,7 +224,10 @@ const mapView = (() => {
     container.append(svgEl, labels, pinsL, overlay, popL, chrome);
 
     /* stanje */
-    let all = (o.listings || []).filter((l) => l && typeof l.lat === 'number' && typeof l.lng === 'number');
+    /* isti stan kod više oglašivača (KX.dupes): jedan pin (glavni, najjeftiniji oglas) sa oznakom ×N; ostali se skrivaju kad je glavni na mapi */
+    const dupOf = (l) => (typeof KX !== 'undefined' && KX && KX.dupes ? S(() => KX.dupes.groupOf(l.s), null) : null);
+    const collapseDupes = (list) => { const present = new Set(list.map((l) => l.s)); return list.filter((l) => { const g = dupOf(l); return !g || g.master === l.s || !present.has(g.master); }); };
+    let all = collapseDupes((o.listings || []).filter((l) => l && typeof l.lat === 'number' && typeof l.lng === 'number'));
     let visible = all;
     let polygon = null; /* [[x,y] svet] */
     let selected = o.selected || null, hovered = null;
@@ -352,9 +355,12 @@ const mapView = (() => {
         n.setState = (s) => { n.classList.toggle('on', s === 'selected'); n.classList.toggle('seen', s === 'visited'); n.classList.toggle('hov', s === 'hover'); n.setAttribute('aria-pressed', s === 'selected' ? 'true' : 'false'); };
         if (isNew(l)) n.classList.add('new');
       }
-      n.querySelector('.p').textContent = shortPrice(l);
-      n.setAttribute('aria-label', `${l.ti || ''}, ${fullPrice(l)}`);
+      const g = dupOf(l), nOff = g ? g.offers.length : 0;
+      const pEl = n.querySelector('.p'); pEl.textContent = shortPrice(l);
+      if (nOff > 1) { pEl.appendChild(el('span', { class: 'mv-x', 'aria-hidden': 'true' }, '×' + nOff)); n.classList.add('mv-dup'); }
+      n.setAttribute('aria-label', `${l.ti || ''}, ${fullPrice(l)}` + (nOff > 1 ? `, isti stan nudi ${nOff} oglašivača` : ''));
       n.dataset.slug = l.s; n.classList.add('mv-pin');
+      if (!o.interactive) { n.tabIndex = -1; n.setAttribute('aria-hidden', 'true'); }   /* mapa samo za prikaz: pinovi nisu tab-stanice */
       return n;
     }
     function makeCluster(c) {
@@ -363,6 +369,7 @@ const mapView = (() => {
       if (!node) node = el('button', { class: 'pin cl' + (n >= 50 ? ' lg' : ''), type: 'button', 'aria-label': `${n} oglasa, približi` }, el('span', { class: 'p' }, String(n)), el('span', { class: 's' }));
       node.dataset.cluster = c.id; node.classList.add('mv-pin');
       node.title = `${oglasa(n)} — klikni da približiš`;
+      if (!o.interactive) { node.tabIndex = -1; node.setAttribute('aria-hidden', 'true'); }
       return node;
     }
     let visibleBoxes = []; /* za sudare natpisa */
@@ -520,7 +527,9 @@ const mapView = (() => {
         if (typeof p.lat !== 'number') return;
         const [x, y] = proj.toW(p.lat, p.lng); const who = p.who === 'partner' ? 'b' : 'a'; const sp = (SPEED[p.mode] || 25) * (p.mode === 'auto' && city.s !== 'beograd' ? 1.12 : 1);
         [30, 20, 10].forEach((min, j) => {
-          const km = (min * sp) / 60 / 1.3; const r = km * 1000 * proj.u;
+          /* poluprečnik iz istog modela kao KX.travel (brzina + fiksno vreme, vazdušna linija × 1,3), da se krugovi slažu sa tabelom minuta */
+          const kxKm = typeof KX !== 'undefined' && KX.travelRadiusKm ? KX.travelRadiusKm(p.mode === 'prevoz' ? 'gradski' : p.mode === 'peske' ? 'pesice' : p.mode, min) : null;
+          const km = kxKm != null ? kxKm : (min * sp) / 60 / 1.3; const r = km * 1000 * proj.u;
           gPlaces.appendChild(svg('circle', { cx: x.toFixed(1), cy: y.toFixed(1), r: r.toFixed(1), class: `mv-ring mv-${who} r${j}`, style: `stroke-width:${(1 / kk).toFixed(3)}` }));
           if (view.z >= 12.5 && j !== 1) { const lab = el('span', { class: `mv-plabel mv-${who}` }, `${min} min`); lab.style.left = (x * kk).toFixed(1) + 'px'; lab.style.top = ((y - r) * kk + 10).toFixed(1) + 'px'; labels.appendChild(lab); }
         });
@@ -797,7 +806,7 @@ const mapView = (() => {
     const api = {
       el: container,
       setListings(list) {
-        all = (list || []).filter((l) => l && typeof l.lat === 'number'); labelData = null; clusterCache = null;
+        all = collapseDupes((list || []).filter((l) => l && typeof l.lat === 'number')); labelData = null; clusterCache = null;
         const nc = cityOf(); if (nc.s !== city.s) { city = nc; proj = makeProj(city.lat, city.lng); gCities.innerHTML = ''; }
         polygon = null; visible = all; zoneChip.hidden = true; drawBtn.hidden = false; needPins = true; schedule();
       },

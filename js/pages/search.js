@@ -671,7 +671,7 @@
     return el('div', { class: 'srp-dup' },
       el('button', { type: 'button', class: 'srp-dup-b', 'data-act': 'dup', 'aria-expanded': 'false' }, icon('blocks', 16), el('span', {}, label), icon('chev-d', 16)),
       el('ul', { class: 'srp-dup-l', hidden: true }, g.offers.map((o) => el('li', {},
-        el('a', { href: safe(() => UI_HREF.listing(o.s), '#/oglas/' + o.s) }, el('span', { class: 'ag' }, o.ag || 'Vlasnik'), el('b', { class: 'num' }, eur(o.p, l.t)), el('span', { class: 'meta' }, safe(() => fmt.rel(o.dz), '')))))),
+        el('a', { href: safe(() => UI_HREF.listing(o.s), '#/oglas?s=' + o.s) }, el('span', { class: 'ag' }, o.ag || 'Vlasnik'), el('b', { class: 'num' }, eur(o.p, l.t)), el('span', { class: 'meta' }, safe(() => fmt.rel(o.dz), '')))))),
       el('span', { class: 'sr' }, `${n} oglasa za isti stan`));
   }
   function decorate(node, l, s, variant) {
@@ -1336,4 +1336,9 @@
   window.viewResults = viewResults;
   window.resultsParamsFromPath = resultsParamsFromPath;
   window.__srp = { run: (q) => run(readState(normQ(q))), readState: (q) => readState(normQ(q)), toParams, map: () => curMap };
+  /* stabilan API za druge stranice (Sačuvano): ista lista rezultata kao stranica pretrage za dati upit (URLSearchParams | string | objekat) */
+  window.searchCount = (q) => {
+    if (q && typeof q === 'object' && !(q instanceof URLSearchParams)) { const p = new URLSearchParams(); Object.keys(q).forEach((k) => { const v = q[k]; if (v != null && v !== '' && v !== false) p.set(k, Array.isArray(v) ? v.join(',') : v === true ? '1' : String(v)); }); q = p; }
+    return run(readState(normQ(q)));
+  };
 })();

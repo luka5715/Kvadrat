@@ -96,13 +96,15 @@
       return build('/pretraga', o);
     }
     let m;
-    if ((m = path.match(/^\/oglas\/(.+)$/))) return build('/oglas', { ...qObj(q), s: decodeURIComponent(m[1]) });
-    if ((m = path.match(/^\/agencije\/(.+)$/))) return build('/agencija', { ...qObj(q), s: decodeURIComponent(m[1]) });
+    if ((m = path.match(/^\/oglasi?\/(.+)$/))) return build('/oglas', { ...qObj(q), s: decodeURIComponent(m[1]) });
+    if ((m = path.match(/^\/agencij[ae]\/(.+)$/))) return build('/agencija', { ...qObj(q), s: decodeURIComponent(m[1]) });
     if ((m = path.match(/^\/(savet|saveti)\/(.+)$/))) return build('/savet', { ...qObj(q), s: decodeURIComponent(m[2]) });
     if ((m = path.match(/^\/(projekat|novogradnja)\/(.+)$/))) return build('/projekat', { ...qObj(q), s: decodeURIComponent(m[2]) });
     if (path === '/sacuvano' || path === '/omiljeni') return build('/sacuvani', qObj(q));
     if (path === '/profil') return build('/moja-mesta', qObj(q));
     if (path === '/budzet') return build('/mapa', { ...qObj(q), m: 'budzet' });
+    /* stari ključ mode=budzet (paleta, stari linkovi) → m=budzet */
+    if (path === '/mapa' && q.get('mode') === 'budzet' && !q.get('m')) { const o = qObj(q); delete o.mode; return build('/mapa', { ...o, m: 'budzet' }); }
     if (path.length > 1 && path.endsWith('/')) return build(path.replace(/\/+$/, ''), qObj(q));
     return null;
   }
@@ -232,6 +234,7 @@
   /* ───────────────────────── pokretanje ───────────────────────── */
   function boot() {
     S(() => { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; });
+    /* KX.enrich() jednom pre prvog crtanja: indeksi, duplikati, ponovljeni oglasi (demo) — engine.js ih je dodao pri učitavanju */
     S(() => KX.enrich());
     if (!location.hash || location.hash === '#') S(() => history.replaceState(null, '', '#/'));
     /* stalni skip link (u <body>): ne menja hash, samo fokusira sadržaj */

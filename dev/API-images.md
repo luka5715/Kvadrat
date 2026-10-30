@@ -154,3 +154,6 @@ Prima objekat iz `D.agencies` ili slug. ≈ 0,6 KB. Za `.contact .ava` i `.agenc
   veličine; `dev/images.html` samo preusmerava na nju. Na toj strani su slike namerno `loading=eager` (full-page
   snimak ne skroluje, pa bi lazy slike ostale prazne) i u tamnoj temi imaju `filter:brightness(.9)` kao na sajtu.
 - `img.el` daje `loading="lazy"`: slike ispod prevoja u full-page screenshotu ostaju prazne — to nije greška generatora.
+
+## Integration changes (2026-10-29)
+- Photos are seeded by `l.ps || l.s`: a re-posted listing of the same flat (engine `l.ps`) shows the same photos.

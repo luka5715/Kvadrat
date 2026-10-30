@@ -827,7 +827,7 @@
         lede: 'Dodaj posao, fakultet i roditelje — za sebe i za partnera. Svaki oglas onda kaže koliko minuta ti treba, a poređenje pokaže gde oboje stižete na vreme.' }),
       el('div', { class: 'mm-top' },
         el('div', { class: 'mm-left' }, listBox, formBox),
-        el('div', { class: 'mm-right' }, mapBox, el('p', { class: 'meta mm-maphint' }, ic('locate', 14), 'Klikni na mapu da postaviš tačku. Krugovi su okviran domet (10, 20, 30 min); tačnija procena minuta je u tabeli ispod.'), howTo)),
+        el('div', { class: 'mm-right' }, mapBox, el('p', { class: 'meta mm-maphint' }, ic('locate', 14), 'Klikni na mapu da postaviš tačku. Krugovi pokazuju 10, 20 i 30 minuta — isti proračun kao tabela ispod.'), howTo)),
       prevBox);
     buildMap();
     bind(root, (fn) => X() && X().profile.on(fn), (p, patch) => { if (!patch || 'places' in patch) { paintAll(); paintForm(); refreshMap(); } });
@@ -925,8 +925,25 @@
     return { items, score, word };
   }
 
-  function viewPost() {
+  /* predpopunjavanje iz adrese (npr. „Postavi oglas sa ovom cenom” sa #/procena): t, pt, p, a, ro, c, m, n, fl, tf, y, co, he */
+  function postPrefill(q) {
+    const g = (k) => S(() => (q instanceof URLSearchParams ? q.get(k) : null), null);
+    const out = {}; let any = false;
+    const set = (k, v) => { if (v != null && v !== '') { out[k] = v; any = true; } };
+    const t = g('t'); if (t === 'prodaja' || t === 'izdavanje') set('t', t);
+    const pt = g('pt'); if (pt && S(() => TYPES.some((x) => x.v === pt), true)) set('pt', pt);
+    ['p', 'a', 'fl', 'tf', 'y'].forEach((k) => { const v = g(k); if (v != null && v !== '' && isFinite(+v)) set(k, String(+v)); });
+    const ro = g('ro'); if (ro != null && ro !== '' && isFinite(+ro)) set('ro', +ro);
+    const c = g('c'); if (c && S(() => find.city(c), null)) set('cs', c);
+    const m = g('m'); if (m && S(() => find.mun(m), null)) set('ms', m);
+    const n = g('n'); if (n) { const hit = S(() => D.listings.find((l) => l.ns === n), null); set('n', hit ? hit.n : n); }
+    ['co', 'he'].forEach((k) => set(k, g(k)));
+    return any ? out : null;
+  }
+  function viewPost(q) {
     let d = { ...DRAFT0, ...(lsGet(DRAFT_KEY, null) || {}) };
+    const pre = postPrefill(q);
+    if (pre) { d = { ...d, ...pre, published: null }; S(() => history.replaceState(history.state, '', '#/postavi')); }
     d.photos = Array.isArray(d.photos) ? d.photos.filter((x) => Number.isInteger(x)) : [];
     d.am = Array.isArray(d.am) ? d.am : [];
     if (!payersOf(d.t).some((x) => x.v === d.feePayer)) d.feePayer = payersOf(d.t)[0].v;
@@ -937,6 +954,7 @@
     const autosave = debounce(saveNow, 350);
     const savedLine = el('p', { class: 'pw-saved meta', 'aria-live': 'polite' });
     const paintSaved = (ok = true) => { fill(savedLine, ok ? ic('check', 14) : ic('alert', 14), ok ? (savedAt ? 'Nacrt sačuvan na ovom uređaju' : (restored ? 'Nastavljaš sačuvani nacrt' : 'Nacrt se čuva automatski')) : 'Pregledač ne dozvoljava čuvanje — nacrt će nestati po zatvaranju'); };
+    if (pre) saveNow();   /* predpopunjen nacrt se odmah čuva (adresa je već vraćena na #/postavi) */
 
     let cur = Math.min(STEPS.length - 1, Math.max(0, d.step | 0));
     const stepBox = el('div', { class: 'pw-step' });

@@ -93,6 +93,8 @@ const find = (() => {
     agency: (s) => build().agency.get(s) || null,
     article: (s) => build().article.get(s) || null,
     munsOf: (cs) => D.muns.filter((m) => m.cs === cs),
+    /* posle dodavanja oglasa u D.listings (KX.enrich) mape se grade iznova */
+    reset: () => { maps = null; },
   };
 })();
 
@@ -176,23 +178,42 @@ const percentile = (sorted, p) => { if (!sorted.length) return null; const i = (
 const niceStep = (raw) => { if (!(raw > 0)) return 1; const p = Math.pow(10, Math.floor(Math.log10(raw))); const f = raw / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p; };
 
 const stats = (() => {
-  const groups = new Map();   /* "t|pt" → { nbhd: Map(ns→{ppm[], med}), mun, city, all } */
-  const deltaCache = new Map();
+  /* "t|pt" → { nbhd: Map(ns→ppm[]), mun, sub: ppm[], city (Beograd bez prigradskih), region: Map(reg→ppm[] manjih gradova) }
+     Sintetički ponovljeni oglasi (l.syn — isti stan kod druge agencije, vidi KX.enrich) ne ulaze u medijane: jedan stan = jedan glas. */
+  let groups = new Map();
+  let deltaCache = new Map();
   const MIN_N = 5;
+  const REGION_MIN = 6;   /* uzorak iz više manjih gradova: jedan oglas više nego za jedan grad */
+  /* prigradske opštine Beograda: porede se međusobno, nikad sa gradskim jezgrom */
+  const SUBURBAN = new Set(['surcin', 'grocka', 'obrenovac', 'lazarevac', 'mladenovac', 'sopot', 'barajevo']);
+  const isSub = (l) => l.cs === 'beograd' && SUBURBAN.has(l.ms);
+  /* Δ se ne računa za plac (cena po aru, €/m² se ne prikazuje) i sobu (cena po m² sobe zavisi od veličine sobe, ne od kraja) */
+  const NO_DELTA = new Set(['zemljiste', 'soba']);
+  const SUB_LABEL = 'prigradske opštine Beograda';
+  /* planinski i banjski centri imaju svoje cene (vikend-tržište): porede se međusobno, ne sa gradovima regiona */
+  const RESORTS = new Set(['zlatibor', 'kopaonik', 'vrnjacka-banja']);
+  const RESORT_REG = 'turistička mesta';
+  const regLabel = (reg) => (reg === RESORT_REG ? 'turistička mesta (Zlatibor, Kopaonik, Vrnjačka Banja)' : 'manji gradovi — ' + reg);
+  const cityReg = (cs) => { if (RESORTS.has(cs)) return RESORT_REG; const c = find.city(cs); return c && c.reg && c.reg !== 'Beograd' ? c.reg : null; };
   function group(t, pt) {
     const key = t + '|' + pt;
     if (groups.has(key)) return groups.get(key);
-    const g = { nbhd: new Map(), mun: new Map(), city: new Map(), all: [] };
+    const g = { nbhd: new Map(), mun: new Map(), sub: [], city: new Map(), region: new Map(), all: [] };
     const push = (m, k, v) => { if (!k) return; let a = m.get(k); if (!a) { a = []; m.set(k, a); } a.push(v); };
+    const own = [];
     for (const l of D.listings) {
-      if (l.t !== t || l.pt !== pt || l.ppm == null || !(l.ppm > 0)) continue;
-      push(g.nbhd, l.ns, l.ppm); push(g.mun, l.ms, l.ppm); push(g.city, l.cs, l.ppm); g.all.push(l.ppm);
+      if (l.t !== t || l.pt !== pt || l.syn || l.ppm == null || !(l.ppm > 0)) continue;
+      own.push(l);
+      push(g.nbhd, l.ns, l.ppm); push(g.mun, l.ms, l.ppm); g.all.push(l.ppm);
+      if (isSub(l)) g.sub.push(l.ppm); else push(g.city, l.cs, l.ppm);
     }
+    /* region: samo gradovi koji nemaju sopstveni uzorak (n<5), da mali grad ne bi bio poređen sa Novim Sadom ili Nišem */
+    for (const l of own) { if (isSub(l)) continue; const reg = cityReg(l.cs); if (reg && (g.city.get(l.cs) || []).length < MIN_N) push(g.region, reg, l.ppm); }
     const medCache = new Map();
     g.med = (scope, k) => {
       const ck = scope + ':' + k;
       if (medCache.has(ck)) return medCache.get(ck);
-      const arr = scope === 'all' ? g.all : (g[scope].get(k) || []);
+      const arr = scope === 'all' ? g.all : scope === 'sub' ? g.sub : (g[scope] && g[scope].get(k)) || [];
       const md = arr.length ? median(arr) : null;
       const r = { ppm: md == null ? null : md >= 100 ? Math.round(md) : Math.round(md * 100) / 100, n: arr.length };
       medCache.set(ck, r); return r;
@@ -200,28 +221,49 @@ const stats = (() => {
     groups.set(key, g);
     return g;
   }
-  /* referentna medijana €/m² za isti t+pt: naselje (n≥5) → opština → grad → svi */
+  /* referentna medijana €/m² za isti t+pt, prvi obim sa n ≥ 5:
+     naselje → opština → (prigradske opštine Beograda) → grad (Beograd bez prigradskih) → manji gradovi istog regiona → null.
+     Nikad cela Srbija (Beograd bi dominirao). Bez obima: {ppm:null, n:0, scope:null, reason:'malo'|'tip'} */
   function refPpm(l) {
     if (!l) return null;
+    if (NO_DELTA.has(l.pt)) return { ppm: null, label: '', n: 0, scope: null, reason: 'tip' };
     const g = group(l.t, l.pt);
-    const tries = [['nbhd', l.ns, l.n], ['mun', l.ms, l.m], ['city', l.cs, l.c], ['all', '', 'Srbija']];
-    let last = null;
+    const sub = isSub(l);
+    const reg = sub ? null : cityReg(l.cs);
+    const tries = [['nbhd', l.ns, l.n], ['mun', l.ms, l.m]];
+    if (sub) tries.push(['sub', '', SUB_LABEL]);
+    else { tries.push(['city', l.cs, l.c]); if (reg) tries.push(['region', reg, regLabel(reg)]); }
     for (const [scope, k, label] of tries) {
+      if (!k && scope !== 'sub') continue;
       const r = g.med(scope, k);
-      last = { ppm: r.ppm, label, n: r.n, scope };
-      if (r.n >= MIN_N) return last;
+      if (r.n >= (scope === 'region' ? REGION_MIN : MIN_N) && r.ppm > 0) return { ppm: r.ppm, label, n: r.n, scope, key: k };
     }
-    return last;   /* scope 'all' i kad je n<5 — pozivalac proverava n */
+    return { ppm: null, label: '', n: 0, scope: null, reason: 'malo' };
+  }
+  /* da li oglas x pripada obimu reference ref (izračunate za oglas l) — za grafike „oblast Merila” na stranicama */
+  function inScope(x, l, ref) {
+    if (!ref || !ref.scope || !x || !l) return false;
+    if (x.t !== l.t || x.pt !== l.pt) return false;
+    switch (ref.scope) {
+      case 'nbhd': return x.ns === l.ns && x.cs === l.cs;
+      case 'mun': return x.ms === l.ms;
+      case 'sub': return isSub(x);
+      case 'city': return x.cs === l.cs && !isSub(x);
+      case 'region': return !isSub(x) && cityReg(x.cs) === ref.key && (group(l.t, l.pt).city.get(x.cs) || []).length < MIN_N;
+      default: return false;
+    }
   }
   function delta(l) {
     if (!l) return null;
     if (deltaCache.has(l.s)) return deltaCache.get(l.s);
     const ref = refPpm(l);
     const ok = ref && ref.ppm > 0 && l.ppm != null && l.ppm > 0;
-    const d = { pct: ok ? Math.round((l.ppm / ref.ppm - 1) * 1000) / 10 : null, ppm: ref ? ref.ppm : null, label: ref ? ref.label : '', n: ref ? ref.n : 0, scope: ref ? ref.scope : 'all' };
+    const d = { pct: ok ? Math.round((l.ppm / ref.ppm - 1) * 1000) / 10 : null, ppm: ok ? ref.ppm : null, label: ok ? ref.label : '', n: ok ? ref.n : 0, scope: ok ? ref.scope : null, reason: ok ? null : (ref && ref.reason) || 'malo' };
     deltaCache.set(l.s, d);
     return d;
   }
+  /* posle dodavanja oglasa u D.listings (KX.enrich): sve medijane i Δ se računaju iznova */
+  function reset() { groups = new Map(); deltaCache = new Map(); cityIdx = null; }
   const deltaPct = (l) => { const d = delta(l); return d && d.pct != null ? d.pct : null; };
   let cityIdx = null;
   /* medijana €/m² prodaja+stan po većim gradovima (maj ili ≥10 oglasa) + deterministička mesečna/godišnja promena */
@@ -229,7 +271,7 @@ const stats = (() => {
     if (cityIdx) return cityIdx;
     const g = group('prodaja', 'stan');
     const counts = new Map();
-    for (const l of D.listings) if (l.t === 'prodaja' && l.pt === 'stan') counts.set(l.cs, (counts.get(l.cs) || 0) + 1);
+    for (const l of D.listings) if (l.t === 'prodaja' && l.pt === 'stan' && !l.syn) counts.set(l.cs, (counts.get(l.cs) || 0) + 1);
     cityIdx = D.cities.filter((c) => c.maj || (counts.get(c.s) || 0) >= 10).map((c) => {
       const r = g.med('city', c.s); const rr = rng(hash(c.s + '#idx'));
       return { c: c.n, cs: c.s, loc: c.loc, ppm: r.ppm, n: r.n, change: Math.round((rr() * 3 - 1.5) * 10) / 10, change12: Math.round((rr() * 12 - 2) * 10) / 10 };
@@ -269,15 +311,15 @@ const stats = (() => {
       if (x.cs !== l.cs) s += 0.6;
       return s;
     };
-    const pool = D.listings.filter((x) => x.s !== l.s && x.t === l.t && x.pt === l.pt);
+    const pool = D.listings.filter((x) => x.s !== l.s && !x.syn && x.t === l.t && x.pt === l.pt);
     const same = pool.filter((x) => x.cs === l.cs);
     const src = same.length >= n ? same : pool;
     return src.map((x) => [score(x), x]).sort((a, b) => a[0] - b[0]).slice(0, n).map((x) => x[1]);
   }
-  return { refPpm, delta, deltaPct, cityIndex, munIndex, histogram, medians, similar, median, MIN_N };
+  return { refPpm, delta, deltaPct, inScope, reset, isSuburban: isSub, cityIndex, munIndex, histogram, medians, similar, median, MIN_N, SUBURBAN };
 })();
 
-/* ───────────────────────── mock: ulice, hod, istorija cene, komšiluk (sve deterministički iz hash(l.s)) ───────────────────────── */
+/* ───────────────────────── mock: ulice, hod, istorija cene, komšiluk (sve deterministički iz hash(l.s); fizička svojstva stana iz l.ps || l.s — ponovljeni oglas istog stana deli ulicu, hod i komšiluk) ───────────────────────── */
 const mock = (() => {
   const STREETS = {
     'beograd': ['Bulevar kralja Aleksandra', 'Cara Dušana', 'Vojvode Stepe', 'Požeška', 'Nemanjina', 'Kneza Miloša', 'Takovska', 'Ruzveltova', 'Ustanička', 'Jurija Gagarina', 'Omladinskih brigada', 'Bulevar Zorana Đinđića', 'Prvomajska', 'Dimitrija Tucovića', 'Kraljice Natalije', 'Gospodar Jevremova', 'Strahinjića Bana', 'Cvijićeva', 'Kumodraška', 'Tošin bunar', 'Bulevar Mihajla Pupina', 'Vojvode Mišića', 'Makenzijeva', 'Njegoševa', 'Svetogorska'],
@@ -316,7 +358,7 @@ const mock = (() => {
   function street(l) {
     if (!l) return '';
     if (l.ad && adFits(l)) return l.ad;
-    const r = rng(hash(l.s + '#street'));
+    const r = rng(hash((l.ps || l.s) + '#street'));
     return `${pick(r, streetsFor(l))} ${between(r, 1, 150)}`;
   }
 
@@ -367,7 +409,7 @@ const mock = (() => {
   /* walk(l) → {min:6, to:'pijace Vidikovac'} (3–14 min); `to` je u genitivu („do …“) */
   function walk(l) {
     if (!l) return null;
-    const r = rng(hash(l.s + '#walk'));
+    const r = rng(hash((l.ps || l.s) + '#walk'));
     const to = pick(r, poisFor(l));
     return { min: between(r, 3, 14), to };
   }
@@ -496,7 +538,7 @@ const mock = (() => {
   /* hood(l) → {transport:[{type,line,stop,min}], pijaca:{name,min}, skola:{name,min}, vrtic:{name,min}, park:{name,min}, prodavnica:{name,min}, note, kind} */
   function hood(l) {
     if (!l) return null;
-    const r = rng(hash(l.s + '#hood'));
+    const r = rng(hash((l.ps || l.s) + '#hood'));
     const lines = byKey(TRANSPORT, l).slice();
     const nT = between(r, 2, 3);
     const transport = [];
@@ -552,7 +594,8 @@ const store = (() => {
     /* nedavno pogledano (najnovije prvo) */
     pushRecent(s) { const i = S.recent.indexOf(s); if (i >= 0) S.recent.splice(i, 1); S.recent.unshift(s); S.recent.length = Math.min(S.recent.length, S.RECENT_MAX); write('recent', S.recent); S.emit('recent'); },
     /* sačuvane pretrage */
-    saveSearch(name, params) { const id = 's' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36); const it = { id, name: String(name || 'Pretraga'), params: params || {}, created: new Date().toISOString() }; S.searches.unshift(it); write('searches', S.searches); S.emit('searches'); return it; },
+    /* saveSearch(name, params, {freq:'odmah'|'dnevno'|'nedeljno'|'nikad', n}) — učestalost obaveštenja i broj rezultata u trenutku čuvanja */
+    saveSearch(name, params, o = {}) { const id = 's' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36); const it = { id, name: String(name || 'Pretraga'), params: params || {}, created: new Date().toISOString() }; if (o && o.freq) it.freq = String(o.freq); if (o && o.n != null && isFinite(+o.n)) it.n = +o.n; S.searches.unshift(it); write('searches', S.searches); S.emit('searches'); return it; },
     removeSearch(id) { const i = S.searches.findIndex((x) => x.id === id); if (i >= 0) S.searches.splice(i, 1); write('searches', S.searches); S.emit('searches'); },
     /* beleške uz oglas */
     getNote: (s) => S.notes[s] || '',
@@ -570,12 +613,12 @@ const store = (() => {
 /* ───────────────────────── ruter + filteri ───────────────────────── */
 const FILTER_DEFAULTS = Object.freeze({
   t: 'prodaja', pt: [], c: '', m: [], n: [], pmin: '', pmax: '', amin: '', amax: '', ro: [], flmin: '', flmax: '', notLast: false,
-  ymin: '', ymax: '', co: [], he: [], fu: [], reg: false, newbuild: false, am: [], agency: '', advertiser: '', q: '', deltaMax: '',
+  ymin: '', ymax: '', co: [], he: [], fu: [], reg: false, newbuild: false, promo: false, am: [], agency: '', advertiser: '', q: '', deltaMax: '',
   sort: 'rel', view: 'grid', page: 1,
 });
 const LIST_KEYS = ['pt', 'm', 'n', 'ro', 'co', 'he', 'fu', 'am'];
 const NUM_KEYS = ['pmin', 'pmax', 'amin', 'amax', 'flmin', 'flmax', 'ymin', 'ymax', 'deltaMax'];
-const BOOL_KEYS = ['notLast', 'reg', 'newbuild'];
+const BOOL_KEYS = ['notLast', 'reg', 'newbuild', 'promo'];
 const STR_KEYS = ['t', 'c', 'agency', 'advertiser', 'q', 'sort', 'view'];
 
 function parseHash(h) {
@@ -627,6 +670,7 @@ function filtersToParams(f) {
   return out;
 }
 const parseRo = (v) => (/^\d+(\.\d+)?\+$/.test(v) ? v : isFinite(+v) ? +v : null);
+const PAGE_SORT = /^(total|monthly|rata|pair|near-[a-z0-9-]{1,40})$/;
 function paramsToFilters(q) {
   if (!(q instanceof URLSearchParams)) q = new URLSearchParams(q || '');
   const f = { ...FILTER_DEFAULTS };
@@ -634,7 +678,8 @@ function paramsToFilters(q) {
   const list = (k) => (q.get(k) || '').split(',').map((s) => s.trim()).filter(Boolean);
   for (const k of STR_KEYS) if (q.has(k) && q.get(k) !== '') f[k] = q.get(k);
   if (f.t !== 'prodaja' && f.t !== 'izdavanje') f.t = 'prodaja';
-  if (!SORTS.some((s) => s.v === f.sort)) f.sort = 'rel';
+  /* sortovi stranice rezultata (troškovi, rata, blizina mestima) ostaju u filterima; applyFilters za njih koristi 'rel', stranica sortira sama */
+  if (!SORTS.some((s) => s.v === f.sort) && !PAGE_SORT.test(String(f.sort))) f.sort = 'rel';
   for (const k of LIST_KEYS) f[k] = list(k);
   f.ro = f.ro.map(parseRo).filter((x) => x != null);
   for (const k of NUM_KEYS) { const v = q.get(k); f[k] = v != null && v !== '' && isFinite(+v) ? +v : ''; }
@@ -694,6 +739,7 @@ function applyFilters(f) {
     if (fuSet.size && !fuSet.has(l.fu)) continue;
     if (f.reg && !l.reg) continue;
     if (f.newbuild && l.co !== 'novogradnja' && l.co !== 'u-izgradnji') continue;
+    if (f.promo && !(promoRank(l) > 0)) continue;   /* izdvojeni (PREMIUM/TOP/ISTAKNUT) */
     if (f.am && f.am.length && !f.am.every((k) => l.am.includes(k))) continue;
     if (f.agency && l.ags !== f.agency) continue;
     if (f.advertiser === 'agencija' && !l.ag) continue;
@@ -752,13 +798,18 @@ function rentCosts(rent, dep) {
 }
 
 /* ───────────────────────── toast ───────────────────────── */
-/* toast('Sačuvano', {action:{label:'Pogledaj sačuvane', href:'#/sacuvano'}, ms:4000}) → element (null bez DOM-a) */
+/* toast('Sačuvano', {action:{label:'Pogledaj sačuvane', href:'#/sacuvani'}, ms:4000}) → element (null bez DOM-a) */
 function toast(msg, opts = {}) {
   if (!HAS_DOM || !document.body) return null;
   let host = document.getElementById('toasts');
   if (!host) { host = el('div', { id: 'toasts', class: 'toasts', 'aria-live': 'polite' }); document.body.appendChild(host); }
   const t = el('div', { class: 'toast' + (opts.kind ? ' ' + opts.kind : ''), role: 'status' }, el('span', { class: 'toast-msg' }, msg),
-    opts.action ? el('a', { class: 'toast-act', href: opts.action.href || '#', onclick: opts.action.onClick }, opts.action.label) : null);
+    opts.action ? el('a', { class: 'toast-act', href: opts.action.href || '#', onclick: (e) => {
+      /* akcija bez href-a (npr. „Poništi”) ne sme da menja adresu (href="#" bi vodio na početnu) */
+      if (!opts.action.href) e.preventDefault();
+      if (typeof opts.action.onClick === 'function') opts.action.onClick(e);
+      t.classList.add('is-out'); setTimeout(() => t.remove(), 240);
+    } }, opts.action.label) : null);
   host.appendChild(t);
   const ms = opts.ms || 4000;
   setTimeout(() => { t.classList.add('is-out'); setTimeout(() => t.remove(), 240); }, ms);
@@ -802,7 +853,6 @@ let F = { ...DEFAULTS };
       cond: { get() { return f.co; }, enumerable: false, configurable: true },
       heat: { get() { return f.he; }, enumerable: false, configurable: true },
       furn: { get() { return f.fu; }, enumerable: false, configurable: true },
-      promo: { get() { return false; }, enumerable: false, configurable: true },
     });
     return f;
   };
