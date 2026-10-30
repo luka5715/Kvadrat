@@ -281,7 +281,7 @@ const KX = (() => {
 
   /* ─────────── troškovi: tarife (demo konstante, sve u ledger-u) ─────────── */
   const TARIFF = {
-    transferTaxPct: 2.5, vatPct: 10, feeVatPct: 20,
+    transferTaxPct: 2.5, vatPct: 10, vatPctCommercial: 20, feeVatPct: 20,
     notarBands: [[30000, 120], [60000, 180], [120000, 260], [200000, 340], [400000, 480], [Infinity, 650]],
     registry: 45, appraisal: 120, loanProcPct: 0.5, nkoskPct: [[0.7, 1.5], [0.8, 2.5], [1, 3.5]], homeInsurance: 40,
     rentalNotary: 30, movingBase: 120, movingPerM2: 2, renovPerM2: 150,
@@ -364,14 +364,29 @@ const KX = (() => {
     lines.filter((x) => x.optional).forEach((x) => { optional[x.when] = (optional[x.when] || 0) + x.amount; });
     return { onPurchase, moveIn, monthly, laterInflow, total: onPurchase + moveIn, optional };
   }
+  /* kredit tako da keš pokrije SVE na dan kupovine, uključujući troškove banke:
+     preLoan + procena + osiguranje + loan × (0,5 % obrada [+ NKOSK ako se računa]) − loan = keš
+     ⇒ loan = (preLoan + fiksni − keš) / (1 − stopa); NKOSK stopa zavisi od LTV-a, pa 3 iteracije. Ograničeno na LTV × cena. */
+  function loanForCash(preLoan, cash, p, ltv, withNkosk) {
+    if (!(preLoan - cash > 0)) return 0;
+    const fixed = TARIFF.appraisal + TARIFF.homeInsurance;
+    let loan = preLoan - cash;
+    for (let k = 0; k < 3; k++) {
+      const rate = TARIFF.loanProcPct / 100 + (withNkosk && p > 0 ? nkoskPct(Math.min(loan, ltv * p) / p) / 100 : 0);
+      loan = (preLoan + fixed - cash) / (1 - rate);
+    }
+    return clamp(loan, 0, ltv * p);
+  }
   function costSale(l, P) {
     const p = Math.max(0, num(l.p)), a = l.a > 0 ? +l.a : 0;
     const lines = [], assumptions = [];
     const newBuild = isNew(l);
     const vatIn = newBuild ? P.vatIncluded !== false : false;
-    const netPrice = newBuild ? (vatIn ? p / (1 + TARIFF.vatPct / 100) : p) : p;
-    const grossPrice = newBuild ? (vatIn ? p : p * (1 + TARIFF.vatPct / 100)) : p;
-    lines.push(line('cena', 'Cena iz oglasa', p, 'kupovina', 'kupac', { note: newBuild && vatIn ? `Uključuje PDV 10 % (${fmtEur(p - netPrice)}).` : '' }));
+    /* PDV na prvi prenos: 10 % za stambene objekte (stan, kuća), 20 % za poslovni prostor (Zakon o PDV-u, čl. 23) */
+    const vatPct = l.pt === 'poslovni-prostor' ? TARIFF.vatPctCommercial : TARIFF.vatPct;
+    const netPrice = newBuild ? (vatIn ? p / (1 + vatPct / 100) : p) : p;
+    const grossPrice = newBuild ? (vatIn ? p : p * (1 + vatPct / 100)) : p;
+    lines.push(line('cena', 'Cena iz oglasa', p, 'kupovina', 'kupac', { note: newBuild && vatIn ? `Uključuje PDV ${vatPct} % (${fmtEur(p - netPrice)}).` : '' }));
     /* porez: PDV (novogradnja) ili porez na prenos 2,5 % */
     /* olakšica (Zakon o porezima na imovinu, Zakon o PDV-u) važi samo za stan ili porodičnu stambenu kuću */
     const reliefOk = !!P.firstHome && a > 0 && (l.pt === 'stan' || l.pt === 'kuca');
@@ -382,14 +397,14 @@ const KX = (() => {
     if (P.firstHome && !reliefOk) assumptions.push('Olakšica za prvi stan važi samo za stan ili porodičnu kuću.');
     if (newBuild) {
       const vat = grossPrice - netPrice;
-      lines.push(line('pdv', 'PDV 10 % (prva prodaja novogradnje)', vatIn ? 0 : vat, 'kupovina', 'kupac', { included: vatIn, inPrice: vatIn ? Math.round(vat) : 0, note: vatIn ? 'Investitori oglašavaju cene sa PDV-om; PDV je već u ceni iz oglasa.' : 'Cena je označena kao cena bez PDV-a, pa se PDV dodaje.' }));
+      lines.push(line('pdv', `PDV ${vatPct} % (prva prodaja novogradnje)`, vatIn ? 0 : vat, 'kupovina', 'kupac', { included: vatIn, inPrice: vatIn ? Math.round(vat) : 0, vatPct, note: vatIn ? 'Investitori oglašavaju cene sa PDV-om; PDV je već u ceni iz oglasa.' : 'Cena je označena kao cena bez PDV-a, pa se PDV dodaje.' }));
       if (reliefOk) {
         /* od zaokruženog PDV-a (isti broj kao „u ceni”), pa zaokruženo: puno oslobođenje vraća tačno ceo PDV */
-        const refund = Math.round(Math.round(netPrice * TARIFF.vatPct / 100) * share);
+        const refund = Math.round(Math.round(netPrice * vatPct / 100) * share);
         firstHome = { ...firstHome, saving: Math.round(refund), when: 'kasnije' };
         lines.push(line('pdv-povracaj', `Povraćaj PDV-a za prvi stan (${fmtN(eligibleM2)} od ${fmtN(a)} m²)`, -refund, 'kasnije', 'kupac', { note: 'Samo za prvu kupovinu od investitora, državljanin bez stana od 1. 7. 2006, obrazac RFN; stiže ≈ 45 dana posle isplate — ne smanjuje novac potreban na dan kupovine.' }));
       }
-      assumptions.push('Novogradnja: umesto poreza na prenos plaća se PDV 10 %, koji je po pravilu već u oglašenoj ceni.');
+      assumptions.push(vatPct === TARIFF.vatPct ? `Novogradnja: umesto poreza na prenos plaća se PDV ${vatPct} %, koji je po pravilu već u oglašenoj ceni.` : `Novi poslovni prostor: umesto poreza na prenos plaća se PDV ${vatPct} % (opšta stopa; 10 % važi samo za stambeni prostor), po pravilu već u oglašenoj ceni.`);
     } else {
       /* porez se zaokružuje prvi, olakšica se izvodi iz zaokruženog poreza: puno oslobođenje poništava porez do evra (Math.round(−x,5) bi ostavio 1 €) */
       const tax = Math.round(p * TARIFF.transferTaxPct / 100);
@@ -415,7 +430,7 @@ const KX = (() => {
     const preLoan = lines.filter((x) => x.when === 'kupovina' && !x.optional && x.payer !== 'prodavac').reduce((t, x) => t + x.amount, 0);
     let loan = 0;
     const cashP = num(P.cash);
-    if (P.financing !== 'kes') loan = cashP > 0 ? clamp(preLoan - cashP, 0, ltv * p) : ltv * p;
+    if (P.financing !== 'kes') loan = cashP > 0 ? loanForCash(preLoan, cashP, p, ltv, !!P.nkosk) : ltv * p;
     loan = Math.round(loan);
     if (loan > 0) {
       lines.push(line('procena', 'Procena vrednosti nekretnine (banka)', TARIFF.appraisal, 'kupovina', 'kupac', { estimate: true }));
@@ -490,6 +505,8 @@ const KX = (() => {
     const mk = memoKey(l, override);
     if (mk && memo.afford.has(mk)) return memo.afford.get(mk);
     const P = override ? coerceProfile({ ...prof(), ...override }) : prof();
+    /* isto pravilo kao KX.cost: firstHome u override-u bez ltv-a menja podrazumevani LTV (80 % ↔ 90 %) */
+    if (override && override.firstHome !== undefined && override.ltv === undefined && (P.ltv === 0.8 || P.ltv === 0.9)) P.ltv = override.firstHome ? 0.9 : 0.8;
     const r = affordCalc(l, P);
     if (mk) memo.afford.set(mk, r);
     return r;
@@ -512,17 +529,22 @@ const KX = (() => {
     const price = Math.max(0, num(l.p));
     const Ckes = cost(l, { ...P, financing: 'kes' });
     const cashAllIn = Ckes.onPurchase;
-    const fees = cashAllIn - price;
     const cap = creditCapacity(P);
-    const out = { ...base, maxLoan: cap.maxLoan, cashAllIn, fees: Math.round(fees) };
+    const out = { ...base, maxLoan: cap.maxLoan, cashAllIn, fees: Math.round(cashAllIn - price) };
     if (cash >= cashAllIn) return { ...out, state: 'odmah', label: 'Možeš odmah', reason: `Keš ${fmtEur(cash)} pokriva cenu i troškove (${fmtEur(cashAllIn)}).` };
     if (financeable === 'ne') return { ...out, state: 'samo-kes', label: 'Samo keš', reason: legal === 'ozakonjenje' ? 'U postupku ozakonjenja — banke ne finansiraju.' : legal === 'nije' ? 'Nije uknjiženo — banke ne finansiraju.' : 'Banke po pravilu ne finansiraju zemljište.', missing: Math.round(cashAllIn - cash) };
     if (P.financing === 'kes') return { ...out, state: 'van-budzeta', label: 'Van budžeta', reason: `Za keš kupovinu nedostaje ${fmtEur(cashAllIn - cash)}.`, missing: Math.round(cashAllIn - cash) };
-    if (cash < fees) return { ...out, state: 'van-budzeta', label: 'Van budžeta', reason: `Nedostaje ${fmtEur(fees - cash)} za troškove kupovine (${fmtEur(fees)}).`, missing: Math.round(fees - cash) };
-    const loanNeeded = Math.round(price - (cash - fees));
+    /* isti obračun kao panel „Koliko me košta“: troškovi sa kreditom (procena, obrada 0,5 %, osiguranje), kredit dimenzionisan tako da onPurchase − kredit = keš */
+    const Ckr = cost(l, { ...P, financing: 'kredit' });
+    const fees = Ckr.onPurchase - price;
+    const loanNeeded = Math.round(Ckr.loan || 0);
     const ltv = cap.ltv;
-    const maxByLtv = ltv * price;
-    if (loanNeeded > maxByLtv + 1) return { ...out, state: 'van-budzeta', label: 'Van budžeta', reason: `Nedostaje ${fmtEur(loanNeeded - maxByLtv)} učešća (banka finansira do ${Math.round(ltv * 100)} %).`, loanNeeded, missing: Math.round(loanNeeded - maxByLtv) };
+    const gap = Math.round(Ckr.onPurchase - loanNeeded - cash);
+    out.fees = Math.round(fees);
+    if (gap > 1) {
+      const why = cash < fees ? `keš ne pokriva ni troškove kupovine sa kreditom (${fmtEur(fees)})` : `banka finansira do ${Math.round(ltv * 100)} % cene`;
+      return { ...out, state: 'van-budzeta', label: 'Van budžeta', reason: `Nedostaje ${fmtEur(gap)} — ${why}.`, loanNeeded, missing: gap };
+    }
     if (!cap.creditPossible) return { ...out, state: 'van-budzeta', label: 'Van budžeta', reason: income <= 0 ? 'Bez prihoda kredit nije moguć; za keš nedostaje ' + fmtEur(cashAllIn - cash) + '.' : 'Kredit nije moguć zbog godina — prikazujemo samo keš.', loanNeeded };
     const monthly = Math.round(annuity(loanNeeded, cap.ratePct, cap.years));
     if (loanNeeded > cap.maxLoan) return { ...out, state: 'van-budzeta', label: 'Van budžeta', reason: `Rata bi bila ${fmtEur(monthly)}, maksimum je ${fmtEur(cap.maxRata)} (${Math.round(cap.dti * 100)} % prihoda).`, loanNeeded, monthly, dtiUsed: income ? monthly / income : 0 };
@@ -747,17 +769,32 @@ const KX = (() => {
   }
   /* naziv obima bez padeža: „opština Čukarica”, „naselje Cerak”, „grad Niš” */
   const scopeName = (m) => (m.scope === 'nbhd' ? 'naselje ' : m.scope === 'mun' ? 'opština ' : m.scope === 'city' ? 'grad ' : '') + m.label;
+  /* €/m² kao na Merilu: ispod 100 jedna decimala („10,4 €/m²“), inače ceo broj */
+  const fmtPpmT = (v) => (v < 100 ? (Math.round(v * 10) / 10).toFixed(1).replace('.', ',') : fmtN(v)) + '\u00a0€/m²';   /* NBSP: broj i jedinica ne lome red */
+  /* referenca kirije = ista kao Merilo (core stats.refPpm, n ≥ 5); bez nje stari obim engine-a (n ≥ 4) */
+  function rentRef(l) {
+    try {
+      if (typeof stats !== 'undefined' && stats.refPpm) {
+        const r = stats.refPpm(l);
+        if (r && r.ppm > 0) return { median: r.ppm, n: r.n, scope: r.scope, label: r.label };
+      }
+    } catch (e) { /* core nije učitan */ }
+    return medianPpm(l, 4);
+  }
   function trustRental(l) {
     const legal = legalOf(l);
     const flags = [], reasons = [];
     let score = 0;
-    const med = medianPpm(l, 4);
+    const med = rentRef(l);
     let priceSignal = false;
     if (med && l.ppm > 0) {
       const dev = l.ppm / med.median - 1;
-      if (dev <= -0.3) { score += 35; priceSignal = true; flags.push(`Kirija je ${fmtPct(-dev * 100, 0)} ispod proseka (${scopeName(med)}) — tipično za mamac oglase`); }
-      else if (dev <= -0.15) { score += 15; priceSignal = true; flags.push(`Kirija je ${fmtPct(-dev * 100, 0)} ispod proseka (${scopeName(med)})`); }
-      else reasons.push(`Kirija je u skladu sa prosekom (${scopeName(med)}, ${fmtN(med.median)} €/m²).`);
+      const ref = `${scopeName(med)}, ${fmtPpmT(med.median)}`;
+      if (dev <= -0.3) { score += 35; priceSignal = true; flags.push(`Kirija je ${fmtPct(-dev * 100, 0)} ispod proseka (${ref}) — tipično za mamac oglase`); }
+      else if (dev <= -0.15) { score += 15; priceSignal = true; flags.push(`Kirija je ${fmtPct(-dev * 100, 0)} ispod proseka (${ref})`); }
+      else if (dev <= -0.06) reasons.push(`Kirija je malo ispod proseka (${fmtPct(-dev * 100, 0)}; ${ref}) — nije znak mamac-oglasa.`);
+      else if (dev < 0.06) reasons.push(`Kirija je u skladu sa prosekom (${ref}).`);
+      else reasons.push(`Kirija je ${fmtPct(dev * 100, 0)} iznad proseka (${ref}) — nije znak mamac-oglasa.`);
     } else reasons.push('Nema dovoljno sličnih oglasa za poređenje kirije.');
     if (!(l.im > 3)) { score += 10; flags.push(l.im > 0 ? `Samo ${l.im} ${l.im === 1 ? 'fotografija' : 'fotografije'}` : 'Oglas bez fotografija'); }
     if (!l.ags) { score += 8; flags.push('Oglas vlasnika bez verifikacije i telefona na profilu'); }
@@ -927,9 +964,21 @@ const KX = (() => {
       add(l.n, { kind: 'nbhd', s: l.ns, cs: l.cs, ms: l.ms, n: l.n, cityName: l.c, munName: l.m, count: nbCount.get(l.ns) || 0 });
       const mm = /^blok\s+(\d+)/i.exec(l.n); if (mm) add('blok ' + mm[1], { kind: 'nbhd', s: l.ns, cs: l.cs, ms: l.ms, n: l.n, cityName: l.c, munName: l.m, count: nbCount.get(l.ns) || 0 });
     }
+    /* druga varijanta ključa: „đ“ otkucano kao „d“ (Aranđelovac → arandelovac, Đeram → deram, Kaluđerica → kaluderica);
+       dodaje se samo kad ključ ne postoji kao pravo ime, da ne bi zasenila drugo mesto */
+    const primary = new Set(m.keys());
+    for (const [k, es] of [...m]) {
+      if (!k.includes('dj')) continue;
+      const k2 = k.replace(/dj/g, 'd');
+      if (primary.has(k2)) continue;
+      let a = m.get(k2); if (!a) { a = []; m.set(k2, a); }
+      for (const e of es) if (!a.some((x) => x.kind === e.kind && x.s === e.s)) a.push(e);
+    }
     for (const k of KEYWORDS) m.delete(k);
     return m;
   }
+  /* skraćenice u višerečnim imenima: „novi bg“ → „novi beograd“, „bgd“ → „beograd“ */
+  const LOC_ABBR = { bg: 'beograd', bgd: 'beograd', beo: 'beograd' };
   const ROOM_LOOKUP = (() => { const m = new Map(); for (const [v, w] of ROOM_WORDS) { const d = deacc(w); m.set(d, v); m.set(d.replace(/an$/, 'na'), v); m.set(d.replace(/an$/, 'ni'), v); } m.set('garsonjere', 0.5); m.set('garsonjeru', 0.5); return m; })();
   const parseNum = (tok) => {
     const m = /^(\d{1,3}(?:\.\d{3})+|\d+(?:[.,]\d+)?)(k|m2|m²|€|e|eur|evra)?$/.exec(tok || '');
@@ -965,9 +1014,13 @@ const KX = (() => {
     };
     const matchLoc = (i) => {
       for (let len = Math.min(3, toks.length - i); len >= 1; len--) {
-        const key = toks.slice(i, i + len).join(' ');
-        const es = dict.get(key);
-        if (es && es.length) return { entries: es, len };
+        const part = toks.slice(i, i + len);
+        const key = part.join(' ');
+        const key2 = part.map((w) => LOC_ABBR[w] || w).join(' ');
+        for (const k of key2 !== key ? [key, key2] : [key]) {
+          const es = dict.get(k) || dict.get(k.replace(/dj/g, 'd'));
+          if (es && es.length) return { entries: es, len };
+        }
       }
       return null;
     };
@@ -1218,7 +1271,7 @@ const KX = (() => {
   /* ─────────── ledger („Kako računamo”) ─────────── */
   const ledger = [
     { feature: 'Cena, €/m², kvadratura, struktura, sprat, grejanje, uknjiženost', real: true, how: 'Polja iz oglasa; ništa se ne menja.' },
-    { feature: 'Porez na prenos 2,5 % / PDV 10 %', real: true, how: 'Starogradnja: 2,5 % × cena (zakonski obveznik prodavac, ugovorom kupac). Novogradnja: PDV 10 % je već u oglašenoj ceni (cena ÷ 1,10 = neto); prekidač „cena je bez PDV-a” dodaje 10 %.' },
+    { feature: 'Porez na prenos 2,5 % / PDV 10 % ili 20 %', real: true, how: 'Starogradnja: 2,5 % × cena (zakonski obveznik prodavac, ugovorom kupac). Novogradnja (stan, kuća): PDV 10 % je već u oglašenoj ceni (cena ÷ 1,10 = neto); prekidač „cena je bez PDV-a” dodaje 10 %. Novi poslovni prostor: opšta stopa PDV-a 20 % (cena ÷ 1,20 = neto).' },
     { feature: 'Olakšice za prvi stan', real: true, how: 'Oslobođeno 40 m² + 15 m² po članu domaćinstva. Starogradnja: porez × (oslobođeni m² ÷ m²) odbija se na dan kupovine. Novogradnja: povraćaj PDV-a = neto cena × 10 % × udeo, stiže ≈ 45 dana kasnije (RFN), samo za prvu kupovinu od investitora. Olakšica važi samo za stan ili porodičnu kuću.' },
     { feature: 'Provizija agencije', real: true, how: 'Oglas agencije: procenat iz profila (2 %) × cena + PDV 20 %; oglas vlasnika: 0. Ko plaća (kupac/prodavac) bira se u profilu. Zakup: 50 % kirije; plaća zakupac, osim kad agencija naplaćuje vlasniku.' },
     { feature: 'Overa, upis, bankarski troškovi', real: false, how: 'Demo tarife: beležnik po razredima 120–650 €, upis 45 €, procena 120 €, obrada 0,5 % kredita, NKOSK 1,5–3,5 % (raste sa LTV, opciono), osiguranje 40 €/god.' },

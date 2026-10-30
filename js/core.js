@@ -506,7 +506,7 @@ const mock = (() => {
     ],
     'brdo': [
       '{n} je mirno naselje na brdu, sa puno zelenila i porodica sa decom. Ulice su tihe, a do grada vode autobusi koji idu često; vikendom je {park} na korak.',
-      'Kraj za one koji vole mir: zgrade srednje visine, dvorišta i drveće, {pijaca} na deset minuta hoda. Do centra se putuje, ali se ovde zato lepo spava.',
+      'Kraj za one koji vole mir: zgrade srednje visine, dvorišta i drveće, {pijaca} na {pijaca_min} hoda. Do centra se putuje, ali se ovde zato lepo spava.',
     ],
     'stari': [
       'Stari kraj sa svojim ritmom: pekara i piljara na uglu, komšije koje se znaju po imenu. Zgrade su mešavina starih i novih, a {pijaca} je tu za svakodnevnu kupovinu.',
@@ -536,6 +536,20 @@ const mock = (() => {
     zlatibor: 'Zlatibora', 'vrnjacka-banja': 'Vrnjačke Banje', kopaonik: 'Kopaonika' };
   const cityGen = (cs) => CITY_GEN[cs] || ((find.city(cs) || {}).n || cs);
   const munGen = (m) => (m ? (m.endsWith('a') ? m.slice(0, -1) + 'e' : m.endsWith('e') || m.endsWith('o') ? m.slice(0, -1) + 'a' : m + 'a') : '');
+  /* isto mesto u nominativu i genitivu („Pijaca Vidikovac“ = „pijace Vidikovac“, „Ada Ciganlija“ = „Ade Ciganlije“):
+     ista reč = isti koren posle skidanja završnog samoglasnika, ili jedan koren počinje drugim („Karađorđev“/„Karađorđevog“) */
+  const stemOf = (w) => fmt.fold(w).replace(/[aeiou]$/, '');
+  const sameWord = (a, b) => { const x = stemOf(a), y = stemOf(b); return (!!x && x === y) || (x.length >= 3 && y.length >= 3 && (x.startsWith(y) || y.startsWith(x))); };
+  /* kraće ime (≥ 2 reči) sme da bude podskup dužeg: „Gradskog parka“ = „Gradski park Zemun“ */
+  function samePlace(a, b) {
+    let A = String(a || '').split(/\s+/).filter(Boolean), B = String(b || '').split(/\s+/).filter(Boolean);
+    if (A.length > B.length) [A, B] = [B, A];
+    if (!A.length || (A.length !== B.length && A.length < 2)) return false;
+    const used = new Set();
+    return A.every((x) => { const j = B.findIndex((y, k) => !used.has(k) && sameWord(x, y)); if (j < 0) return false; used.add(j); return true; });
+  }
+  /* „na 1 minut hoda“, „na 6 minuta hoda“ (21, 31 … → minut) */
+  const minWord = (n) => `${n} ${n % 10 === 1 && n % 100 !== 11 ? 'minut' : 'minuta'}`;
   /* hood(l) → {transport:[{type,line,stop,min}], pijaca:{name,min}, skola:{name,min}, vrtic:{name,min}, park:{name,min}, prodavnica:{name,min}, note, kind} */
   function hood(l) {
     if (!l) return null;
@@ -548,15 +562,25 @@ const mock = (() => {
       const idx = Math.floor(r() * lines.length); const [type, line] = lines.splice(idx, 1)[0];
       transport.push({ type, line, stop: pick(r, stops), min: between(r, 2, 8) });
     }
-    const pijaca = { name: pick(r, byKey(MARKETS, l)), min: between(r, 4, 14) };
+    const markets = byKey(MARKETS, l);
+    const pijaca = { name: pick(r, markets), min: between(r, 4, 14) };
     const skola = { name: pick(r, byKey(SCHOOLS, l)), min: between(r, 3, 12) };
     const vrtic = { name: pick(r, KINDERGARTENS), min: between(r, 3, 10) };
     const park = { name: byKey(PARKS, l), min: between(r, 4, 15) };
     const prodavnica = { name: pick(r, SHOPS), min: between(r, 1, 6) };
+    /* jedan izvor istine: ako walk(l) („8 min hoda do pijace Vidikovac“) imenuje pijacu ili park iz Komšiluka,
+       ta stavka dobija isto ime i iste minute (rng redosled se ne menja, pa ostale vrednosti ostaju iste) */
+    const w = walk(l);
+    if (w && w.to) {
+      const mk = markets.find((x) => samePlace(x, w.to));
+      if (mk) { pijaca.name = mk; pijaca.min = w.min; }
+      if (samePlace(park.name, w.to)) park.min = w.min;
+    }
     const kind = kindOf(l);
     const tpl = pick(r, NOTES[kind]);
     const note = tpl.replace(/\{n\}/g, l.n || l.m || l.c).replace(/\{m\}/g, l.m || l.c).replace(/\{m_gen\}/g, munGen(l.m)).replace(/\{c\}/g, l.c)
-      .replace(/\{c_loc\}/g, cityGen(l.cs)).replace(/\{pijaca\}/g, pijaca.name).replace(/\{park\}/g, park.name);
+      .replace(/\{c_loc\}/g, cityGen(l.cs)).replace(/\{pijaca\}/g, pijaca.name).replace(/\{park\}/g, park.name)
+      .replace(/\{pijaca_min\}/g, minWord(pijaca.min));
     return { transport, pijaca, skola, vrtic, park, prodavnica, note, kind };
   }
   return { street, walk, history, hood, cityGen };

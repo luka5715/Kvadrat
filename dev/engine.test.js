@@ -398,6 +398,41 @@ section('QA: zaokruživanje olakšice, oznake lokacije, relax bez gubitka opšti
   ok(rx.every((r) => r.filters.c !== '' || /lokacij/i.test(r.label)), 'relax: „cela Srbija” samo uz oznaku koja kaže da se uklanja lokacija', rx.map((r) => r.label));
 }
 
+section('QA 5: đ→d, skraćenice, kirija iznad proseka, keš sa troškovima banke, PDV 20 % za poslovni prostor');
+{
+  const pq = (t) => KX.parseQuery(t).filters;
+  ok(pq('arandelovac').c === 'arandjelovac' && !pq('arandelovac').q, '„arandelovac“ (đ kao d) = Aranđelovac', pq('arandelovac'));
+  ok((pq('deram').n || []).includes('djeram') && !pq('deram').q, '„deram“ = Đeram', pq('deram'));
+  ok((pq('kaluderica').n || []).includes('kaludjerica'), '„kaluderica“ = Kaluđerica', pq('kaluderica'));
+  ok((pq('novi bg').m || []).includes('novi-beograd') && !pq('novi bg').q, '„novi bg“ = Novi Beograd', pq('novi bg'));
+  ok((pq('nbg').m || []).includes('novi-beograd') && pq('bgd').c === 'beograd', '„nbg“ i „bgd“', [pq('nbg'), pq('bgd')]);
+  ok((pq('vracar').m || []).includes('vracar'), '„vracar“ = Vračar (bez dijakritika)', pq('vracar'));
+  /* kirija iznad proseka nije „u skladu“ */
+  const lux = L.find((l) => l.s === 'lux-jednosoban-stan-u-novogradnji-cerak-kv-1112899');
+  if (lux) { const r = KX.trust(lux).reasons.join(' '); ok(/iznad proseka/.test(r) && !/u skladu/.test(r) && /10,4\s€\/m²/.test(r), 'kirija +27 % → „iznad proseka“, 10,4 €/m²', r); }
+  if (vm.runInContext('typeof stats', ctx) !== 'undefined') {
+    const S = vm.runInContext('stats', ctx);
+    const bad = L.filter((l) => l.t === 'izdavanje').filter((l) => { const d = S.delta(l); return d && d.pct >= 10 && KX.trust(l).reasons.some((x) => /u skladu/.test(x)); });
+    ok(bad.length === 0, 'nijedna kirija sa Δ ≥ +10 % nije „u skladu sa prosekom“', bad.map((l) => l.s).slice(0, 5));
+  }
+  /* keš pokriva i troškove banke: onPurchase − kredit = keš */
+  KX.profile.set({ income: 1400, cash: 30000, firstHome: true });
+  const nb = L.find((l) => l.s === 'nov-dvoiposoban-stan-uzi-centar-72m-kv-9936590');
+  if (nb) {
+    const a = KX.afford(nb), c = KX.cost(nb);
+    ok(a.state !== 'kredit' || (c.onPurchase - c.loan <= 30000 + 1 && a.loanNeeded === c.loan), 'Keš ili kredit = Koliko me košta (iz džepa ≤ keš, isti kredit)', [a.state, a.loanNeeded, c.loan, c.onPurchase]);
+  }
+  let mism = 0;
+  for (const cash of [8000, 25000, 60000]) { KX.profile.set({ income: 1600, cash, firstHome: false }); for (const l of L.filter((x) => x.t === 'prodaja')) { const a = KX.afford(l); if (a.state !== 'kredit') continue; const c = KX.cost(l); if (c.onPurchase - c.loan > cash + 1 || c.loan !== a.loanNeeded) mism++; } }
+  ok(mism === 0, 'afford „kredit“ ⇒ keš pokriva sve troškove na dan kupovine (uklj. procenu, obradu, osiguranje)', mism);
+  KX.profile.reset();
+  /* PDV 20 % za novi poslovni prostor */
+  const lok = L.find((l) => l.s === 'lokal-76m-u-prometnoj-ulici-lion-kv-3559083');
+  if (lok) { const pd = KX.cost(lok).lines.find((x) => x.key === 'pdv'); ok(pd && /PDV 20 %/.test(pd.label) && pd.inPrice === Math.round(lok.p - lok.p / 1.2), 'poslovni prostor: PDV 20 % u ceni', pd); }
+  const st10 = L.find((l) => l.t === 'prodaja' && l.pt === 'stan' && l.co === 'novogradnja');
+  if (st10) { const pd = KX.cost(st10).lines.find((x) => x.key === 'pdv'); ok(pd && /PDV 10 %/.test(pd.label), 'stan u novogradnji: i dalje PDV 10 %', pd && pd.label); }
+}
+
 const tc0 = performance.now();
 L.forEach((l) => KX.cost(l));
 const tc = performance.now() - tc0;

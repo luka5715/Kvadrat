@@ -105,7 +105,8 @@ mock.history(l, months=12) // → [{ m: '2025-11', p: 118000 }, … 12 tačaka],
 mock.hood(l)     // → { transport: [{type:'Autobus'|'Tramvaj'|'Trolejbus', line:'23', stop:'Vidikovac', min:4}, ×2–3],
                  //     pijaca:{name,min}, skola:{name:'OŠ „Vuk Karadžić“',min}, vrtic:{name,min}, park:{name,min}, prodavnica:{name,min},
                  //     linije po beogradskoj opštini: tramvaj/trolejbus samo gde realno saobraćaju; prigradske opštine (Surčin, Grocka, Obrenovac, Lazarevac, Mladenovac, Sopot, Barajevo) i Zemun samo autobus
-                 //     note: 'Kakav je kraj…' (1–2 rečenice, šablon po tipu opštine), kind: 'centar'|'blokovi'|'brdo'|'stari'|'prigradski'|'centar-grad'|'mirno'|'odmor' }
+                 //     jedan izvor istine sa walk(l): kad walk.to imenuje pijacu ili park iz liste (genitiv ↔ nominativ, „pijace Vidikovac“ = „Pijaca Vidikovac“), ta stavka dobija walk.min (zato pijaca/park min 3–15)
+                 //     note: 'Kakav je kraj…' (1–2 rečenice, šablon po tipu opštine; minute pijace u tekstu = pijaca.min, „na 8 minuta hoda“), kind: 'centar'|'blokovi'|'brdo'|'stari'|'prigradski'|'centar-grad'|'mirno'|'odmor' }
 mock.cityGen(cs) // → 'Novog Sada' (genitiv imena grada; lokativ je u D.cities[].loc: 'Novom Sadu')
 ```
 POI rečnik po opštini za Beograd (Kalenić, Bajloni, Zeleni venac, Vidikovac, Banovo brdo, Kalemegdan, Ada, Tašmajdan, Ušće, Košutnjak, Vukov spomenik…), po gradu za Novi Sad (Štrand, Dunavski park, Futoška/Limanska pijaca, Spens…), Niš (Tvrđava, Čair, Kazandžijsko sokače…), Kragujevac, Subotica, banje; generički za ostale.
@@ -188,7 +189,7 @@ mortgage(principal, ratePct, years)      // → { monthly, total, interest, n, r
 amortization(principal, ratePct, years)  // → [{ m, balance, interest, principal }] po mesecu (sparkline u kalkulatoru)
 purchaseCosts(price, {newbuild=false, agency=true, agencyRate=2})
    // → { tax, taxRate (2.5 | 10), agencyFee, agencyRate, notary, total, totalWithPrice }
-   // porez na prenos apsolutnih prava 2,5 % ili PDV 10 % (novogradnja od investitora); provizija 2 % (0 za vlasnika: agency:false);
+   // porez na prenos apsolutnih prava 2,5 % ili PDV 10 % (novogradnja od investitora; KX.cost: 20 % za poslovni prostor); provizija 2 % (0 za vlasnika: agency:false);
    // javni beležnik po razredu: <30k 120 € · <60k 180 · <100k 250 · <150k 320 · <250k 420 · <500k 600 · ≥500k 900
 rentCosts(rent, dep)                     // → { deposit (dep ?? rent), agencyFee (50 % jedne kirije), firstMonth, moveIn }
 ```

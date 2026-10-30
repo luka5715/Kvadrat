@@ -447,9 +447,19 @@
     if (o.count === 0 && !on) n.classList.add('is-zero');
     return n;
   }
-  function numInput(fkey, value, placeholder, onType, label) {
-    const i = el('input', { class: 'input', type: 'text', inputmode: 'numeric', autocomplete: 'off', placeholder, 'aria-label': label, value: value === '' || value == null ? '' : N0.format(value), 'data-fkey': fkey });
-    i.addEventListener('input', () => { const d = i.value.replace(/[^\d]/g, ''); onType(d === '' ? '' : +d); });
+  /* o.signed: dozvoljen jedan vodeći minus (sprat: suteren = −1); sam „−” se ne šalje dok se ne otkuca broj */
+  function numInput(fkey, value, placeholder, onType, label, o = {}) {
+    const shown = value === '' || value == null ? '' : o.signed || o.raw ? String(Math.trunc(+value)) : N0.format(value);
+    const i = el('input', { class: 'input', type: 'text', inputmode: o.signed ? 'text' : 'numeric', autocomplete: 'off', placeholder, 'aria-label': label, value: shown, 'data-fkey': fkey });
+    i.addEventListener('input', () => {
+      if (o.signed) {
+        const d = i.value.replace(/[\u2212\u2013\u2010]/g, '-').replace(/[^\d-]/g, '').replace(/(?!^)-/g, '');
+        if (d === '-') return;
+        onType(d === '' ? '' : +d);
+        return;
+      }
+      const d = i.value.replace(/[^\d]/g, ''); onType(d === '' ? '' : +d);
+    });
     i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); i.blur(); } });
     return i;
   }
@@ -508,15 +518,15 @@
     if (!noRooms(s)) G.sobe = grp('Sobe', pillsCounted(ROOM_OPTS.map(([v, l]) => ({ v, l })), s.ro.map((r) => (r === '4+' || /\+$/.test(r) ? '4+' : +r)), F.ro, (v, on, all) => ch({ ro: all }, 'push')), { id: 'sobe' });
     G.sprat = grp('Sprat', [
       el('div', { class: 'srp-pair' },
-        numInput(ctx + '-fla', s.flmin, 'od', (v) => ch({ flmin: v }, 'type'), 'Sprat od'),
-        numInput(ctx + '-flb', s.flmax, 'do', (v) => ch({ flmax: v }, 'type'), 'Sprat do'),
+        numInput(ctx + '-fla', s.flmin, 'od', (v) => ch({ flmin: v }, 'type'), 'Sprat od', { signed: true }),
+        numInput(ctx + '-flb', s.flmax, 'do', (v) => ch({ flmax: v }, 'type'), 'Sprat do', { signed: true }),
         el('span', { class: 'srp-unit' }, 'sprat')),
       el('p', { class: 'help' }, 'Prizemlje = 0, suteren = −1'),
       checkC('Nije poslednji sprat', s.notLast, (on) => ch({ notLast: on }, 'push'), { count: F.bool.notLast }),
     ], { id: 'sprat' });
     G.godina = grp('Godina izgradnje', el('div', { class: 'srp-pair' },
-      numInput(ctx + '-ya', s.ymin, 'od', (v) => ch({ ymin: v }, 'type'), 'Godina od'),
-      numInput(ctx + '-yb', s.ymax, 'do', (v) => ch({ ymax: v }, 'type'), 'Godina do'),
+      numInput(ctx + '-ya', s.ymin, 'od', (v) => ch({ ymin: v }, 'type'), 'Godina od', { raw: true }),
+      numInput(ctx + '-yb', s.ymax, 'do', (v) => ch({ ymax: v }, 'type'), 'Godina do', { raw: true }),
       el('span', { class: 'srp-unit' }, 'god.')), { id: 'godina' });
     G.stanje = grp('Stanje', pillsCounted(Object.keys(COND).map((k) => ({ v: k, l: COND[k] })), s.co, F.co, (v, on, all) => ch({ co: all }, 'push')), { id: 'stanje' });
     const heatKeys = Object.keys(HEAT).sort((a, b) => cnt(F.he, b) - cnt(F.he, a));
@@ -1043,6 +1053,17 @@
       el('div', { class: 'desk srp-desk srp-desk-r' },
         el('label', { class: 'sort' }, icon('sort', 16), el('span', {}, 'Sortiraj'), sortSel), info, deskViews));
   }
+  /* oznaka sprata rečima: −1 = suteren, 0 = prizemlje; ostali negativni sa pravim minusom (U+2212) */
+  function floorLabel(a, b) {
+    const gen = (v) => (v === -1 ? 'suterena' : v === 0 ? 'prizemlja' : v < 0 ? '\u2212' + Math.abs(v) + '.' : v + '.');
+    const nom = (v) => (v === -1 ? 'suteren' : v === 0 ? 'prizemlje' : v < 0 ? '\u2212' + Math.abs(v) + '. sprat' : v + '. sprat');
+    if (a != null && b != null) {
+      if (a === b) return a <= 0 ? 'Samo ' + nom(a) : `Samo ${a}. sprat`;
+      return `Sprat od ${gen(a)} do ${gen(b)}`;
+    }
+    if (a != null) return `Sprat od ${gen(a)}`;
+    return `Sprat do ${gen(b)}`;
+  }
   function activeTags(s) {
     const tags = [];
     const add = (label, patch) => tags.push({ label, onRemove: () => go(s, patch) });
@@ -1053,7 +1074,7 @@
     const pq = priceQual(s); if (pq) add(pq, { pmin: '', pmax: '' });
     if (num(s.amin) != null || num(s.amax) != null) add(pillLabel(s, 'kv'), { amin: '', amax: '' });
     s.ro.forEach((r) => add(r === '4+' || /\+$/.test(r) ? '4+ sobe' : safe(() => fmt.roomsText(+r), String(r)), { ro: s.ro.filter((x) => x !== r) }));
-    if (num(s.flmin) != null || num(s.flmax) != null) add(`Sprat ${num(s.flmin) ?? '…'}–${num(s.flmax) ?? '…'}`, { flmin: '', flmax: '' });
+    if (num(s.flmin) != null || num(s.flmax) != null) add(floorLabel(num(s.flmin), num(s.flmax)), { flmin: '', flmax: '' });
     if (s.notLast) add('Nije poslednji sprat', { notLast: false });
     if (num(s.ymin) != null || num(s.ymax) != null) add(`Godina ${num(s.ymin) ?? '…'}–${num(s.ymax) ?? '…'}`, { ymin: '', ymax: '' });
     s.co.forEach((v) => add(COND[v] || v, { co: s.co.filter((x) => x !== v) }));
@@ -1430,9 +1451,20 @@
     const unit = rent ? 'izdavanje' : undefined;
     const t1 = [`U ovoj pretrazi ${plural(n, 'je', 'su', 'je')} ${listings(n)} za ${rent ? 'izdavanje' : 'prodaju'} ${word} ${where}.`];
     if (pMed) t1.push(`Srednja tražena ${rent ? 'kirija' : 'cena'} je ${eur(pMed, unit)}${p25 && p75 && p25 !== p75 ? `, a polovina oglasa je između ${eur(p25, unit)} i ${eur(p75, unit)}` : ''}${ppmMed ? ` (medijana ${safe(() => fmt.ppm(ppmMed), '')})` : ''}.`);
-    const byM = {};
-    list.forEach((l) => { if (!l.m) return; (byM[l.m] = byM[l.m] || []).push(l); });
-    const ms = Object.entries(byM).filter(([, a]) => a.length >= 3).map(([m, a]) => ({ m, n: a.length, ppm: median(a.filter((x) => x.ppm).map((x) => x.ppm)) })).filter((x) => x.ppm);
+    /* grupisanje po slugu opštine (ime se ponavlja: 27 opština „Centar”, Stari grad, Palilula…) */
+    const byM = {}, citiesOfName = {};
+    list.forEach((l) => {
+      const k = l.ms || (l.cs + '|' + l.m); if (!l.m) return;
+      (byM[k] = byM[k] || []).push(l);
+      (citiesOfName[l.m] = citiesOfName[l.m] || new Set()).add(l.cs || l.c);
+    });
+    const munName = (l) => {
+      const dupName = !s.c || (citiesOfName[l.m] && citiesOfName[l.m].size > 1);
+      if (!dupName || !l.c) return l.m;
+      const cc = safe(() => find.city(l.cs), null);
+      return `${l.m} u ${(cc && cc.loc) || l.c}`;
+    };
+    const ms = Object.values(byM).filter((a) => a.length >= 3).map((a) => ({ m: munName(a[0]), n: a.length, ppm: median(a.filter((x) => x.ppm).map((x) => x.ppm)) })).filter((x) => x.ppm);
     if (ms.length >= 2) {
       const most = ms.slice().sort((a, b) => b.n - a.n)[0];
       const cheap = ms.slice().sort((a, b) => a.ppm - b.ppm)[0], dear = ms.slice().sort((a, b) => b.ppm - a.ppm)[0];

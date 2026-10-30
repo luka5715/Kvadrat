@@ -28,7 +28,7 @@
 .hm-search .field{justify-content:center;position:relative}
 .hm-search .field .sel select{cursor:pointer;min-height:40px;margin:-8px 0}
 .hm-search .field.from-text .sel select{color:var(--accent-ink)}
-.hm-search .f-loc{min-width:0}
+.hm-search .f-loc{min-width:0;scroll-margin-top:calc(var(--header-h) + env(safe-area-inset-top,0px) + 8px)}
 .hm-search .loc-in{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0}
 .hm-search .loc-chips{display:contents}
 .hm-search .loc-chips .tag{height:30px;font-size:14px;max-width:100%}
@@ -96,6 +96,7 @@
 .hm-budget input:focus{border-color:var(--accent);outline:0;box-shadow:0 0 0 3px var(--accent-soft)}
 .hm-budget input::placeholder{color:var(--muted);font-weight:400}
 .hm-budget .cur{position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:15px;pointer-events:none}
+.hm-budget .b-in.rent input{padding-right:56px}
 .hm-budget .btn .ico{color:var(--accent)}
 
 /* ───────── sekcije ───────── */

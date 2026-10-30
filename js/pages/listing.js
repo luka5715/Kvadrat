@@ -30,6 +30,7 @@
   const rel = (n) => S(() => fmt.rel(n), `pre ${days(n)}`);
   const ico = (name, size) => S(() => icon(name, size), null);
   const DTF = S(() => new Intl.DateTimeFormat('sr-Latn-RS', { day: 'numeric', month: 'long', year: 'numeric' }), null);
+  const DSF = S(() => new Intl.DateTimeFormat('sr-Latn-RS', { day: 'numeric', month: 'short' }), null);
   const MTF = S(() => new Intl.DateTimeFormat('sr-Latn-RS', { month: 'long', year: 'numeric' }), null);
   const WDF = S(() => new Intl.DateTimeFormat('sr-Latn-RS', { weekday: 'short' }), null);
   const WLF = S(() => new Intl.DateTimeFormat('sr-Latn-RS', { weekday: 'long', day: 'numeric', month: 'long' }), null);
@@ -155,7 +156,8 @@
     const caption = el('span', { class: 'lst-lb-cap' });
     const stage = el('div', { class: 'stage' });
     const thumbs = el('div', { class: 'thumbs', role: 'group', 'aria-label': 'Sličice' });
-    const closeBtn = el('button', { class: 'iconbtn', type: 'button', 'aria-label': 'Zatvori galeriju (Esc)', onclick: () => close() }, ico('x'));
+    /* aria-label „Zatvori” — app.js pri promeni rute zatvara overlay klikom na [aria-label="Zatvori"], pa se pravi close() poziva i skida slušaoce */
+    const closeBtn = el('button', { class: 'iconbtn', type: 'button', 'aria-label': 'Zatvori', title: 'Zatvori galeriju (Esc)', onclick: () => close() }, ico('x'));
     const prev = el('button', { class: 'arr l', type: 'button', 'aria-label': 'Prethodna fotografija', onclick: () => go(-1) }, ico('chev-l'));
     const next = el('button', { class: 'arr r', type: 'button', 'aria-label': 'Sledeća fotografija', onclick: () => go(1) }, ico('chev-r'));
     const pic = el('div', { class: 'lst-lb-pic' });
@@ -177,6 +179,8 @@
       el('div', { class: 'top' }, el('span', { class: 'lst-lb-t' }, counter, caption), closeBtn), stage, thumbs);
     const FOC = 'button:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])';
     const onKey = (e) => {
+      /* galerija je uklonjena spolja (npr. Nazad) — ne gutamo tastere na drugim stranicama */
+      if (!root.isConnected) { close(); return; }
       if (e.key === 'Escape') { e.preventDefault(); close(); return; }
       if (e.key === 'ArrowRight') { e.preventDefault(); go(1); return; }
       if (e.key === 'ArrowLeft') { e.preventDefault(); go(-1); return; }
@@ -195,10 +199,12 @@
     const close = () => {
       if (closed) return; closed = true;
       document.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('hashchange', close);
       root.remove(); document.body.classList.remove('modal-open');
       if (opener && opener.focus) S(() => opener.focus({ preventScroll: true }));
     };
     document.addEventListener('keydown', onKey, true);
+    window.addEventListener('hashchange', close, { once: true });
     document.body.classList.add('modal-open');
     document.body.appendChild(root);
     paint();
@@ -796,14 +802,30 @@
   /* sparkline cene oglasa iz KX.history (deli se sa sekcijom „Istorija cene”) */
   function historySpark(l, hist) {
     if (!hist || !hist.points || !hist.points.length) return null;
-    const vals = hist.points.map((p) => p.p);
-    const months = hist.points.map((p) => p.m);
-    const changed = hist.changes.length > 0;
+    /* samo vreme od objave ovog oglasa (KX.history: points[].listed, changes[].d) — nikad cena iz vremena pre objave.
+       Niz tačaka od dana objave do danas (6–13 jednakih koraka), cena po datumu promene */
+    const start = new Date(String(hist.ownFirstSeen || hist.firstSeen).slice(0, 10) + 'T12:00:00');
+    const now = new Date(); now.setHours(12, 0, 0, 0);
+    if (isNaN(start)) return null;
+    const span = Math.max(1, Math.round((now - start) / 864e5));
+    const N = clamp(Math.round(span / 7) + 1, 6, 13);
+    const chg = (hist.changes || []).map((c) => ({ t: new Date(String(c.d || (c.m + '-15')).slice(0, 10) + 'T12:00:00'), from: c.from, to: c.to })).sort((x, y) => x.t - y.t);
+    const p0 = chg.length ? chg[0].from : l.p;
+    const at = (t) => { let v = p0; chg.forEach((c) => { if (t >= c.t) v = c.to; }); return v; };
+    const vals = [], labels = [];
+    for (let k = 0; k < N; k++) {
+      const t = k === N - 1 ? now : new Date(start.getTime() + Math.round(span * k / (N - 1)) * 864e5);
+      vals.push(k === N - 1 ? l.p : at(t));
+      labels.push(k === N - 1 ? 'danas' : S(() => DSF.format(t).replace(/\.$/, ''), ''));
+    }
+    const changed = chg.length > 0;
     const d = changed ? S(() => deltaChip({ pct: hist.dropPct, label: 'prve objave' }, { title: `Promena tražene cene od prve objave: ${pct(hist.dropPct, true)}` }), null) : null;
+    const since = 'od objave';
+    const sinceAria = `od objave (${dateLong(hist.ownFirstSeen || hist.firstSeen)})`;
     return S(() => sparkline(vals, {
-      title: el('span', {}, 'Tražena cena', ' · ', el('b', {}, '12 meseci')),
-      months, delta: d, format: (v) => price(v, l.t),
-      aria: changed ? `Tražena cena: ${price(hist.p0, l.t)} pa ${price(l.p, l.t)} (${pct(hist.dropPct, true)})` : `Tražena cena bez promene: ${price(l.p, l.t)}`,
+      title: el('span', {}, 'Tražena cena', ' · ', el('b', {}, since)),
+      labels, delta: d, format: (v) => price(v, l.t),
+      aria: changed ? `Tražena cena ${sinceAria}: ${price(vals[0], l.t)} pa ${price(l.p, l.t)} (${pct(hist.dropPct, true)})` : `Tražena cena ${sinceAria} bez promene: ${price(l.p, l.t)}`,
     }), null);
   }
   function historyMini(l, hist) {

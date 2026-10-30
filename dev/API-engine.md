@@ -48,7 +48,8 @@ Pass a partial profile to override (`{ firstHome: true, household: 2 }`, `{ fina
   firstHome:{ eligible /* firstHome && pt stan|kuca */, requested, exemptM2, eligibleM2, sharePct, saving, when:'kupovina'|'kasnije'|null }, assumptions:[string] }
 ```
 Line keys, in order: `cena`, `pdv` (novogradnja: `amount 0, included:true, inPrice` when the price already contains PDV — the
-default; `vatIncluded:false` adds 10 %) **or** `porez` (2,5 %, payer = `profile.taxPayer`, note about the legal payer being the
+default; `vatIncluded:false` adds the rate; rate 10 % for stan/kuća, **20 % for `pt:'poslovni-prostor'`** — the line carries
+`vatPct`, label/note/assumption are built from it) **or** `porez` (2,5 %, payer = `profile.taxPayer`, note about the legal payer being the
 seller), `prvi-stan` (negative, starogradnja exemption 40 m² + 15 m² per extra household member, reduces day-of-purchase cash),
 (first-home lines appear only for `pt` `stan` or `kuca` — garaža, plac, lokal get an assumption sentence instead),
 `pdv-povracaj` (negative, `when:'kasnije'`, novogradnja: PDV refund on the **net** price ≈ 45 days later; never reduces
@@ -57,7 +58,9 @@ seller), `prvi-stan` (negative, starogradnja exemption 40 m² + 15 m² per extra
 (`optional:true` unless `profile.nkosk`, 1,5/2,5/3,5 % by LTV), `osiguranje` 40 €; `selidba` (useljenje), `adaptacija`
 (optional, only `co==='potrebno-renoviranje'`); monthly: `rata`, `grejanje`, `struja`, `komunalije`, `odrzavanje`
 (stambena zajednica), `porez-imovina` (label „gruba procena”, formula in `note`), `osiguranje-mes`.
-Loan = `ltv × price`, or `onPurchase − cash` clamped to `ltv × price` when `profile.cash > 0`; `financing:'kes'` → no loan lines.
+Loan = `ltv × price`, or, when `profile.cash > 0`, sized so that cash covers **everything** on the day of purchase including
+the bank lines: `loan = (preLoan + procena + osiguranje − cash) / (1 − 0,005 [− NKOSK % if profile.nkosk])`, clamped to
+`ltv × price` (so `onPurchase − loan = cash` whenever the LTV allows it); `financing:'kes'` → no loan lines.
 
 ```js
 const c = KX.cost(l);                     // 100.000 € starogradnja, agency, default profile:
@@ -83,7 +86,9 @@ Helpers: `KX.annuity(loan, ratePct, years)`, `KX.notar(price)`, `KX.utilities(l)
   gate:{ legal, financeable:'da'|'zavisi'|'ne' }, loanNeeded, cashAllIn, fees, missing? }
 ```
 Rules: no income and no cash → `nepoznato`; `cash ≥ cashAllIn` → `odmah`; legal `nije`/`ozakonjenje` or `pt zemljiste` →
-`samo-kes`; otherwise loan = price + fees − cash must be ≤ LTV × price and ≤ `maxLoan` (DTI × income − obligations through the
+`samo-kes`; otherwise the loan comes from `KX.cost(l, {...profile, financing:'kredit'})` (credit-mode fees incl. procena,
+obrada 0,5 %, osiguranje — the same numbers as the „Koliko me košta” panel); if `onPurchase − loan > cash` (LTV cap or cash
+below the fees) → `van-budzeta` with `missing` = the exact gap; the loan must be ≤ LTV × price and ≤ `maxLoan` (DTI × income − obligations through the
 annuity) → `kredit` with `label 'Rata 512 €'`; `u-procesu`/`poseban-zakon`/`u-izgradnji` keep `kredit` but `financeable:'zavisi'`
 and the reason says so. `KX.creditCapacity(profile?)` → `{income, maxRata, maxLoan, maxPrice, years, ltv, dti, creditPossible}` for
 the rail summary line.
@@ -131,6 +136,9 @@ still handle `groupOf() === null` for every other listing.
 KX.trustCheck(slug, index, done)   // user action: persists the checklist tick in localStorage 'kv.checks', returns the done indexes
 KX.legalLabel[legal]
 ```
+Rental price reasons: rent vs the **same reference as the Merilo** (`stats.refPpm`, fallback engine median n ≥ 4), €/m² below
+100 with one decimal: ≤ −30 % / ≤ −15 % → flags; −15…−6 % → „malo ispod proseka … nije znak mamac-oglasa”; |Δ| < 6 % → „u skladu sa
+prosekom”; ≥ +6 % → „Kirija je 27 % iznad proseka (opština Čukarica, 10,4 €/m²) — nije znak mamac-oglasa.”
 prodaja: legal state from `reg` + deterministic rng (≈ 68 % uknjiženo, 13 % u procesu, 9 % Zakon 2025, 5 % ozakonjenje,
 4 % nije on the 404 demo sale listings); colour = legal + demo flags + unverified agency + price far from the fair estimate.
 izdavanje: scam score from price ≪ area median, ≤ 3 photos (`im` 0/missing → „Oglas bez fotografija”), unverifiable advertiser,
@@ -163,7 +171,8 @@ KX.parseQuery('dvosoban vracar do 150k uknjizen')
 `amin/amax`, `flmin/flmax` (`sprat 3` → both 3, `prizemlje` → 0), `notLast`, `co:[…]`, `he:[…]`, `fu:[…]`, `reg`, `am:[…]`,
 `advertiser:'vlasnik'`, `q` (unparsed words joined — core matches them against title/place/ref/agency). A naselje sets `n` and
 its `m`; a mun sets `m` and `c`; a city sets `c`. Feed it straight to `setHash('/pretraga', filtersToParams({...FILTER_DEFAULTS, ...filters}))`.
-Grammar (diacritic-insensitive, `đ→dj`): cities/muns/naselja incl. aliases (`bg`, `ns`, `nbg`, `blok 45`), ambiguous names →
+Grammar (diacritic-insensitive; `đ` matches both `dj` and `d`: `arandelovac`, `deram`, `kaluderica`): cities/muns/naselja incl.
+aliases (`bg`, `bgd`, `ns`, `nbg`, `blok 45`; abbreviations inside multi-word names: `novi bg` / `novi bgd` → Novi Beograd, longest match first), ambiguous names →
 chip `Centar (Čačak)` + `ili: …` (same name in the same city → the kind disambiguates: `Grbavica (opština, Novi Sad)` + `ili: Grbavica (naselje, Novi Sad)`); struktura words and `2 sobe`/`2.5`; `do|ispod|max 150k|150.000|1.500.000|150 hiljada`, `od|preko|min`,
 ranges `120-150k` / `od 50 do 80 m2`; `m2|m²|kvadrata`; bare `60 m2` → ±10 %; bare number ≥ 10.000 → pmax; flags `uknjizen`,
 `novogradnja`, `renoviran`, `lux`, `u izgradnji`, heating `cg|eg|ta|gas|podno`, `namesten|polunamesten|prazan`, amenities

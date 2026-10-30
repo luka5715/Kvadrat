@@ -179,7 +179,14 @@ test('hood', () => {
   for (const t of h.transport) { assert(t.type && t.line && t.stop); assert(t.min >= 2 && t.min <= 8); }
   eq(h.pijaca.name, 'Pijaca Kalenić'); eq(h.park.name, 'Karađorđev park'); assert(/^OŠ „/.test(h.skola.name)); assert(/^Vrtić „/.test(h.vrtic.name));
   assert(h.note.length > 40 && h.note.length < 320, h.note); assert(!/\{/.test(h.note), 'bez neiskorišćenih placeholdera');
-  for (const x of D.listings) { const hh = mock.hood(x); assert(hh.note && !/\{/.test(hh.note), x.s); assert(hh.pijaca.min >= 4 && hh.skola.min >= 3 && hh.park.min >= 4); }
+  for (const x of D.listings) { const hh = mock.hood(x); assert(hh.note && !/\{/.test(hh.note), x.s); assert(hh.pijaca.min >= 3 && hh.skola.min >= 3 && hh.park.min >= 3); assert(!hh.note.includes(hh.pijaca.name + ' na deset minuta'), 'minute pijace iz pijaca.min'); }
+  /* jedan izvor istine: walk(l) koji imenuje pijacu/park iz Komšiluka nosi iste minute (walk 3–14) */
+  for (const x of D.listings) {
+    const w = mock.walk(x), hh = mock.hood(x);
+    if (w.to === 'pijace Vidikovac' || w.to === 'Ade Ciganlije' || w.to === 'pijace Kalenić') assert(hh.pijaca.min === w.min || hh.park.min === w.min, x.s + ' ' + w.to);
+    if (hh.note.includes(hh.pijaca.name + ' na ')) assert(hh.note.includes(hh.pijaca.name + ' na ' + hh.pijaca.min + ' minut'), x.s);
+  }
+  { const k = D.listings.find((x) => x.s === 'dvosoban-stan-u-mirnom-delu-kijevo-60m-kv-7962839'); if (k) { const w = mock.walk(k), hh = mock.hood(k); eq(hh.pijaca.min, w.min); assert(hh.note.includes(`${w.min} minuta hoda`), hh.note); } }
   const kinds = new Set(D.listings.map((x) => mock.hood(x).kind)); assert(kinds.size >= 6, [...kinds].join(','));
   /* prigradske opštine i Zemun: samo autobus; Vračar bez tramvaja na Novom Beogradu itd. */
   for (const x of D.listings.filter((y) => y.cs === 'beograd' && ['mladenovac', 'lazarevac', 'obrenovac', 'sopot', 'barajevo', 'grocka', 'surcin', 'zemun'].includes(y.ms)))

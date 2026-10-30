@@ -97,13 +97,14 @@ const homeData = (() => {
       out.push(l); used.add(l.s); if (g) usedG.add(g);
       return true;
     };
-    const promoted = L.filter(isPromo);
+    /* obe sekcije samo iz prodaje: link („Svi izdvojeni“ = promo, „Svi novi“ = sort=new) otvara prodaju, pa svaka kartica mora biti u tom skupu */
+    const promoted = L.filter((l) => l.t === 'prodaja' && isPromo(l));
     const week = promoted.filter((l) => l.dz <= 7);
     const pool = (week.length >= 4 ? week : promoted).slice().sort((a, b) => b.v - a.v || a.dz - b.dz || (a.s < b.s ? -1 : 1));
     const featured = [];
     for (const l of pool) { if (featured.length >= 4) break; take(l, featured); }
     const fresh = [];
-    for (const l of L.slice().sort((a, b) => a.dz - b.dz || b.v - a.v || (a.s < b.s ? -1 : 1))) { if (fresh.length >= 4) break; take(l, fresh); }
+    for (const l of L.filter((x) => x.t === 'prodaja').sort((a, b) => a.dz - b.dz || b.v - a.v || (a.s < b.s ? -1 : 1))) { if (fresh.length >= 4) break; take(l, fresh); }
 
     const byType = {}; const tByType = {};
     for (const l of L) { byType[l.pt] = (byType[l.pt] || 0) + 1; (tByType[l.pt] = tByType[l.pt] || { prodaja: 0, izdavanje: 0 })[l.t]++; }
@@ -262,6 +263,19 @@ function homeSearch(init) {
 
   /* D7: „Imam ___ €“ → mapa u režimu budžeta sa iznosom */
   const bIn = el('input', { type: 'text', inputmode: 'numeric', id: nid('b'), autocomplete: 'off', placeholder: '120.000', 'aria-label': 'Budžet u evrima' });
+  const bCur = el('span', { class: 'cur', 'aria-hidden': 'true' }, '€');
+  const bWrap = el('span', { class: 'b-in' }, bIn, bCur);
+  let bMode = 'prodaja';
+  /* u režimu izdavanja iznos je mesečna kirija: drugi primer, „€/mes“ i opis za čitače ekrana */
+  function syncBudget(mode) {
+    if (mode === bMode) return;
+    bMode = mode;
+    const rent = mode === 'izdavanje';
+    bIn.placeholder = rent ? '500' : '120.000';
+    bIn.setAttribute('aria-label', rent ? 'Mesečna kirija u evrima' : 'Budžet u evrima');
+    bCur.textContent = rent ? '€/mes' : '€';
+    bWrap.classList.toggle('rent', rent);
+  }
   const bAmount = () => {
     /* srpski zapis: tačka = hiljade, zarez = decimale; „85,5k“ = 85.500, „1,5 mil“ = 1.500.000, „120.000,50“ = 120.001 */
     const raw = String(bIn.value).toLowerCase().replace(/\s/g, '').replace(/[€e]+$|eur\w*$/, '');
@@ -282,11 +296,16 @@ function homeSearch(init) {
       const n = bAmount();
       const pf = textFilters();
       const c = pf && pf.c ? pf.c : st.locs.length ? st.locs[0].cs : '';
-      location.hash = (typeof router !== 'undefined' && router.href ? router.href('/mapa', { m: 'budzet', b: n || '', c }) : '#/mapa?m=budzet' + (n ? '&b=' + n : '') + (c ? '&c=' + c : ''));
+      /* mapa budžeta računa za vrstu ponude i tip iz kutije: „Izdavanje“ / „kirija“ → mesečna kirija, „Kuće“ → kuće */
+      const t = modeOf(viewTab(pf)) === 'izdavanje' ? 'izdavanje' : '';
+      const pt = pf && pf.pt && pf.pt.length ? (pf.pt.length === 1 ? pf.pt[0] : '') : st.pt;
+      const P = { m: 'budzet', b: n || '', c, t, pt: pt || '' };
+      location.hash = (typeof router !== 'undefined' && router.href ? router.href('/mapa', P)
+        : '#/mapa?' + Object.keys(P).filter((k) => P[k] !== '').map((k) => k + '=' + encodeURIComponent(P[k])).join('&'));
     },
   },
   el('label', { for: bIn.id }, 'Imam'),
-  el('span', { class: 'b-in' }, bIn, el('span', { class: 'cur', 'aria-hidden': 'true' }, '€')),
+  bWrap,
   el('button', { class: 'btn btn-secondary btn-sm', type: 'submit' }, icon('ruler'), 'Koliko kvadrata?'));
 
   const more = el('div', { class: 'hm-more' }, el('p', { class: 'search-more' }, 'Više filtera: ', moreLink), bForm);
@@ -347,6 +366,7 @@ function homeSearch(init) {
     const vt = viewTab(pf);
     tabBtns.forEach((b, i) => { const on = TABS[i].v === vt; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; });
     fillPrices(pf);
+    syncBudget(modeOf(vt));
     fPrice.classList.toggle('from-text', !!(pf && hasVal(pf.pmax)));
     const tp = pf && pf.pt && pf.pt.length ? (pf.pt.length === 1 ? pf.pt[0] : '') : st.pt;
     if (typeSel.value !== tp) typeSel.value = tp;
@@ -421,6 +441,31 @@ function homeSearch(init) {
     list.style.top = Math.round(f.bottom - r.top + 4) + 'px';
     list.style.left = Math.round(Math.max(0, left)) + 'px';
     list.style.width = Math.round(w) + 'px';
+    /* telefon: lista ne sme da ode ispod donje navigacije — visina = prostor između polja (posle pomeranja) i navigacije */
+    if (narrow) {
+      const nav = document.querySelector('.bnav');
+      const navTop = nav && getComputedStyle(nav).display !== 'none' ? nav.getBoundingClientRect().top : innerHeight;
+      const fTop = locScrolling ? hdrBottom() + 8 : f.top;
+      const room = Math.floor(navTop - (fTop + f.height + 4) - 8);
+      list.style.maxHeight = Math.max(144, Math.min(372, room)) + 'px';
+    } else list.style.maxHeight = '';
+  }
+  /* telefon: polje Lokacija ide odmah ispod zaglavlja kad za predloge nema mesta (inače bi lista bila iza donje navigacije / tastature) */
+  let locScrolling = false, tScroll = 0;
+  const hdrBottom = () => { const h = document.querySelector('.hdr'); const r = h ? h.getBoundingClientRect() : null; return r && r.bottom > 0 ? r.bottom : 0; };
+  function revealLoc() {
+    const r = root.getBoundingClientRect();
+    if (!r.width || r.width >= 560 || !fLoc.scrollIntoView) return;
+    const f = fLoc.getBoundingClientRect();
+    const nav = document.querySelector('.bnav');
+    const navTop = nav && getComputedStyle(nav).display !== 'none' ? nav.getBoundingClientRect().top : innerHeight;
+    const top = hdrBottom() + 8;
+    /* dovoljno mesta za bar četiri predloga ispod polja i polje nije pod zaglavljem → ne pomeraj */
+    if (f.top >= top - 1 && navTop - f.bottom >= 4 * 48 + 24) return;
+    /* odmah, bez animacije: kucanje pomera kursor u vidno polje i prekinulo bi glatko pomeranje na pola puta */
+    locScrolling = true; clearTimeout(tScroll);
+    fLoc.scrollIntoView({ block: 'start', behavior: 'auto' });
+    tScroll = setTimeout(() => { locScrolling = false; if (st.open) placeList(); }, 60);
   }
   function openList() { st.sugg = suggest(st.text); st.open = true; st.active = defaultActive(); renderList(); }
   function closeList() { st.open = false; st.active = -1; renderList(); }
@@ -471,7 +516,7 @@ function homeSearch(init) {
     st.parsed = parse(st.text);
     openList(); renderParse(); refresh(false);
   });
-  input.addEventListener('focus', () => { if (!st.open) openList(); });
+  input.addEventListener('focus', () => { revealLoc(); if (!st.open) openList(); });
   input.addEventListener('blur', () => setTimeout(() => { if (!root.contains(document.activeElement)) closeList(); }, 120));
   input.addEventListener('keydown', (e) => {
     const n = st.sugg.length;
@@ -841,9 +886,9 @@ function viewHome(q) {
   return el('div', { class: 'wrap hm' },
     homeHero(init),
     homeResume(),
-    sec('hm-featured', sectionHead('Izdvojeno ove nedelje', 'Promovisani oglasi sa najviše pregleda u poslednjih sedam dana.', HOME_ROUTES.search(featP), (featN % 10 === 1 && featN % 100 !== 11 ? `Svi izdvojeni oglasi (${fmt.num(featN)})` : `Svih ${fmt.num(featN)} izdvojenih`)),
+    sec('hm-featured', sectionHead('Izdvojeno ove nedelje', 'Promovisani oglasi za prodaju sa najviše pregleda u poslednjih sedam dana.', HOME_ROUTES.search(featP), (featN % 10 === 1 && featN % 100 !== 11 ? `Svi izdvojeni oglasi (${fmt.num(featN)})` : `Svih ${fmt.num(featN)} izdvojenih`)),
       homeCards(H.featured)),
-    sec('hm-fresh', sectionHead('Novo u ponudi', 'Oglasi postavljeni od juče.', HOME_ROUTES.search({ sort: 'new' }), 'Svi novi oglasi'),
+    sec('hm-fresh', sectionHead('Novo u ponudi', 'Oglasi za prodaju postavljeni od juče.', HOME_ROUTES.search({ sort: 'new' }), 'Svi novi oglasi'),
       homeCards(H.fresh, { fresh: true })),
     sec('hm-market-s', sectionHead('Tržište ovog meseca', 'Koliko košta kvadrat stana u najvećim gradovima.', '#/trziste', 'Cene po gradovima i opštinama'),
       homeMarket()),
