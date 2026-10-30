@@ -48,7 +48,7 @@ section('titleOf');
 const flat = by((l) => l.pt === 'stan' && l.t === 'prodaja' && l.ro === 2 && l.cs === 'beograd' && l.co !== 'novogradnja' && l.co !== 'u-izgradnji');
 const t1 = KX.titleOf(flat);
 console.log('  ', t1);
-ok(/^Dvosoban stan, \d+ m², .+ · .+/.test(t1), 'prodaja: "Dvosoban stan, 60 m², Opština · Naselje"');
+ok(/^Dvosoban stan, \d+\sm², .+ · .+/.test(t1), 'prodaja: "Dvosoban stan, 60 m², Opština · Naselje"');
 const rent = by((l) => l.t === 'izdavanje' && l.pt === 'stan' && l.ro === 1);
 console.log('  ', KX.titleOf(rent));
 ok(/€\/mes$/.test(KX.titleOf(rent)), 'zakup se završava sa €/mes');
@@ -383,6 +383,21 @@ section('regresije (review)');
 }
 
 section('performance — enrich + cost nad svim oglasima');
+section('QA: zaokruživanje olakšice, oznake lokacije, relax bez gubitka opštine');
+{
+  /* 80.500 € × 2,5 % = 2.012,5 € → porez 2.013 €, puno oslobođenje mora biti tačno −2.013 € */
+  const fh = { ...L.find((l) => l.t === 'prodaja' && l.pt === 'stan' && l.co !== 'novogradnja' && l.co !== 'u-izgradnji' && l.a <= 55), p: 80500, s: undefined };
+  const cf = KX.cost(fh, { firstHome: true, household: 2 });
+  ok(lineOf(cf, 'porez').amount + lineOf(cf, 'prvi-stan').amount === 0, 'puno oslobođenje poništava porez do evra (bez 1 € ostatka)', [lineOf(cf, 'porez').amount, lineOf(cf, 'prvi-stan').amount]);
+  const nbf = { ...L.find((l) => l.t === 'prodaja' && l.pt === 'stan' && l.co === 'novogradnja' && l.a <= 55), s: undefined };
+  if (nbf.p) { const cn = KX.cost(nbf, { firstHome: true, household: 2 }); ok(-lineOf(cn, 'pdv-povracaj').amount === lineOf(cn, 'pdv').inPrice, 'pun povraćaj PDV-a = ceo PDV u ceni', [lineOf(cn, 'pdv-povracaj').amount, lineOf(cn, 'pdv').inPrice]); }
+  const g = KX.parseQuery('grbavica').chips.map((c) => c.label);
+  ok(g.length < 2 || new Set(g.map((x) => x.replace(/^ili: /, ''))).size === g.length, 'glavni i alternativni čip lokacije imaju različite oznake', g);
+  const vr = KX.parseQuery('dvosoban vračar do 150k uknjižen');
+  const rx = KX.relax(vr.filters);
+  ok(rx.every((r) => r.filters.c !== '' || /lokacij/i.test(r.label)), 'relax: „cela Srbija” samo uz oznaku koja kaže da se uklanja lokacija', rx.map((r) => r.label));
+}
+
 const tc0 = performance.now();
 L.forEach((l) => KX.cost(l));
 const tc = performance.now() - tc0;

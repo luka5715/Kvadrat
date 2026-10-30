@@ -96,7 +96,7 @@ const phoneList = el('div', { class: 'rows' }, list.map((l) => card(l, 'compact'
 | Funkcija | Vraća |
 |---|---|
 | `badge(kind, label?)` | `<span class="badge badge-*" data-kind>`; `kind ∈ novogradnja (.badge-new) · uknjizeno (.badge-reg) · snizena (.badge-sale) · hitno (.badge-urgent) · premium/top (.badge-top) · novo (.badge-fresh) · verifikovan (.badge-verified, sa ✓) · vlasnik (osnovna)`. Nepoznat `kind` → osnovna oznaka sa tim tekstom. |
-| `deltaChip(l \| {pct, ppm, label, n}, { title? })` | `<span class="delta up\|down\|flat" role="img" tabindex=0>` glif + znak + `+9,7 %`; tooltip „9,7 % iznad proseka za Vračar (5.519 €/m²)“. Vraća **`null`** kad nema uzorka (`n < 5`) — uvek proveri. `flat` = unutar ±1,5 %. |
+| `deltaChip(l \| {pct, ppm, label, n}, { title? })` | `<span class="delta up\|down\|flat" role="img" aria-label="…">` (nije Tab-stanica; tooltip na prelaz i dodir, pogodak 40px) glif + znak + `+9,7 %`; tooltip „9,7 % iznad proseka za Vračar (5.519 €/m²)“. Vraća **`null`** kad nema uzorka (`n < 5`) — uvek proveri. `flat` = unutar ±1,5 %. |
 | `merilo(l)` | `<div class="merilo" role="img" aria-label="…">` (traka, `.med` tick, `.dot`, `.lbl`) ili `null`. Detalj oglasa. |
 | `priceBlock(l)` | `<section class="priceblock">` — levo `.big` cena (+ `<s>`), `.sub` (€/m² + Δ · fiksna/nije fiksna), `.sub` kredit („kredit od 1.180 €/mes · 20 % učešće, 30 god., 5,2 % · Otvori kalkulator“) ili depozit za izdavanje, `merilo(l)`; desno `sparkline` 12 meseci iz `mock.history(l)`. |
 | `amenityTags(l)` | `<div class="tags">` sa `.tag.static` (Dodatno). |

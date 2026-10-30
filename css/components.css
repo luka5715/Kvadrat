@@ -7,6 +7,8 @@
 .logo .mark{width:24px;height:24px;position:relative;background:var(--ink);border-radius:2px;flex:none}
 .logo .mark::after{content:"";position:absolute;top:-4px;right:-4px;width:9px;height:9px;background:var(--accent);border:2px solid var(--bg)}
 .logo small{font-family:var(--f-body);font-size:12px;font-weight:600;color:var(--accent);margin-left:-6px;align-self:flex-start;margin-top:2px;letter-spacing:0}
+/* logo-veza: dodirna površina 40px (do-not #11) bez promene rasporeda — 8px unutrašnjeg prostora gore/dole, poništeno negativnom marginom */
+a.logo{padding-block:8px;margin-block:-8px}
 
 /* ───────── fotografija (zajedničko) ───────── */
 .ph{position:relative;aspect-ratio:4/3;overflow:hidden;border-radius:var(--r);background:var(--surface-2);display:block}
@@ -510,9 +512,9 @@ body.sheet-open,body.modal-open{overflow:hidden}
 /* naslov kartice: nevidljivo proširenje klika na visinu 40px */
 .card h3 a,.row h3 a,.row-c h3 a{position:relative}
 .card h3 a::after,.row h3 a::after,.row-c h3 a::after{content:"";position:absolute;left:0;right:0;top:50%;height:40px;transform:translateY(-50%)}
-/* fokusabilni Δ čip (tooltip): pogodak 40px visine */
-.delta[tabindex]{position:relative}
-.delta[tabindex]::after{content:"";position:absolute;left:0;right:0;top:50%;height:40px;transform:translateY(-50%)}
+/* Δ čip (tooltip na prelaz/dodir; nije Tab-stanica, objašnjenje je u aria-label): pogodak za dodir 40px visine */
+.delta[role="img"]{position:relative}
+.delta[role="img"]::after{content:"";position:absolute;left:0;right:0;top:50%;height:40px;transform:translateY(-50%)}
 /* mrvice: veze 40px visine, poravnate sa tekstom */
 .crumbs a{display:inline-flex;align-items:center;min-height:40px}
 .crumbs{row-gap:0}

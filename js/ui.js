@@ -328,7 +328,8 @@
     const cls = Math.abs(pct) <= 1.5 ? 'flat' : pct > 0 ? 'up' : 'down';
     const txt = cls === 'flat' ? '±' + fmt.pct(Math.abs(pct)) : fmt.pct(pct, { sign: true });
     const ic = cls === 'up' ? 'arrow-up' : cls === 'down' ? 'arrow-down' : 'minus';
-    const n = el('span', { class: 'delta ' + cls, tabindex: '0', role: 'img' }, icon(ic), txt);
+    /* nije Tab-stanica (10+ čipova po strani, 20px visine): objašnjenje čita čitač ekrana iz aria-label (role=img), a tooltip se otvara na prelaz i dodir */
+    const n = el('span', { class: 'delta ' + cls, role: 'img' }, icon(ic), txt);
     /* bez padeža: „12,3 % ispod proseka · Čukarica (2.555 €/m²)” */
     const text = opts.title || (d.label ? `${fmt.pct(Math.abs(pct))} ${pct >= 0 ? 'iznad' : 'ispod'} proseka · ${d.label}${d.ppm ? ` (${fmt.ppm(d.ppm)})` : ''}` : (pct >= 0 ? 'Iznad proseka' : 'Ispod proseka'));
     tip(n, text);
@@ -364,9 +365,8 @@
   function roomsText(ro) {
     if (ro == null) return null;
     if (ro === 0.5) return 'garsonjera';
-    const n = fmt.roomsN(ro);
-    const word = ro >= 5 ? 'soba' : ro < 2 ? 'soba' : 'sobe';
-    return `${n} ${word}`;
+    /* isto pravilo kao fmt.roomsText: 1 soba, 2–4 sobe, decimalno → genitiv jednine („1,5 sobe”), 5+ soba */
+    return fmt.roomsText(ro);
   }
   function factList(l) {
     const f = [];

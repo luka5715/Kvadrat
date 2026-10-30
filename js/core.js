@@ -99,7 +99,8 @@ const find = (() => {
 })();
 
 /* ───────────────────────── formatiranje (sr-RS: hiljade '.', decimale ',') ───────────────────────── */
-const NBSP = ' ', THIN = ' ', MINUS = '−';
+/* NBSP između broja i jedinice (jedinica ne prelazi sama u novi red); THIN = uski NEPRELOMNI razmak (U+202F) pre % */
+const NBSP = ' ', THIN = ' ', MINUS = '−';
 function fmtNum(n, dec = 0) {
   if (n == null || !isFinite(n)) return '';
   const neg = n < 0; const abs = Math.abs(n);
@@ -118,11 +119,11 @@ const fmt = {
   /* fmt.num(1234.5) → "1.235"; fmt.num(4.75, 2) → "4,75" */
   num: fmtNum,
   /* fmt.price(125000) → "125.000 €"; fmt.price(450, 'izdavanje') → "450 €/mes" */
-  price: (n, t) => (n == null ? '' : fmtNum(Math.round(n)) + (t === 'izdavanje' ? ' €/mes' : ' €')),
+  price: (n, t) => (n == null ? '' : fmtNum(Math.round(n)) + NBSP + (t === 'izdavanje' ? '€/mes' : '€')),
   /* fmt.ppm(1850.4) → "1.850 €/m²"; za kiriju (< 100) čuva jednu decimalu: "13,1 €/m²" */
-  ppm: (n) => (n == null || !isFinite(n) ? '' : (n >= 100 ? fmtNum(Math.round(n)) : fmtNum(Math.round(n * 10) / 10, Number.isInteger(Math.round(n * 10) / 10) ? 0 : 1)) + ' €/m²'),
+  ppm: (n) => (n == null || !isFinite(n) ? '' : (n >= 100 ? fmtNum(Math.round(n)) : fmtNum(Math.round(n * 10) / 10, Number.isInteger(Math.round(n * 10) / 10) ? 0 : 1)) + NBSP + '€/m²'),
   /* fmt.m2(46) → "46 m²"; fmt.m2(46.5) → "46,5 m²" */
-  m2: (n) => { if (n == null) return ''; const r = Math.round(n * 10) / 10; return fmtNum(r, Number.isInteger(r) ? 0 : 1) + ' m²'; },
+  m2: (n) => { if (n == null) return ''; const r = Math.round(n * 10) / 10; return fmtNum(r, Number.isInteger(r) ? 0 : 1) + NBSP + 'm²'; },
   /* fmt.land(650) → "6,5 ari"; fmt.land(12000) → "1,2 ha" */
   land: (m2) => {
     if (m2 == null) return '';
@@ -158,8 +159,8 @@ const fmt = {
   rooms: (ro) => { if (ro == null) return ''; const r = ROOMS.find((x) => x[0] === ro); return r ? r[1] : ro >= 5 ? ROOMS[ROOMS.length - 1][1] : `${fmtNum(ro, Number.isInteger(ro) ? 0 : 1)} sobe`; },
   /* fmt.roomsN(2) → "2"; (1.5) → "1,5"; (5) → "5+" */
   roomsN: (ro) => (ro == null ? '' : ro >= 5 ? '5+' : fmtNum(ro, Number.isInteger(ro) ? 0 : 1)),
-  /* fmt.roomsText(2) → "2 sobe"; (1.5) → "1,5 soba"; (1) → "1 soba"; (5) → "5+ soba" */
-  roomsText: (ro) => { if (ro == null) return ''; const n = fmt.roomsN(ro); if (ro >= 5) return n + ' soba'; return n + ' ' + (Number.isInteger(ro) ? plural(ro, 'soba', 'sobe', 'soba') : 'soba'); },
+  /* fmt.roomsText(2) → "2 sobe"; (1.5) → "1,5 sobe" (decimalni broj → genitiv jednine); (1) → "1 soba"; (5) → "5+ soba" */
+  roomsText: (ro) => { if (ro == null) return ''; const n = fmt.roomsN(ro); if (ro >= 5) return n + ' soba'; return n + ' ' + (Number.isInteger(ro) ? plural(ro, 'soba', 'sobe', 'soba') : 'sobe'); },
   /* fmt.year(1990) → "1990." */
   year: (y) => (y == null ? '' : `${y}.`),
   /* fmt.count(106, 'oglas', 'oglasa', 'oglasa') → "106 oglasa" ; fmt.listings(1) → "1 oglas" */

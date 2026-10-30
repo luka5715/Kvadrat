@@ -190,3 +190,12 @@
   .hm-art .ph img{transition:none}
   .hm-art:hover .ph img{transform:none}
 }
+
+/* QA r1: alternativa istog imena („ili: Palilula (Niš)“) — akcija, ne uslov */
+.hm-alt{display:inline-flex;align-items:center;gap:4px;color:var(--muted)}
+.hm-alt b{font-weight:500;color:var(--text)}
+.hm-alt:hover b{color:var(--accent)}
+/* „Nastavi gde si stao“: preporuke na osnovu sačuvanih */
+.hm-recs{margin-top:40px}
+.hm-recs-h{font-family:var(--f-display);font-size:var(--fs-h3);font-weight:500;line-height:1.2;margin:0}
+.hm-recs .hm-src{margin:6px 0 18px}

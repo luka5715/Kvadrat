@@ -81,6 +81,9 @@
 .srp .pr{display:flex;flex-wrap:wrap;gap:8px}
 .srp .chip.is-zero,.srp-sheet .chip.is-zero{color:var(--muted);border-color:var(--border);border-style:dashed}
 .srp .chip.is-zero .n,.srp-sheet .chip.is-zero .n{background:var(--surface-2);color:var(--muted)}
+.srp .check.is-zero,.srp-sheet .check.is-zero{color:var(--muted)}
+.srp .check.is-zero input,.srp-sheet .check.is-zero input{border-style:dashed}
+.srp .check.is-zero .cnt,.srp-sheet .check.is-zero .cnt{color:var(--muted)}
 .srp-grp .t{gap:8px;align-items:baseline}
 .srp-est{font-size:12px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}
 .srp-pair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:8px;align-items:center}
@@ -139,15 +142,26 @@
 .srp-sem-zuto{background:linear-gradient(90deg,var(--ink) 50%,transparent 50%);box-shadow:inset 0 0 0 1.5px var(--ink)}
 /* crveno: prazan krug sa obrubom (isti monohromni sistem kao Sačuvano/Uporedi) */
 .srp-sem-crveno{background:transparent;box-shadow:inset 0 0 0 1.5px var(--ink)}
-.table .ag{display:inline-flex;align-items:center;gap:6px}
 .srp-dup{margin-top:10px}
 .srp-dup-b{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:6px 10px;border-radius:var(--r);background:var(--surface);font-size:13px;font-weight:500;color:var(--text);text-align:left}
 .srp-dup-b span{flex:1;min-width:0}
 .srp-dup-b .ico{color:var(--accent);flex:none}
 .srp-dup-b[aria-expanded="true"] .ico:last-child{transform:rotate(180deg)}
 .srp-dup-l{list-style:none;margin:0;padding:4px 0 0}
-.srp-dup-l a{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;min-height:40px;padding:0 10px;border-bottom:1px solid var(--border);font-size:13px}
+.srp-dup-l a{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:center;min-height:40px;padding:8px 10px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text)}
 .srp-dup-l a:hover{background:var(--surface)}
+.srp-dup-l .ag{display:inline-flex;align-items:center;gap:5px;min-width:0;font-weight:600;color:var(--ink)}
+.srp-dup-l .ag>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.srp-dup-l .ag .ico{flex:none;color:var(--accent)}
+.srp-dup-l b{color:var(--ink);font-variant-numeric:tabular-nums}
+.srp-dup-m{grid-column:1/-1;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.srp-dup-best{grid-column:1/-1;display:inline-flex;align-items:center;gap:4px;justify-self:start;font-size:12px;font-weight:600;color:var(--success-ink)}
+.srp-dup-best .ico{color:var(--success-ink)}
+.srp-dup-l .is-best a{box-shadow:inset 2px 0 0 var(--success-ink)}
+.srp-dup-q{flex:none;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--ink);font-size:11px;font-weight:700;color:var(--ink);cursor:help}
+.srp-prov{flex:none;display:inline-flex;align-items:center;height:22px;padding:0 7px;border-radius:2px;background:var(--surface);font-size:12px;font-weight:500;color:var(--muted);white-space:nowrap}
+.srp-dupnote{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;color:var(--muted)}
+.srp-dupnote .ico{flex:none;color:var(--muted)}
 
 /* meni „⋯” */
 .srp-menu{position:fixed;z-index:60;min-width:220px;padding:6px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r-md);box-shadow:var(--shadow-lg)}
@@ -159,17 +173,21 @@
 .srp-cards{margin-top:2px}
 .srp-rows{border-top:1px solid var(--border)}
 .srp-table{margin-top:2px}
-.srp-table .table .price{font-size:var(--fs-price-sm)}
-/* Lista pored raila (≥1101): tabela mora da stane u ~940px bez horizontalnog skrola — manja sličica, oglašivač se skraćuje,
-   „Detalji” otpada (naslov i sličica već vode na oglas) */
-.srp:not(.srp-norail) .srp-table .table td,.srp:not(.srp-norail) .srp-table .table th{padding-right:10px}
-.srp:not(.srp-norail) .srp-table .table .thumb{width:80px}
-.srp:not(.srp-norail) .srp-table .table .og{min-width:0;gap:10px}
-.srp:not(.srp-norail) .srp-table .table .ag{display:block;max-width:118px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.srp:not(.srp-norail) .srp-table .table .ag .srp-sem{margin-right:6px;vertical-align:middle}
-.srp:not(.srp-norail) .srp-table .table .ag .ico{vertical-align:middle;margin-left:4px}
-.srp:not(.srp-norail) .srp-table .table tr>:last-child{display:none}
-.srp:not(.srp-norail) .srp-table .table .price s{display:block;margin:2px 0 0}
+/* Lista (≥861, sa railom i bez njega): tabela mora da stane u kolonu bez horizontalnog skrola — manja sličica, Δ ide ispod €/m²,
+   sprat se prelama, oglašivač se skraćuje, „Detalji” otpada (naslov i sličica već vode na oglas). Cena: serif 18px (SPEC 5.28). */
+.srp-table .table .price{font-size:18px}
+.srp-table .table td,.srp-table .table th{padding-right:10px}
+.srp-table .table .thumb{width:80px}
+.srp-table .table .og{min-width:0;gap:10px}
+.srp-table .table tr>:nth-child(6),.srp-table .table tr>:last-child{display:none}
+.srp-table .table td:nth-child(4){white-space:normal;min-width:52px}
+.srp-table .table .srp-ppmd{display:block;margin-top:4px}
+.srp-table .table .srp-ppmd .delta{margin:0}
+.srp-table .table .ag{display:inline-flex;align-items:center;gap:6px;max-width:150px;min-width:0;white-space:nowrap}
+.srp-table .table .ag .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.srp-table .table .ag .srp-sem,.srp-table .table .ag .ico{flex:none}
+.srp-table .table .price s{display:block;margin:2px 0 0}
+@media (max-width:1279px){.srp-table .table .ag{max-width:118px}}
 /* mapa (desktop/tablet): lista + lepljiva mapa */
 .srp-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.9fr);gap:24px;align-items:start}
 .srp-split-r{position:sticky;top:calc(var(--header-h) + 84px)}
@@ -183,15 +201,18 @@
 .srp-mapfull .srp-map{height:100%;min-height:0;border-radius:0}
 .srp-car{position:absolute;left:0;right:0;bottom:12px;z-index:6;display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;padding:0 16px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .srp-car::-webkit-scrollbar{display:none}
-.srp-car .row-c{flex:none;width:min(320px,82vw);padding:10px;scroll-snap-align:center;background:var(--bg);border:0;border-radius:var(--r);box-shadow:var(--shadow)}
+.srp-car .row-c{flex:none;width:min(320px,82vw);height:132px;overflow:hidden;padding:10px;scroll-snap-align:center;background:var(--bg);border:0;border-radius:var(--r);box-shadow:var(--shadow)}
 .srp-car .row-c .fav{top:10px;right:10px}
 .srp-car .row-c>.srp-more{top:56px;right:10px}
 .srp-car .row-c .body{padding-right:48px}
+.srp-car .row-c h3{-webkit-line-clamp:1}
+.srp-car .row-c:has(.srp-pm) .street{display:none}
+.srp-car .row-c .srp-pm{margin-top:1px;white-space:nowrap}
 
 /* kosturi za kartice koje stižu u sledećem frejmu */
 .srp-ph.row-c{height:132px;border-bottom:1px solid var(--border)}
 .srp-ph.row{height:190px;border-bottom:1px solid var(--border)}
-.srp-car .srp-ph{flex:none;width:min(320px,82vw);height:118px;background:var(--bg);border-radius:var(--r-md)}
+.srp-car .srp-ph{flex:none;width:min(320px,82vw);height:132px;background:var(--bg);border-radius:var(--r-md)}
 tr.srp-ph td{height:97px;border-bottom:1px solid var(--border)}
 
 /* paginacija / učitaj još */

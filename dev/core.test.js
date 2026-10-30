@@ -53,22 +53,23 @@ const eq = assert.strictEqual, deq = (a, b, m) => assert.deepStrictEqual(JSON.pa
 
 const K = load({ storage: memStorage() });
 const { D, fmt, stats, mock, store, router, mortgage, purchaseCosts, rentCosts } = K;
-const THIN = ' ', MINUS = '−';
+/* NBSP (U+00A0) između broja i jedinice; THIN = uski neprelomni razmak (U+202F) pre % */
+const NBSP = ' ', THIN = ' ', MINUS = '−';
 
 console.log('core.test.js — podaci: ' + D.listings.length + ' oglasa');
 
 console.log('\nfmt');
 test('num', () => { eq(fmt.num(125000), '125.000'); eq(fmt.num(1234567), '1.234.567'); eq(fmt.num(4.756, 2), '4,76'); eq(fmt.num(999), '999'); eq(fmt.num(-1500), MINUS + '1.500'); });
-test('price', () => { eq(fmt.price(125000), '125.000 €'); eq(fmt.price(125000, 'prodaja'), '125.000 €'); eq(fmt.price(450, 'izdavanje'), '450 €/mes'); eq(fmt.price(1299.6), '1.300 €'); });
-test('ppm', () => { eq(fmt.ppm(1850.4), '1.850 €/m²'); eq(fmt.ppm(5519), '5.519 €/m²'); eq(fmt.ppm(13.13), '13,1 €/m²'); eq(fmt.ppm(13), '13 €/m²'); eq(fmt.ppm(null), ''); });
-test('m2 / land', () => { eq(fmt.m2(46), '46 m²'); eq(fmt.m2(46.5), '46,5 m²'); eq(fmt.m2(1200), '1.200 m²'); eq(fmt.land(650), '6,5 ari'); eq(fmt.land(100), '1 ar'); eq(fmt.land(300), '3 ara'); eq(fmt.land(12000), '1,2 ha'); });
+test('price', () => { eq(fmt.price(125000), '125.000' + NBSP + '€'); eq(fmt.price(125000, 'prodaja'), '125.000' + NBSP + '€'); eq(fmt.price(450, 'izdavanje'), '450' + NBSP + '€/mes'); eq(fmt.price(1299.6), '1.300' + NBSP + '€'); });
+test('ppm', () => { eq(fmt.ppm(1850.4), '1.850' + NBSP + '€/m²'); eq(fmt.ppm(5519), '5.519' + NBSP + '€/m²'); eq(fmt.ppm(13.13), '13,1' + NBSP + '€/m²'); eq(fmt.ppm(13), '13' + NBSP + '€/m²'); eq(fmt.ppm(null), ''); });
+test('m2 / land', () => { eq(fmt.m2(46), '46' + NBSP + 'm²'); eq(fmt.m2(46.5), '46,5' + NBSP + 'm²'); eq(fmt.m2(1200), '1.200' + NBSP + 'm²'); eq(fmt.land(650), '6,5 ari'); eq(fmt.land(100), '1 ar'); eq(fmt.land(300), '3 ara'); eq(fmt.land(12000), '1,2 ha'); });
 test('pct', () => {
   eq(fmt.pct(9.66, { sign: true }), '+9,7' + THIN + '%'); eq(fmt.pct(-6.2, { sign: true }), MINUS + '6,2' + THIN + '%'); eq(fmt.pct(-6.2), MINUS + '6,2' + THIN + '%');
   eq(fmt.pct(0, { sign: true }), '±0,0' + THIN + '%'); eq(fmt.pct(0.04, { sign: true }), '±0,0' + THIN + '%'); eq(fmt.pct(9.66), '9,7' + THIN + '%'); eq(fmt.pct(12.345, { dec: 0 }), '12' + THIN + '%');
 });
 test('rel', () => { eq(fmt.rel(0), 'danas'); eq(fmt.rel(1), 'juče'); eq(fmt.rel(3), 'pre 3 dana'); eq(fmt.rel(7), 'pre nedelju dana'); eq(fmt.rel(14), 'pre 2 nedelje'); eq(fmt.rel(35), 'pre mesec dana'); eq(fmt.rel(90), 'pre 3 meseca'); eq(fmt.rel(150), 'pre 5 meseci'); eq(fmt.rel(400), 'pre godinu dana'); eq(fmt.rel(800), 'pre 2 godine'); });
 test('floor', () => { eq(fmt.floor(2, 10), '2. od 10'); eq(fmt.floor(0), 'Prizemlje'); eq(fmt.floor(0, 6), 'Prizemlje od 6'); eq(fmt.floor(-1, 6), 'Suteren od 6'); eq(fmt.floor(3), '3.'); eq(fmt.floor(null, 5), ''); });
-test('rooms', () => { eq(fmt.rooms(2), 'Dvosoban'); eq(fmt.rooms(0.5), 'Garsonjera'); eq(fmt.rooms(5), 'Petosoban i više'); eq(fmt.roomsN(2), '2'); eq(fmt.roomsN(1.5), '1,5'); eq(fmt.roomsN(5), '5+'); eq(fmt.roomsText(2), '2 sobe'); eq(fmt.roomsText(1.5), '1,5 soba'); eq(fmt.roomsText(1), '1 soba'); eq(fmt.roomsText(5), '5+ soba'); });
+test('rooms', () => { eq(fmt.rooms(2), 'Dvosoban'); eq(fmt.rooms(0.5), 'Garsonjera'); eq(fmt.rooms(5), 'Petosoban i više'); eq(fmt.roomsN(2), '2'); eq(fmt.roomsN(1.5), '1,5'); eq(fmt.roomsN(5), '5+'); eq(fmt.roomsText(2), '2 sobe'); eq(fmt.roomsText(1.5), '1,5 sobe'); eq(fmt.roomsText(3.5), '3,5 sobe'); eq(fmt.roomsText(1), '1 soba'); eq(fmt.roomsText(5), '5+ soba'); });
 test('plural / count / listings', () => { eq(fmt.listings(106), '106 oglasa'); eq(fmt.listings(1), '1 oglas'); eq(fmt.listings(3), '3 oglasa'); eq(fmt.listings(5), '5 oglasa'); eq(fmt.listings(21), '21 oglas'); eq(fmt.listings(11), '11 oglasa'); eq(fmt.count(2, 'agent', 'agenta', 'agenata'), '2 agenta'); });
 test('year / month / fold', () => { eq(fmt.year(2025), '2025.'); eq(fmt.month('2025-11'), 'nov ’25'); eq(fmt.fold('Čačak Đeram Žarkovo Šabac Ćuprija'), 'cacak djeram zarkovo sabac cuprija'); });
 
@@ -248,7 +249,7 @@ test('setHash / router.onChange (replace bez hashchange)', () => {
 });
 
 console.log('\nkredit i troškovi');
-test('mortgage 100.000 € / 5 % / 20 g ≈ 659,96', () => { const m = mortgage(100000, 5, 20); eq(m.monthly, 659.96); eq(m.n, 240); eq(m.total, 158390.4); eq(m.interest, 58390.4); eq(mortgage(12000, 0, 1).monthly, 1000); eq(fmt.price(m.monthly, 'izdavanje'), '660 €/mes'); });
+test('mortgage 100.000 € / 5 % / 20 g ≈ 659,96', () => { const m = mortgage(100000, 5, 20); eq(m.monthly, 659.96); eq(m.n, 240); eq(m.total, 158390.4); eq(m.interest, 58390.4); eq(mortgage(12000, 0, 1).monthly, 1000); eq(fmt.price(m.monthly, 'izdavanje'), '660' + NBSP + '€/mes'); });
 test('amortization', () => { const a = K.amortization(100000, 5, 20); eq(a.length, 240); eq(a[239].balance, 0); assert(a[0].interest > a[100].interest); });
 test('purchaseCosts', () => {
   const c = purchaseCosts(120000); eq(c.tax, 3000); eq(c.taxRate, 2.5); eq(c.agencyFee, 2400); eq(c.notary, 320); eq(c.total, 5720); eq(c.totalWithPrice, 125720);
@@ -289,7 +290,7 @@ test('toast', () => { const t = K.toast('Sačuvano', { action: { label: 'Pogleda
 test('hash/rng deterministični i nepromenjeni', () => { eq(K.hash('kvadrat'), K.hash('kvadrat')); eq(K.hash(''), 2166136261); const r = K.rng(42); const a = r(); assert(a >= 0 && a < 1); eq(K.rng(42)(), a); });
 test('konstante', () => { eq(K.TYPES.length, 7); eq(K.COND.novogradnja, 'Novogradnja'); eq(K.HEAT['ta-pec'], 'TA peć'); eq(K.AMEN.hasElevator, 'Lift'); eq(K.ROOMS[3][1], 'Dvosoban'); assert(K.CITIES_MAJOR.some((c) => c.s === 'beograd')); eq(K.SORTS[0].v, 'rel'); eq(K.find.city('nis').n, 'Niš'); eq(K.find.listing(D.listings[5].s), D.listings[5]); });
 test('legacy aliasi', () => {
-  eq(K.eur(125000), '125.000 €'); eq(K.m2(46), '46 m²'); eq(K.oglasa(3), 'oglasa'); eq(K.daysAgo(1), 'juče'); eq(K.nf.format(1234.6), '1.235'); assert(K.favs === K.store.favs);
+  eq(K.eur(125000), '125.000' + NBSP + '€'); eq(K.m2(46), '46' + NBSP + 'm²'); eq(K.oglasa(3), 'oglasa'); eq(K.daysAgo(1), 'juče'); eq(K.nf.format(1234.6), '1.235'); assert(K.favs === K.store.favs);
   eq(K.DEFAULTS.sort, 'preporuceno'); eq(K.F.t, 'prodaja'); eq(K.typeOf('kuca').l, 'Kuće'); eq(K.roomLabel(2), 'Dvosoban'); eq(K.floorLabel(2, 5), '2. / 5');
   /* heroArt/cityArt prosleđuju na img.* (ovde lažni img u kontekstu) */
   eq(K.heroArt(), ''); K.ctx.img = { hero: () => '<svg/>', city: (s) => 'data:c,' + s, article: (s) => 'data:a,' + s };

@@ -48,14 +48,14 @@ FNV-1a i mulberry32 — **nepromenjeni** u odnosu na stari core (images.js zavis
 | poziv | rezultat |
 |---|---|
 | `fmt.num(125000)` / `fmt.num(4.756, 2)` | `125.000` / `4,76` |
-| `fmt.price(125000)` / `fmt.price(450, 'izdavanje')` | `125.000 €` / `450 €/mes` (drugi arg = `l.t`; zaokružuje na ceo €) |
+| `fmt.price(125000)` / `fmt.price(450, 'izdavanje')` | `125.000 €` / `450 €/mes` (drugi arg = `l.t`; zaokružuje na ceo €). Između broja i jedinice je **NBSP** (U+00A0) u `price`, `ppm`, `m2`, pa jedinica ne prelazi sama u novi red; ne deli izlaz po `' '` |
 | `fmt.ppm(1850.4)` / `fmt.ppm(13.13)` | `1.850 €/m²` / `13,1 €/m²` (ceo broj za ≥ 100, jedna decimala ispod — kirije) |
 | `fmt.m2(46)` / `fmt.m2(46.5)` | `46 m²` / `46,5 m²` |
 | `fmt.land(650)` / `fmt.land(12000)` | `6,5 ari` / `1,2 ha` (ulaz u m²) |
-| `fmt.pct(9.66, {sign:true})` / `fmt.pct(-6.2)` / `fmt.pct(0, {sign:true})` | `+9,7 %` / `−6,2 %` / `±0,0 %` (`dec` opcija, podrazumevano 1) |
+| `fmt.pct(9.66, {sign:true})` / `fmt.pct(-6.2)` / `fmt.pct(0, {sign:true})` | `+9,7 %` / `−6,2 %` / `±0,0 %` (`dec` opcija, podrazumevano 1; pre `%` je uski neprelomni razmak `THIN` = U+202F) |
 | `fmt.rel(0/1/3/14/90/400)` | `danas` / `juče` / `pre 3 dana` / `pre 2 nedelje` / `pre 3 meseca` / `pre godinu dana` |
 | `fmt.floor(2, 10)` / `fmt.floor(0, 6)` / `fmt.floor(-1)` | `2. od 10` / `Prizemlje od 6` / `Suteren` |
-| `fmt.rooms(2)` / `fmt.roomsN(1.5)` / `fmt.roomsN(5)` / `fmt.roomsText(1.5)` | `Dvosoban` / `1,5` / `5+` / `1,5 soba` (`2 sobe`, `1 soba`, `5+ soba`) |
+| `fmt.rooms(2)` / `fmt.roomsN(1.5)` / `fmt.roomsN(5)` / `fmt.roomsText(1.5)` | `Dvosoban` / `1,5` / `5+` / `1,5 sobe` (decimalni broj → genitiv jednine: `2,5 sobe`; `2 sobe`, `1 soba`, `5+ soba`) |
 | `fmt.year(2025)` | `2025.` |
 | `fmt.count(n, 'oglas','oglasa','oglasa')` / `fmt.listings(106)` | `106 oglasa` (`1 oglas`, `21 oglas`, `11 oglasa`) |
 | `fmt.plural(n, a, b, c)` | srpska množina (1→a, 2–4→b, 5+→c, 11–14→c) |

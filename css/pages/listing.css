@@ -211,6 +211,7 @@ button.lst-payer .ico{width:12px;height:12px}
 .lst-total{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:16px 0 4px}
 .lst-total span{font-size:14px;font-weight:600;color:var(--text)}
 .lst-total b{font-family:var(--f-display);font-variation-settings:var(--soft);font-size:var(--fs-price);font-weight:500;color:var(--ink);letter-spacing:-.01em;white-space:nowrap}
+.lst-total.neg b{color:var(--success-ink)}
 .lst-split{margin-top:6px}
 .lst-split b{color:var(--ink);font-weight:600}
 .lst-refbar{margin-top:10px}

@@ -164,7 +164,7 @@ KX.parseQuery('dvosoban vracar do 150k uknjizen')
 `advertiser:'vlasnik'`, `q` (unparsed words joined — core matches them against title/place/ref/agency). A naselje sets `n` and
 its `m`; a mun sets `m` and `c`; a city sets `c`. Feed it straight to `setHash('/pretraga', filtersToParams({...FILTER_DEFAULTS, ...filters}))`.
 Grammar (diacritic-insensitive, `đ→dj`): cities/muns/naselja incl. aliases (`bg`, `ns`, `nbg`, `blok 45`), ambiguous names →
-chip `Centar (Čačak)` + `ili: …`; struktura words and `2 sobe`/`2.5`; `do|ispod|max 150k|150.000|1.500.000|150 hiljada`, `od|preko|min`,
+chip `Centar (Čačak)` + `ili: …` (same name in the same city → the kind disambiguates: `Grbavica (opština, Novi Sad)` + `ili: Grbavica (naselje, Novi Sad)`); struktura words and `2 sobe`/`2.5`; `do|ispod|max 150k|150.000|1.500.000|150 hiljada`, `od|preko|min`,
 ranges `120-150k` / `od 50 do 80 m2`; `m2|m²|kvadrata`; bare `60 m2` → ±10 %; bare number ≥ 10.000 → pmax; flags `uknjizen`,
 `novogradnja`, `renoviran`, `lux`, `u izgradnji`, heating `cg|eg|ta|gas|podno`, `namesten|polunamesten|prazan`, amenities
 (`lift terasa balkon parking garaza klima ljubimci pas …`), `vlasnik|od vlasnika|bez provizije` → `advertiser:'vlasnik'`,
@@ -181,7 +181,7 @@ live) — use it for the live counts beside every rail option. `null`/`undefined
 
 ## `KX.relax(filters)` → `[{label, filters, count}]`, count desc, max 5
 Input is a FILTER_DEFAULTS-shaped filter; scalar values for array fields (`{ro:'2', m:'vracar'}`) are normalised to arrays. Tries removing each active filter (`Ukloni filter Lift`), widening price/area by
-20 % (`Cena do 180.000 € (+20 %)`), ±0,5 rooms, naselje → opština, floor +2, year −10; if no single change yields results it
+20 % (`Cena do 180.000 € (+20 %)`), ±0,5 rooms, naselje → opština, opština → `Proširi na ceo grad (Beograd)`, floor +2, year −10. While an opština/naselje is active, the city is never dropped silently: the `c` candidate is skipped when widening to the city already has results, else it reads `Ukloni lokaciju (Beograd, Vračar)`; if no single change yields results it
 tries pairs (`Ukloni filtere Opština i Cena do`), then „Zadrži samo lokaciju”, then „Ukloni sve filtere”. Each row's `filters`
 is ready for `setHash`.
 

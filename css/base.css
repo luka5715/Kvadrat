@@ -101,11 +101,13 @@ main,#main{display:block;min-height:50vh}
 .ftr .wordmark .mark{width:16px;height:16px;position:relative;background:var(--ink);border-radius:2px}
 .ftr .wordmark .mark::after{content:"";position:absolute;top:-3px;right:-3px;width:7px;height:7px;background:var(--accent);border:2px solid var(--bg)}
 .ftr .tagline{margin-top:10px;max-width:34ch;line-height:1.5}
-.ftr h4{font-size:var(--fs-label);font-weight:600;letter-spacing:var(--ls-label);text-transform:uppercase;color:var(--muted);margin-bottom:12px}
-.ftr-col a{display:block;padding:5px 0;color:var(--text)}
+.ftr h4{font-size:var(--fs-label);font-weight:600;letter-spacing:var(--ls-label);text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+/* veze u podnožju: dodirna površina 40px (do-not #11); ritam kolone ostaje gust jer nema dodatnog razmaka */
+.ftr-col a{display:flex;align-items:center;min-height:40px;padding:0;color:var(--text)}
 .ftr-col a:hover{color:var(--accent)}
-.ftr-bot{display:flex;justify-content:space-between;gap:12px 24px;flex-wrap:wrap;margin-top:36px;padding-top:18px;border-top:1px solid var(--border)}
-.ftr-bot nav{display:flex;gap:18px;flex-wrap:wrap}
+.ftr-bot{display:flex;justify-content:space-between;align-items:center;gap:4px 24px;flex-wrap:wrap;margin-top:36px;padding-top:8px;border-top:1px solid var(--border)}
+.ftr-bot nav{display:flex;align-items:center;gap:0 18px;flex-wrap:wrap}
+.ftr-bot nav a,.ftr .wordmark{display:inline-flex;align-items:center;min-height:40px}
 @media (max-width:860px){.ftr-top{grid-template-columns:repeat(2,minmax(0,1fr))}.ftr-top>.ftr-brand{grid-column:1/-1}.ftr{padding-bottom:calc(48px + var(--bottom-nav-h) + env(safe-area-inset-bottom,0px))}}
 @media (max-width:600px){.ftr-top{grid-template-columns:1fr;gap:28px}}
 
